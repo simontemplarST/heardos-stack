@@ -1,0 +1,40 @@
+# Family dashboard: one small Node container built on the host from apps/dash. Reads Mealie, Homebox and Actual over their
+# APIs (container names on the proxy network); each source is optional and shows "not configured" without its token.
+# 50-app.sh builds the image (docker build apps/dash -> heardos-dash:local) before deploying, so Portainer never needs a build context.
+services:
+  dash:
+    image: heardos-dash:local
+    container_name: dash
+    restart: unless-stopped
+    environment:
+      TZ: "${TZ}"
+      CACHE_SECONDS: "180"
+      MEALIE_URL: http://mealie:9000
+      MEALIE_PUBLIC_URL: "${MEALIE_PUBLIC_URL}"
+      MEALIE_TOKEN: "${MEALIE_TOKEN}"
+      HOMEBOX_URL: http://homebox:7745
+      HOMEBOX_PUBLIC_URL: "${HOMEBOX_PUBLIC_URL}"
+      HOMEBOX_API_KEY: "${HOMEBOX_API_KEY}"
+      ACTUAL_URL: http://actual:5006
+      ACTUAL_PUBLIC_URL: "${ACTUAL_PUBLIC_URL}"
+      ACTUAL_SYNC_ID: "${ACTUAL_SYNC_ID}"
+      ACTUAL_PASSWORD: "${ACTUAL_PASSWORD}"
+    volumes: ["${HEARDOS_ROOT}/data/dash:/data"]
+    networks: [proxy]
+    labels:
+      traefik.enable: "true"
+      traefik.http.routers.dash-outpost.rule: Host(`dash.${DOMAIN}`) && PathPrefix(`/outpost.goauthentik.io/`)
+      traefik.http.routers.dash-outpost.entrypoints: web
+      traefik.http.routers.dash-outpost.priority: "100"
+      traefik.http.routers.dash-outpost.service: authentik-outpost@file
+      traefik.http.routers.dash-outpost.middlewares: xfp-https@file
+      traefik.http.routers.dash.rule: Host(`dash.${DOMAIN}`)
+      traefik.http.routers.dash.entrypoints: web
+      traefik.http.routers.dash.middlewares: xfp-https@file,authentik-fwd@file
+      traefik.http.routers.dash.service: dash
+      traefik.http.routers.dash-lan.rule: Host(`dash.${LAN_DOMAIN}`)
+      traefik.http.routers.dash-lan.entrypoints: web
+      traefik.http.routers.dash-lan.service: dash
+      traefik.http.services.dash.loadbalancer.server.port: "8080"
+networks:
+  proxy: {external: true}

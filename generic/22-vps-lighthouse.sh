@@ -6,29 +6,12 @@
 : "${NEBULA_LH_IP:?set NEBULA_LH_IP}"
 CA="$HOME/.config/nebula-ca"; [ -f "$CA/out/lighthouse/config.yml" ] || die "run 20-nebula-ca.sh init first"
 
-msg "waiting for ssh on root@$NEBULA_LH_IP"
-until lh true 2>/dev/null; do sleep 5; done
-lh 'command -v cloud-init >/dev/null && cloud-init status --wait >/dev/null 2>&1; true'
+msg "waiting for ssh on root@$NEBULA_LH_IP (up to 10 minutes)"
+wait_ssh 600 || die "the VPS did not accept ssh within 10 minutes; check the IP and that your key is on root"
+for i in 1 2 3 4 5; do lh 'command -v cloud-init >/dev/null && cloud-init status --wait >/dev/null 2>&1; true' && break; sleep 10; done
 
-msg "base hardening"
-lh 'export DEBIAN_FRONTEND=noninteractive
-apt-get -qq update && apt-get -qq install -y ufw fail2ban unattended-upgrades curl >/dev/null
-cat > /etc/ssh/sshd_config.d/00-hardening.conf <<EOF
-PasswordAuthentication no
-KbdInteractiveAuthentication no
-PermitRootLogin prohibit-password
-X11Forwarding no
-MaxAuthTries 3
-LoginGraceTime 30
-EOF
-sshd -t && systemctl reload ssh
-printf "[sshd]\nenabled = true\nmaxretry = 4\nbantime = 1h\nfindtime = 10m\n" > /etc/fail2ban/jail.d/sshd.local; systemctl enable --now fail2ban >/dev/null
-systemctl disable --now avahi-daemon.socket avahi-daemon.service >/dev/null 2>&1 || true
-printf "APT::Periodic::Update-Package-Lists \"1\";\nAPT::Periodic::Unattended-Upgrade \"1\";\n" > /etc/apt/apt.conf.d/20auto-upgrades
-printf "net.core.default_qdisc = fq\nnet.ipv4.tcp_congestion_control = bbr\nnet.core.rmem_max = 16777216\nnet.core.wmem_max = 16777216\nnet.core.rmem_default = 1048576\nnet.core.wmem_default = 1048576\nnet.ipv4.tcp_rmem = 4096 131072 16777216\nnet.ipv4.tcp_wmem = 4096 131072 16777216\nnet.ipv4.tcp_mtu_probing = 1\nnet.ipv4.tcp_slow_start_after_idle = 0\nnet.ipv4.tcp_notsent_lowat = 16384\nnet.core.netdev_max_backlog = 5000\n" > /etc/sysctl.d/91-heardos-net.conf; modprobe tcp_bbr 2>/dev/null || true; sysctl -q -p /etc/sysctl.d/91-heardos-net.conf
-ufw --force reset >/dev/null; ufw default deny incoming >/dev/null; ufw default allow outgoing >/dev/null
-ufw allow 22/tcp >/dev/null; ufw allow 4242/udp >/dev/null; ufw --force enable >/dev/null
-sshd -T | grep -E "^(passwordauthentication|permitrootlogin)"'
+msg "base hardening (vps/harden.sh)"
+lh 'bash -s' < "$HERE/vps/harden.sh"
 
 msg "nebula lighthouse"
 "$HERE/21-nebula-node.sh" lighthouse "root@$NEBULA_LH_IP"

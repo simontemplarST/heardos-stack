@@ -4,6 +4,7 @@
   proxy SLUG --name "Baikal admin" --host https://dav.DOMAIN [--skip REGEX ...] [--users a,b]
   user  add USERNAME --email E --name N [--password P]      create a family member
   user  access USERNAME SLUG[,SLUG...]                      add them to those apps' groups
+  user  list | join/leave USERNAME GROUP[,..] | welcome USERNAME | suspend/resume USERNAME
   user  revoke USERNAME SLUG[,SLUG...]
 oidc prints CLIENT_ID/CLIENT_SECRET (and appends them to --out as AUTHENTIK_<SLUG>_CLIENT_ID/SECRET). Idempotent: existing objects are reused."""
 import argparse, os, secrets, sys
@@ -73,6 +74,33 @@ def cmd_user(a):
             pw = a.password or secrets.token_urlsafe(16) + "!"
             ak.post(f"/core/users/{u['pk']}/set_password/", {"password": pw}); print(f"user {a.username} created, password: {pw}")
         else: print(f"user {a.username} exists")
+    elif a.action == "list":   # JSON for the installer's People screen
+        import json
+        groups = {g["pk"]: g["name"] for g in ak.results("/core/groups/")}
+        rows = []
+        for u in ak.results("/core/users/?type=internal"):
+            if u["username"] == "akadmin":
+                continue
+            names = [groups.get(g, "") for g in u.get("groups", [])]
+            rows.append({"username": u["username"], "name": u["name"], "email": u["email"], "active": u["is_active"],
+                         "apps": sorted(n[4:] for n in names if n.startswith("app-")),
+                         "flows": sorted(n for n in names if n.startswith("flow-")), "admin": "authentik Admins" in names,
+                         "last_login": u.get("last_login")})
+        print("HEARDOS_JSON " + json.dumps(rows))
+    elif a.action in ("join", "leave"):   # any group by name (flow-* rules, authentik Admins)
+        u = ak.user(a.username) or sys.exit(f"no such user {a.username}")
+        for name in a.slugs.split(","):
+            g = ak.group(name.strip()) or sys.exit(f"no group {name}")
+            ak.post(f"/core/groups/{g['pk']}/{'add_user' if a.action == 'join' else 'remove_user'}/", {"pk": u["pk"]})
+            print(f"{a.username} {'joined' if a.action == 'join' else 'left'} {g['name']}")
+    elif a.action == "welcome":   # email a set-your-password link (needs mail + the recovery flow from recovery-flow.py)
+        u = ak.user(a.username) or sys.exit(f"no such user {a.username}")
+        st = ak.one("/stages/email/", name="default-recovery-email") or sys.exit("no recovery email stage; run authentik/recovery-flow.py")
+        ak.call("POST", f"/core/users/{u['pk']}/recovery_email/?email_stage={st['pk']}")
+        print(f"set-password email sent to {u['email']}")
+    elif a.action in ("suspend", "resume"):
+        u = ak.user(a.username) or sys.exit(f"no such user {a.username}")
+        ak.patch(f"/core/users/{u['pk']}/", {"is_active": a.action == "resume"}); print(f"{a.username} {a.action}d")
     else:
         u = ak.user(a.username) or sys.exit(f"no such user {a.username}")
         for slug in a.slugs.split(","):
@@ -83,5 +111,5 @@ def cmd_user(a):
 p = argparse.ArgumentParser(); sub = p.add_subparsers(dest="cmd", required=True)
 o = sub.add_parser("oidc"); o.add_argument("slug"); o.add_argument("--name"); o.add_argument("--launch"); o.add_argument("--redirect", action="append", required=True); o.add_argument("--users"); o.add_argument("--out"); o.add_argument("--public", action="store_true", help="public PKCE client (needed when a native app does the code exchange itself, e.g. Swift Paperless); the web app may still send its secret"); o.set_defaults(f=cmd_oidc)
 x = sub.add_parser("proxy"); x.add_argument("slug"); x.add_argument("--name"); x.add_argument("--host", required=True); x.add_argument("--skip", action="append"); x.add_argument("--launch"); x.add_argument("--users"); x.set_defaults(f=cmd_proxy)
-u = sub.add_parser("user"); u.add_argument("action", choices=["add", "access", "revoke"]); u.add_argument("username"); u.add_argument("slugs", nargs="?"); u.add_argument("--email"); u.add_argument("--name"); u.add_argument("--password"); u.set_defaults(f=cmd_user)
+u = sub.add_parser("user"); u.add_argument("action", choices=["add", "access", "revoke", "list", "join", "leave", "welcome", "suspend", "resume"]); u.add_argument("username", nargs="?", default=""); u.add_argument("slugs", nargs="?"); u.add_argument("--email"); u.add_argument("--name"); u.add_argument("--password"); u.set_defaults(f=cmd_user)
 a = p.parse_args(); a.f(a)

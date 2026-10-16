@@ -1,0 +1,35 @@
+# Vaultwarden (Bitwarden-compatible). SSO only via Authentik OIDC; password sign-up and password login are off.
+# Accounts are created on first Authentik login; the Authentik group app-vaultwarden decides who may log in.
+services:
+  vaultwarden:
+    image: vaultwarden/server:latest
+    container_name: vaultwarden
+    restart: unless-stopped
+    environment:
+      DOMAIN: "https://vault.${DOMAIN}"
+      SIGNUPS_ALLOWED: "false"
+      SIGNUPS_VERIFY: "false"
+      SSO_ENABLED: "true"
+      SSO_ONLY: "true"
+      SSO_SIGNUPS_ALLOWED: "true"
+      SSO_SIGNUPS_MATCH_EMAIL: "true"
+      SSO_AUTHORITY: "https://auth.${DOMAIN}/application/o/vaultwarden/"
+      SSO_SCOPES: "profile email offline_access"
+      SSO_CLIENT_ID: "${OIDC_CLIENT_ID}"
+      SSO_CLIENT_SECRET: "${OIDC_CLIENT_SECRET}"
+      SSO_CLIENT_CACHE_EXPIRATION: "600"
+      ADMIN_TOKEN: "${VAULTWARDEN_ADMIN_TOKEN}"
+      IP_HEADER: "X-Forwarded-For"
+      LOG_LEVEL: info
+    volumes: ["${HEARDOS_ROOT}/data/vaultwarden:/data"]
+    networks: [proxy]
+    labels:
+      traefik.enable: "true"
+      traefik.http.routers.vault.rule: Host(`vault.${DOMAIN}`)
+      traefik.http.routers.vault.entrypoints: web
+      traefik.http.routers.vault.middlewares: xfp-https@file
+      traefik.http.routers.vault-lan.rule: Host(`vault.${LAN_DOMAIN}`)
+      traefik.http.routers.vault-lan.entrypoints: web
+      traefik.http.services.vault.loadbalancer.server.port: "80"
+networks:
+  proxy: {external: true}
