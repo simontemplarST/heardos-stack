@@ -1,0 +1,11 @@
+{% load i18n %}{% load humanize %}{% autoescape off %}You are invited to HeardOS.
+
+Someone in the family set up a place for you on HeardOS at {{ host }}. Accept the invitation to create your account and pick a password:
+
+{{ url }}
+{% if expires %}
+This invitation expires {{ expires|naturaltime }}.
+{% endif %}
+-- 
+HeardOS · family sign-in · https://auth.example.com/if/user/
+{% endautoescape %}

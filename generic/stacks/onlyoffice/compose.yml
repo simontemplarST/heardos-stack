@@ -1,0 +1,33 @@
+# ONLYOFFICE Document Server. No users of its own: every API call is signed with the JWT secret shared with the docs stack.
+# The editor's static assets must be reachable by browsers, so the public router carries no forward auth. Needs ~2 GB RAM.
+services:
+  onlyoffice:
+    image: onlyoffice/documentserver:${ONLYOFFICE_VERSION:-9.3}
+    container_name: onlyoffice
+    restart: unless-stopped
+    stop_grace_period: 60s
+    environment:
+      TZ: "${TZ}"
+      JWT_ENABLED: "true"
+      JWT_SECRET: "${ONLYOFFICE_JWT_SECRET}"
+      JWT_HEADER: Authorization
+      JWT_IN_BODY: "true"
+      ALLOW_PRIVATE_IP_ADDRESS: "true"      # docs is reached on a private address
+      ALLOW_META_IP_ADDRESS: "true"
+      ONLYOFFICE_HTTPS_HSTS_ENABLED: "false"
+    volumes:
+      - ${HEARDOS_ROOT}/data/onlyoffice/data:/var/www/onlyoffice/Data
+      - ${HEARDOS_ROOT}/data/onlyoffice/logs:/var/log/onlyoffice
+      - ${HEARDOS_ROOT}/data/onlyoffice/lib:/var/lib/onlyoffice
+      - ${HEARDOS_ROOT}/data/onlyoffice/db:/var/lib/postgresql
+    networks: [proxy]
+    labels:
+      traefik.enable: "true"
+      traefik.http.routers.office.rule: Host(`office.${DOMAIN}`)
+      traefik.http.routers.office.entrypoints: web
+      traefik.http.routers.office.middlewares: xfp-https@file
+      traefik.http.routers.office-lan.rule: Host(`office.${LAN_DOMAIN}`)
+      traefik.http.routers.office-lan.entrypoints: web
+      traefik.http.services.office.loadbalancer.server.port: "80"
+networks:
+  proxy: {external: true}

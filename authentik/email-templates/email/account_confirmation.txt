@@ -1,0 +1,11 @@
+{% load i18n %}{% autoescape off %}Welcome to HeardOS{% if user and user.name %}, {{ user.name }}{% endif %}.
+
+Your account is ready. Confirm your email address and you can sign in to everything the family shares:
+
+{{ url }}
+
+Did not expect this? Nothing happens until the link is used, so you can ignore it.
+
+-- 
+HeardOS · family sign-in · https://auth.example.com/if/user/
+{% endautoescape %}

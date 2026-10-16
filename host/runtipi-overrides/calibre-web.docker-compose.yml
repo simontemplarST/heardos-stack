@@ -1,0 +1,9 @@
+# Local override (2026-10-14): calibre binaries (ebook-convert/calibredb) via the linuxserver docker mod,
+# and the same LAN-route header hygiene as navidrome (local-sso.yml strip-authentik middleware).
+services:
+  calibre-web:
+    environment:
+      DOCKER_MODS: linuxserver/mods:universal-calibre
+    labels:
+      traefik.http.routers.calibre-web-migrated-local-insecure.middlewares: noop@file,strip-authentik@file
+      traefik.http.routers.calibre-web-migrated-local.middlewares: strip-authentik@file

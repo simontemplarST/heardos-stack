@@ -1,0 +1,93 @@
+# example.com public ingress (2026-10-11): TLS here, then over the Nebula overlay to Traefik on runtipi (10.42.0.11).
+{
+	email admin@example.net
+}
+
+photos.example.com,
+docs.example.com,
+office.example.com,
+auth.example.com,
+paperless.example.com,
+mealie.example.com,
+home.example.com,
+homebox.example.com,
+dav.example.com,
+music.example.com,
+cron.example.com,
+vault.example.com,
+wallos.example.com,
+budget.example.com,
+tube.example.com,
+books.example.com,
+hub.example.com,
+speed.example.com,
+dash.example.com {
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options nosniff
+		Referrer-Policy strict-origin-when-cross-origin
+		-Server
+	}
+	encode zstd gzip
+	reverse_proxy 10.42.0.11:80 {
+		header_up X-Forwarded-Proto https
+		header_up X-Forwarded-Port 443
+		# 2026-10-11 reliability tuning: retry briefly on a tunnel hiccup instead of answering 502; keep upstream connections warm
+		lb_try_duration 15s
+		lb_try_interval 500ms
+		transport http {
+			dial_timeout 10s
+			response_header_timeout 120s
+			keepalive 2m
+			keepalive_idle_conns 32
+		}
+	}
+	request_body {
+		max_size 0
+	}
+}
+
+# cloud.example.com (2026-10-14): one front door for every app behind Authentik.
+# https://cloud.example.com/<authentik-app-slug>[/path] -> 302 to the app's real host (aliases = the public subdomain names).
+# "/" and unknown slugs -> the Authentik "My applications" library. Pure redirects: no overlay hop, no auth needed here.
+cloud.example.com {
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options nosniff
+		Referrer-Policy strict-origin-when-cross-origin
+		-Server
+	}
+	map {uri} {dest} {
+		~^/(?:actual-budget|budget)(/[^?]*)?(\?.*)?$ "https://budget.example.com${1}${2}"
+		~^/(?:baikal|dav)/?(\?.*)?$ "https://dav.example.com/admin/${1}"
+		~^/(?:baikal|dav)(/[^?]*)?(\?.*)?$ "https://dav.example.com${1}${2}"
+		~^/(?:cronmaster|cron)(/[^?]*)?(\?.*)?$ "https://cron.example.com${1}${2}"
+		~^/dash(/[^?]*)?(\?.*)?$ "https://dash.example.com${1}${2}"
+		~^/(?:home-assistant|home)(/[^?]*)?(\?.*)?$ "https://home.example.com${1}${2}"
+		~^/homebox(/[^?]*)?(\?.*)?$ "https://homebox.example.com${1}${2}"
+		~^/hub(/[^?]*)?(\?.*)?$ "https://hub.example.com${1}${2}"
+		~^/(?:immich|photos)(/[^?]*)?(\?.*)?$ "https://photos.example.com${1}${2}"
+		~^/(?:invidious|tube)(/[^?]*)?(\?.*)?$ "https://tube.example.com${1}${2}"
+		~^/(?:calibre-web|books)(/[^?]*)?(\?.*)?$ "https://books.example.com${1}${2}"
+		~^/mealie(/[^?]*)?(\?.*)?$ "https://mealie.example.com${1}${2}"
+		~^/(?:navidrome|music)(/[^?]*)?(\?.*)?$ "https://music.example.com${1}${2}"
+		~^/(?:nextcloud|docs)(/[^?]*)?(\?.*)?$ "https://docs.example.com${1}${2}"
+		~^/paperless(/[^?]*)?(\?.*)?$ "https://paperless.example.com${1}${2}"
+		~^/(?:vaultwarden|vault)(/[^?]*)?(\?.*)?$ "https://vault.example.com${1}${2}"
+		~^/wallos(/[^?]*)?(\?.*)?$ "https://wallos.example.com${1}${2}"
+		~^/auth(/[^?]*)?(\?.*)?$ "https://auth.example.com${1}${2}"
+		# LAN-only targets (same as their Authentik launch URLs today)
+		~^/proxmox(/[^?]*)?(\?.*)?$ "https://prox.lan:8006${1}${2}"
+		~^/runtipi(/[^?]*)?(\?.*)?$ "http://192.168.10.20${1}${2}"
+		default "https://auth.example.com/if/user/"
+	}
+	# brand assets for emails etc. (2026-10-15): https://cloud.example.com/brand/<file>, served before the redirect map
+	handle_path /brand/* {
+		root * /srv/heardos-brand
+		header Cache-Control "public, max-age=86400"
+		file_server
+	}
+	handle {
+		redir {dest} 302
+	}
+}

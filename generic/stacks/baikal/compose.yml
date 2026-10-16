@@ -1,0 +1,28 @@
+# Baïkal CalDAV/CardDAV. Web UI gated by Authentik forward auth; DAV paths bypass it (clients use Basic auth over TLS).
+services:
+  baikal:
+    image: ckulka/baikal:nginx
+    container_name: baikal
+    restart: unless-stopped
+    environment: {TZ: "${TZ}"}
+    volumes:
+      - ${HEARDOS_ROOT}/data/baikal/config:/var/www/baikal/config
+      - ${HEARDOS_ROOT}/data/baikal/specific:/var/www/baikal/Specific
+    networks: [proxy]
+    labels:
+      traefik.enable: "true"
+      traefik.http.routers.dav-outpost.rule: Host(`dav.${DOMAIN}`) && PathPrefix(`/outpost.goauthentik.io/`)
+      traefik.http.routers.dav-outpost.entrypoints: web
+      traefik.http.routers.dav-outpost.priority: "100"
+      traefik.http.routers.dav-outpost.service: authentik-outpost@file
+      traefik.http.routers.dav-outpost.middlewares: xfp-https@file
+      traefik.http.routers.dav.rule: Host(`dav.${DOMAIN}`)
+      traefik.http.routers.dav.entrypoints: web
+      traefik.http.routers.dav.middlewares: xfp-https@file,authentik-fwd@file
+      traefik.http.routers.dav.service: dav
+      traefik.http.routers.dav-lan.rule: Host(`dav.${LAN_DOMAIN}`)
+      traefik.http.routers.dav-lan.entrypoints: web
+      traefik.http.routers.dav-lan.service: dav
+      traefik.http.services.dav.loadbalancer.server.port: "80"
+networks:
+  proxy: {external: true}

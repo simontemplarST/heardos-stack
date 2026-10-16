@@ -1,0 +1,57 @@
+# Immich: server, machine learning, PostgreSQL (vectorchord), Valkey. Native OIDC configured by lib/immich-setup.py.
+services:
+  immich-server:
+    image: ghcr.io/immich-app/immich-server:${IMMICH_VERSION:-release}
+    container_name: immich-server
+    restart: unless-stopped
+    # Cap at ~half the host's cores: ffmpeg transcodes ignore the job-concurrency settings and will otherwise
+    # starve Authentik/Traefik (2026-10-11 incident: one transcode at 330% CPU took the SSO login down).
+    cpus: ${IMMICH_SERVER_CPUS:-2.0}
+    environment:
+      TZ: "${TZ}"
+      DB_HOSTNAME: database
+      DB_USERNAME: postgres
+      DB_PASSWORD: "${IMMICH_DB_PASSWORD}"
+      DB_DATABASE_NAME: immich
+      REDIS_HOSTNAME: redis
+    volumes:
+      - ${HEARDOS_ROOT}/media/photos:/data
+      - /etc/localtime:/etc/localtime:ro
+    ports: ["${HOST_LAN_IP}:2283:2283"]       # LAN uploads bypass the edge entirely
+    depends_on: [redis, database]
+    networks: [internal, proxy]
+    healthcheck: {disable: false}
+    labels:
+      traefik.enable: "true"
+      traefik.docker.network: proxy
+      traefik.http.routers.photos.rule: Host(`photos.${DOMAIN}`)
+      traefik.http.routers.photos.entrypoints: web
+      traefik.http.routers.photos.middlewares: xfp-https@file
+      traefik.http.routers.photos-lan.rule: Host(`photos.${LAN_DOMAIN}`)
+      traefik.http.routers.photos-lan.entrypoints: web
+      traefik.http.services.photos.loadbalancer.server.port: "2283"
+  immich-machine-learning:
+    image: ghcr.io/immich-app/immich-machine-learning:${IMMICH_VERSION:-release}
+    restart: unless-stopped
+    cpus: ${IMMICH_ML_CPUS:-1.0}
+    volumes: ["${HEARDOS_ROOT}/data/immich/model-cache:/cache"]
+    networks: [internal]
+  redis:
+    image: docker.io/valkey/valkey:8-bookworm
+    restart: unless-stopped
+    healthcheck: {test: redis-cli ping || exit 1}
+    networks: [internal]
+  database:
+    image: ghcr.io/immich-app/postgres:14-vectorchord0.4.3-pgvectors0.2.0
+    restart: unless-stopped
+    environment:
+      POSTGRES_PASSWORD: "${IMMICH_DB_PASSWORD}"
+      POSTGRES_USER: postgres
+      POSTGRES_DB: immich
+      POSTGRES_INITDB_ARGS: '--data-checksums'
+    volumes: ["${HEARDOS_ROOT}/data/immich/postgres:/var/lib/postgresql/data"]
+    shm_size: 128mb
+    networks: [internal]
+networks:
+  internal: {}
+  proxy: {external: true}

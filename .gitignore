@@ -1,0 +1,17 @@
+# never commit secrets or local state
+credentials.env
+*.env
+!*.env.example
+!apps/actual-to-wallos/actual-to-wallos.env
+secrets/
+*.key
+*.pem
+*.crt
+*.bak*
+*.before-*.json
+
+# build / runtime noise
+__pycache__/
+*.pyc
+node_modules/
+.DS_Store

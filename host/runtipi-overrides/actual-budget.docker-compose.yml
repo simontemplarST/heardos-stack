@@ -1,0 +1,14 @@
+# Local override (2026-10-12): Authentik OpenID login. The auth method itself is bootstrapped once via
+# POST /account/bootstrap {openId:{...}} (same values); env keeps it enforced + auto-creates users on first login.
+# First OpenID login (alice) becomes owner/ADMIN; Authentik group app-actual-budget gates who can log in.
+services:
+  actual-budget:
+    environment:
+      ACTUAL_OPENID_DISCOVERY_URL: "https://auth.example.com/application/o/actual-budget/.well-known/openid-configuration"
+      ACTUAL_OPENID_CLIENT_ID: "<OIDC_CLIENT_ID>"
+      ACTUAL_OPENID_CLIENT_SECRET: "REDACTED"
+      ACTUAL_OPENID_SERVER_HOSTNAME: "https://budget.example.com"
+      ACTUAL_OPENID_ENFORCE: "true"
+      ACTUAL_LOGIN_METHOD: "openid"
+      ACTUAL_USER_CREATION_MODE: "login"
+      ACTUAL_TRUSTED_PROXIES: "172.16.0.0/12,10.42.0.1"

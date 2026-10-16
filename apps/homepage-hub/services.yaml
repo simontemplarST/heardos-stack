@@ -1,0 +1,58 @@
+# Tiles for the family. Icons come from dashboard-icons (loaded by the browser). Keep names in plain words.
+- Everyday:
+    - Photos:
+        icon: immich.png
+        href: https://cloud.example.com/immich
+        description: Our pictures and videos
+    - Recipes & meal plan:
+        icon: mealie.png
+        href: https://cloud.example.com/mealie
+        description: Recipes, shopping list, dinner plan
+    - Documents:
+        icon: nextcloud.png
+        href: https://cloud.example.com/nextcloud
+        description: Family files, Word and Excel in the browser
+    - Music:
+        icon: navidrome.png
+        href: https://cloud.example.com/navidrome
+        description: Our music library
+    - Books:
+        icon: calibre-web.png
+        href: https://cloud.example.com/calibre-web
+        description: Our ebook library (read in the browser or download)
+    - Videos:
+        icon: invidious.png
+        href: https://cloud.example.com/invidious
+        description: YouTube without ads or tracking
+    - Passwords:
+        icon: vaultwarden.png
+        href: https://cloud.example.com/vaultwarden
+        description: Password vault (Bitwarden apps)
+
+- House & paperwork:
+    - Home controls:
+        icon: home-assistant.png
+        href: https://cloud.example.com/home-assistant
+        description: Lights, TV, house automations
+    - Paperwork:
+        icon: paperless-ngx.png
+        href: https://cloud.example.com/paperless
+        description: Scanned mail, bills, receipts
+    - Where is it?:
+        icon: homebox.png
+        href: https://cloud.example.com/homebox
+        description: What we own and where it lives
+    - Subscriptions:
+        icon: wallos.png
+        href: https://cloud.example.com/wallos
+        description: Recurring bills and renewals
+
+- Account:
+    - My account:
+        icon: authentik.png
+        href: https://cloud.example.com/auth/if/user/
+        description: Change password, add a passkey, sign out
+    - Calendar help:
+        icon: baikal.png
+        href: https://cloud.example.com/baikal
+        description: Calendars sync to your phone automatically; this is only for setup

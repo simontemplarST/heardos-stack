@@ -1,0 +1,7 @@
+{% load i18n %}{% autoescape off %}HeardOS mail is working.
+
+This test confirms that HeardOS can send email. Password resets, sign-in codes, invitations and notifications will arrive from this address.
+
+-- 
+HeardOS · family sign-in · https://auth.example.com/if/user/
+{% endautoescape %}

@@ -1,0 +1,60 @@
+# Nextcloud: the document workspace (web editing through the onlyoffice stack, OIDC login via Authentik,
+# shared folders and the Paperless inbox/archive as external storage). Replaces a plain file browser.
+services:
+  nextcloud:
+    image: nextcloud:35-apache
+    container_name: nextcloud
+    restart: unless-stopped
+    environment:
+      POSTGRES_HOST: db
+      POSTGRES_DB: nextcloud
+      POSTGRES_USER: nextcloud
+      POSTGRES_PASSWORD: "${NEXTCLOUD_DB_PASSWORD}"
+      REDIS_HOST: redis
+      NEXTCLOUD_ADMIN_USER: "${NEXTCLOUD_ADMIN_USER}"
+      NEXTCLOUD_ADMIN_PASSWORD: "${NEXTCLOUD_ADMIN_PASSWORD}"
+      NEXTCLOUD_TRUSTED_DOMAINS: "docs.${DOMAIN} docs.${LAN_DOMAIN} nextcloud"
+      TRUSTED_PROXIES: "${PROXY_SUBNET} ${NEBULA_LH_OVERLAY}"
+      OVERWRITEPROTOCOL: https
+      OVERWRITECLIURL: "https://docs.${DOMAIN}"
+      PHP_UPLOAD_LIMIT: 16G
+      PHP_MEMORY_LIMIT: 1G
+      TZ: "${TZ}"
+    volumes: &ncvols
+      - ${HEARDOS_ROOT}/data/nextcloud/html:/var/www/html
+      - ${HEARDOS_ROOT}/media/documents:/mnt/documents
+      - ${HEARDOS_ROOT}/media/music:/mnt/music
+      - ${HEARDOS_ROOT}/data/paperless/consume:/mnt/paperless-inbox
+      - ${HEARDOS_ROOT}/data/paperless/media/documents/originals:/mnt/paperless-archive:ro
+    depends_on: {db: {condition: service_healthy}, redis: {condition: service_started}}
+    networks: [internal, proxy]
+    labels:
+      traefik.enable: "true"
+      traefik.docker.network: proxy
+      traefik.http.routers.docs.rule: Host(`docs.${DOMAIN}`)
+      traefik.http.routers.docs.entrypoints: web
+      traefik.http.routers.docs.middlewares: xfp-https@file
+      traefik.http.routers.docs-lan.rule: Host(`docs.${LAN_DOMAIN}`)
+      traefik.http.routers.docs-lan.entrypoints: web
+      traefik.http.services.docs.loadbalancer.server.port: "80"
+  cron:
+    image: nextcloud:35-apache
+    restart: unless-stopped
+    entrypoint: /cron.sh
+    volumes: *ncvols
+    depends_on: [nextcloud]
+    networks: [internal, proxy]   # the ONLYOFFICE connector health check runs in cron and must reach the onlyoffice stack
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment: {POSTGRES_DB: nextcloud, POSTGRES_USER: nextcloud, POSTGRES_PASSWORD: "${NEXTCLOUD_DB_PASSWORD}"}
+    volumes: ["${HEARDOS_ROOT}/data/nextcloud/postgres:/var/lib/postgresql/data"]
+    healthcheck: {test: ["CMD-SHELL", "pg_isready -U nextcloud -d nextcloud"], interval: 10s, timeout: 5s, retries: 10}
+    networks: [internal]
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    networks: [internal]
+networks:
+  internal: {}
+  proxy: {external: true}

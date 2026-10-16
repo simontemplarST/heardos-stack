@@ -1,0 +1,8 @@
+# Local override (2026-10-12): the public name must be in HOMEPAGE_ALLOWED_HOSTS or Homepage answers 400 "Host validation failed".
+# Config lives in app-data/migrated/homepage/data/*.yaml (settings, services, widgets, bookmarks) and hot-reloads on save.
+services:
+  homepage:
+    environment:
+      HOMEPAGE_ALLOWED_HOSTS: "hub.example.com,hub.192-168-10-20.sslip.io"
+      PUID: "1000"
+      PGID: "1000"

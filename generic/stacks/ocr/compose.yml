@@ -1,0 +1,30 @@
+# OPTIONAL — not installed by default (HeardOS uses Paperless's built-in OCR). heardos-ocr: self-hosted OCR endpoint for Paperless-ngx (>= 3.0). Paperless's only "remote OCR" protocol is the
+# Azure Document Intelligence REST API; server.py implements the slice Paperless uses on top of OCRmyPDF/Tesseract,
+# so OCR runs in its own CPU-capped container and documents never leave the host. Internal only (no Traefik route).
+services:
+  ocr:
+    image: jbarlow83/ocrmypdf:v17.13.0
+    restart: unless-stopped
+    entrypoint: ["/app/.venv/bin/python3", "/srv/app/server.py"]
+    environment:
+      OCR_API_KEY: "${OCR_API_KEY}"
+      OCR_LANGS: "${OCR_LANGS:-eng}"      # tesseract languages, "+"-separated; the image ships eng deu fra spa por chi_sim
+      OCR_WORKERS: "2"                    # documents processed concurrently
+      OCR_JOBS: "2"                       # tesseract threads per document
+      OCR_TTL_SECONDS: "3600"
+      TZ: "${TZ}"
+    cpus: ${OCR_CPUS:-2.0}
+    volumes:
+      - ${HEARDOS_ROOT}/stacks/ocr/server.py:/srv/app/server.py:ro
+      - ${HEARDOS_ROOT}/data/ocr/jobs:/data/jobs
+    healthcheck:
+      test: ["CMD", "/app/.venv/bin/python3", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=5).status == 200 else 1)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    networks:
+      proxy:
+        aliases: [heardos-ocr]   # Paperless reaches it as http://heardos-ocr:8000
+networks:
+  proxy: {external: true}

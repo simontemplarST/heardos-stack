@@ -1,0 +1,62 @@
+{
+ "baikal_url": "http://dav.192-168-10-20.sslip.io/dav.php",
+ "baikal_db": "/root/runtipi/app-data/migrated/baikal/specific/db/db.sqlite",
+ "user": "feeds",
+ "password": "<BAIKAL_FEEDS_PASSWORD>",
+ "share_with": {
+  "principals/alice": "mailto:admin@example.net",
+  "principals/bob": "mailto:bob@example.net"
+ },
+ "strip_alarms": true,
+ "feeds": [
+  {
+   "id": "local-government",
+   "label": "Local government",
+   "color": "#6D4C41",
+   "share_with": [
+    "principals/alice"
+   ],
+   "sources": [
+    {
+     "label": "Example County",
+     "url": "https://www.county.example.org/common/modules/iCalendar/iCalendar.aspx?catID=14&feed=calendar"
+    },
+    {
+     "label": "Example Co. foreclosures",
+     "url": "https://www.county.example.org/common/modules/iCalendar/iCalendar.aspx?catID=24&feed=calendar"
+    },
+    {
+     "label": "Springfield",
+     "type": "ai1ec-agenda",
+     "url": "https://www.city.example.org"
+    }
+   ]
+  },
+  {
+   "id": "work-alice",
+   "label": "Work",
+   "url": "https://outlook.office365.com/owa/calendar/<ID>@county.example.org/<CALENDAR_ID>/<ID>/reachcalendar.ics",
+   "target": {
+    "principal": "principals/alice",
+    "uri": "default"
+   }
+  },
+  {
+   "id": "meal-plan",
+   "label": "Meals",
+   "color": "#FB8C00",
+   "sources": [
+    {
+     "label": "Meals",
+     "type": "mealie-mealplan",
+     "url": "http://192.168.10.20:9925",
+     "public_url": "https://mealie.example.com",
+     "group_slug": "home",
+     "token": "<MEALIE_API_TOKEN>",
+     "days_back": 7,
+     "days_ahead": 60
+    }
+   ]
+  }
+ ]
+}

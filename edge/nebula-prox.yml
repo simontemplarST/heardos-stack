@@ -1,0 +1,41 @@
+# Nebula node "prox" on the example overlay (10.42.0.0/24). Lighthouse/relay = 10.42.0.1 @ 203.0.113.10:4242.
+pki:
+  ca: /etc/nebula/ca.crt
+  cert: /etc/nebula/host.crt
+  key: /etc/nebula/host.key
+static_host_map:
+  "10.42.0.1": ["203.0.113.10:4242"]
+lighthouse:
+  am_lighthouse: false
+  interval: 60
+  hosts: ["10.42.0.1"]
+listen:
+  host: "[::]"
+  port: 0
+  read_buffer: 10485760
+  write_buffer: 10485760
+punchy:
+  punch: true
+  respond: true
+relay:
+  relays: ["10.42.0.1"]
+  am_relay: false
+  use_relays: true
+tun:
+  disabled: false
+  dev: nebula1
+  mtu: 1300
+logging:
+  level: info
+  format: text
+firewall:
+  outbound_action: drop
+  inbound_action: drop
+  conntrack: {tcp_timeout: 12m, udp_timeout: 3m, default_timeout: 10m}
+  outbound:
+    - {port: any, proto: any, host: any}
+  inbound:
+    - {port: any, proto: icmp, host: any}
+    - {port: any, proto: any, groups: [admins]}
+    - {port: any, proto: any, group: admins, local_cidr: 192.168.10.0/24}   # LAN behind prox (unsafe_routes), 2026-10-14
+    - {port: any, proto: any, groups: [servers]}

@@ -1,0 +1,23 @@
+# Home Assistant behind Traefik (bridge network, not host network: discovery protocols that need L2 can be
+# added later with network_mode: host if you need them). OIDC via the hass-oidc-auth custom component.
+services:
+  homeassistant:
+    image: ghcr.io/home-assistant/home-assistant:stable
+    container_name: homeassistant
+    restart: unless-stopped
+    environment: {TZ: "${TZ}"}
+    volumes:
+      - ${HEARDOS_ROOT}/data/homeassistant:/config
+      - /etc/localtime:/etc/localtime:ro
+    ports: ["${HOST_LAN_IP}:8209:8123"]       # LAN access for the companion app without the proxy
+    networks: [proxy]
+    labels:
+      traefik.enable: "true"
+      traefik.http.routers.home.rule: Host(`home.${DOMAIN}`)
+      traefik.http.routers.home.entrypoints: web
+      traefik.http.routers.home.middlewares: xfp-https@file
+      traefik.http.routers.home-lan.rule: Host(`home.${LAN_DOMAIN}`)
+      traefik.http.routers.home-lan.entrypoints: web
+      traefik.http.services.home.loadbalancer.server.port: "8123"
+networks:
+  proxy: {external: true}
