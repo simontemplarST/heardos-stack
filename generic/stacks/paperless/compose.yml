@@ -1,0 +1,70 @@
+# Paperless-ngx with PostgreSQL and Redis. OIDC login via Authentik (allauth openid_connect).
+services:
+  broker:
+    image: redis:7-alpine
+    restart: unless-stopped
+    volumes: ["${HEARDOS_ROOT}/data/paperless/redis:/data"]
+    networks: [internal]
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment: {POSTGRES_DB: paperless, POSTGRES_USER: paperless, POSTGRES_PASSWORD: "${PAPERLESS_DB_PASSWORD}"}
+    volumes: ["${HEARDOS_ROOT}/data/paperless/postgres:/var/lib/postgresql/data"]
+    healthcheck: {test: ["CMD-SHELL", "pg_isready -U paperless -d paperless"], interval: 10s, timeout: 5s, retries: 10}
+    networks: [internal]
+  webserver:
+    image: ghcr.io/paperless-ngx/paperless-ngx:latest
+    restart: unless-stopped
+    depends_on: {db: {condition: service_healthy}, broker: {condition: service_started}}
+    environment:
+      PAPERLESS_REDIS: redis://broker:6379
+      PAPERLESS_DBHOST: db
+      PAPERLESS_DBPASS: "${PAPERLESS_DB_PASSWORD}"
+      PAPERLESS_SECRET_KEY: "${PAPERLESS_SECRET_KEY}"
+      PAPERLESS_TIME_ZONE: "${TZ}"
+      PAPERLESS_URL: "https://paperless.${DOMAIN}"
+      PAPERLESS_CSRF_TRUSTED_ORIGINS: "https://paperless.${DOMAIN},http://paperless.${LAN_DOMAIN}"
+      PAPERLESS_ALLOWED_HOSTS: "paperless.${DOMAIN},paperless.${LAN_DOMAIN}"
+      PAPERLESS_USE_X_FORWARD_HOST: "true"
+      PAPERLESS_PROXY_SSL_HEADER: '["HTTP_X_FORWARDED_PROTO", "https"]'
+      PAPERLESS_ADMIN_USER: "${ADMIN_USER}"
+      PAPERLESS_ADMIN_PASSWORD: "${PAPERLESS_ADMIN_PASSWORD}"
+      PAPERLESS_ADMIN_MAIL: "${ADMIN_EMAIL}"
+      PAPERLESS_APPS: allauth.socialaccount.providers.openid_connect
+      PAPERLESS_SOCIAL_AUTO_SIGNUP: "true"
+      PAPERLESS_SOCIALACCOUNT_PROVIDERS: '{"openid_connect":{"OAUTH_PKCE_ENABLED":true,"APPS":[{"provider_id":"authentik","name":"HeardOS","client_id":"${OIDC_CLIENT_ID}","secret":"${OIDC_CLIENT_SECRET}","settings":{"server_url":"https://auth.${DOMAIN}/application/o/paperless/.well-known/openid-configuration"}}]}}'
+      PAPERLESS_ACCOUNT_DEFAULT_HTTP_PROTOCOL: https
+      # OCR: built-in OCRmyPDF/Tesseract on every page without a text layer (settings below). The optional heardos-ocr
+      # stack (50-app.sh ocr) can take over by setting PAPERLESS_REMOTE_OCR_ENGINE=azureai in this stack's .env.
+      PAPERLESS_REMOTE_OCR_ENGINE: "${PAPERLESS_REMOTE_OCR_ENGINE:-}"
+      PAPERLESS_REMOTE_OCR_ENDPOINT: "http://heardos-ocr:8000"
+      PAPERLESS_REMOTE_OCR_API_KEY: "${OCR_API_KEY}"
+      PAPERLESS_REMOTE_OCR_MODE: always
+      PAPERLESS_REMOTE_OCR_ALLOW_INTERNAL_ENDPOINTS: "true"
+      PAPERLESS_OCR_LANGUAGE: "${OCR_LANGS:-eng}"
+      PAPERLESS_OCR_MODE: skip
+      PAPERLESS_OCR_SKIP_ARCHIVE_FILE: never
+      PAPERLESS_OCR_OUTPUT_TYPE: pdfa
+      PAPERLESS_OCR_ROTATE_PAGES: "true"
+      PAPERLESS_OCR_DESKEW: "true"
+      PAPERLESS_OCR_CLEAN: clean
+      PAPERLESS_OCR_IMAGE_DPI: "300"
+      PAPERLESS_OCR_MAX_IMAGE_PIXELS: "0"
+    volumes:
+      - ${HEARDOS_ROOT}/data/paperless/data:/usr/src/paperless/data
+      - ${HEARDOS_ROOT}/data/paperless/media:/usr/src/paperless/media
+      - ${HEARDOS_ROOT}/data/paperless/export:/usr/src/paperless/export
+      - ${HEARDOS_ROOT}/data/paperless/consume:/usr/src/paperless/consume
+    networks: [internal, proxy]
+    labels:
+      traefik.enable: "true"
+      traefik.docker.network: proxy
+      traefik.http.routers.paperless.rule: Host(`paperless.${DOMAIN}`)
+      traefik.http.routers.paperless.entrypoints: web
+      traefik.http.routers.paperless.middlewares: xfp-https@file
+      traefik.http.routers.paperless-lan.rule: Host(`paperless.${LAN_DOMAIN}`)
+      traefik.http.routers.paperless-lan.entrypoints: web
+      traefik.http.services.paperless.loadbalancer.server.port: "8000"
+networks:
+  internal: {}
+  proxy: {external: true}

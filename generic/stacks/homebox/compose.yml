@@ -1,0 +1,28 @@
+# Homebox. Registration off; OIDC via Authentik.
+services:
+  homebox:
+    image: ghcr.io/sysadminsmedia/homebox:latest
+    container_name: homebox
+    restart: unless-stopped
+    environment:
+      TZ: "${TZ}"
+      HBOX_LOG_LEVEL: info
+      HBOX_OPTIONS_ALLOW_REGISTRATION: "false"
+      HBOX_OIDC_ENABLED: "true"
+      HBOX_OIDC_ISSUER_URL: "https://auth.${DOMAIN}/application/o/homebox/"
+      HBOX_OIDC_CLIENT_ID: "${OIDC_CLIENT_ID}"
+      HBOX_OIDC_CLIENT_SECRET: "${OIDC_CLIENT_SECRET}"
+      HBOX_OIDC_BUTTON_TEXT: "Sign in with HeardOS"
+      HBOX_OIDC_SCOPE: "openid profile email"
+    volumes: ["${HEARDOS_ROOT}/data/homebox:/data"]
+    networks: [proxy]
+    labels:
+      traefik.enable: "true"
+      traefik.http.routers.homebox.rule: Host(`homebox.${DOMAIN}`)
+      traefik.http.routers.homebox.entrypoints: web
+      traefik.http.routers.homebox.middlewares: xfp-https@file
+      traefik.http.routers.homebox-lan.rule: Host(`homebox.${LAN_DOMAIN}`)
+      traefik.http.routers.homebox-lan.entrypoints: web
+      traefik.http.services.homebox.loadbalancer.server.port: "7745"
+networks:
+  proxy: {external: true}

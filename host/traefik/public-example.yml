@@ -1,0 +1,224 @@
+# Public hostnames (2026-09-28) reached through the cloudflared connector -> Traefik :80.
+# TLS terminates at Cloudflare; xfp-https tells the apps the original scheme was https.
+http:
+  middlewares:
+    force-https:
+      redirectScheme:
+        scheme: https
+        permanent: true
+    xfp-https:
+      headers:
+        customRequestHeaders:
+          X-Forwarded-Proto: https
+          X-Forwarded-Port: "443"
+  routers:
+    pub-force-https:
+      # Cloudflare marks the visitor scheme; plain-http visitors (e.g. Homebox OIDC callback) go to https
+      rule: HostRegexp(`^.+\.example\.us$`) && Header(`Cf-Visitor`, `{"scheme":"http"}`)
+      entryPoints: [web]
+      priority: 1000
+      service: noop@internal
+      middlewares: [force-https]
+    pub-auth:
+      rule: Host(`auth.example.com`)
+      entryPoints: [web]
+      service: authentik-1-migrated@docker
+      middlewares: [xfp-https]
+    pub-paperless:
+      rule: Host(`paperless.example.com`)
+      entryPoints: [web]
+      service: paperless-ngx-migrated@docker
+      middlewares: [xfp-https]
+    pub-mealie:
+      rule: Host(`mealie.example.com`)
+      entryPoints: [web]
+      service: mealie-1-migrated@docker
+      middlewares: [xfp-https]
+    pub-home:
+      rule: Host(`home.example.com`)
+      entryPoints: [web]
+      service: homeassistant
+      middlewares: [xfp-https]
+    pub-homebox:
+      rule: Host(`homebox.example.com`)
+      entryPoints: [web]
+      service: homebox-migrated@docker
+      middlewares: [xfp-https]
+    pub-dav-outpost:
+      rule: Host(`dav.example.com`) && PathPrefix(`/outpost.goauthentik.io/`)
+      entryPoints: [web]
+      service: authentik-outpost
+      middlewares: [xfp-https]
+      priority: 100
+    pub-dav:
+      rule: Host(`dav.example.com`)
+      entryPoints: [web]
+      service: baikal-migrated@docker
+      middlewares: [xfp-https, authentik-fwd]
+    pub-cron-outpost:
+      rule: Host(`cron.example.com`) && PathPrefix(`/outpost.goauthentik.io/`)
+      entryPoints: [web]
+      service: authentik-outpost
+      middlewares: [xfp-https]
+      priority: 100
+    pub-cron:
+      # CronMaster is root-equivalent (privileged + docker.sock): Authentik forward auth in front of its own OIDC login (2026-10-11)
+      rule: Host(`cron.example.com`)
+      entryPoints: [web]
+      service: cronmaster
+      middlewares: [xfp-https, authentik-fwd]
+    pub-music-outpost:
+      rule: Host(`music.example.com`) && PathPrefix(`/outpost.goauthentik.io/`)
+      entryPoints: [web]
+      service: authentik-outpost
+      middlewares: [xfp-https]
+      priority: 100
+    pub-music:
+      # Navidrome: Authentik forward auth (provider navidrome; skips /rest /share for Subsonic clients)
+      rule: Host(`music.example.com`)
+      entryPoints: [web]
+      service: navidrome-migrated@docker
+      middlewares: [xfp-https, authentik-fwd]
+    pub-photos:
+      # Immich (native OIDC against Authentik); ingress via Caddy on the Nebula lighthouse
+      rule: Host(`photos.example.com`)
+      entryPoints: [web]
+      service: immich-migrated@docker
+      middlewares: [xfp-https]
+    pub-docs:
+      # Nextcloud (native OIDC against Authentik, ONLYOFFICE connector, Paperless folders as external storage)
+      rule: Host(`docs.example.com`)
+      entryPoints: [web]
+      service: nextcloud-migrated@docker
+      middlewares: [xfp-https]
+    pub-office-outpost:
+      rule: Host(`office.example.com`) && PathPrefix(`/outpost.goauthentik.io/`)
+      entryPoints: [web]
+      service: authentik-outpost
+      middlewares: [xfp-https]
+      priority: 100
+    pub-office:
+      # OnlyOffice Document Server: browsers load the editor from here, so it is gated by Authentik forward auth
+      # (proxy provider onlyoffice, 2026-10-14). Nextcloud <-> Document Server traffic stays on the Docker network.
+      rule: Host(`office.example.com`)
+      entryPoints: [web]
+      service: onlyoffice
+      middlewares: [xfp-https, authentik-fwd]
+    pub-vault:
+      # Vaultwarden (native OIDC SSO against Authentik, SSO_ONLY); Bitwarden clients talk to the API, so no forward auth.
+      # File service on purpose: the @docker service vanishes while the healthcheck is 'starting' and the host then fell through to the Runtipi dashboard.
+      rule: Host(`vault.example.com`)
+      entryPoints: [web]
+      service: vaultwarden
+      middlewares: [xfp-https]
+    pub-wallos:
+      # Wallos (native OIDC via OIDC_* env, password login disabled)
+      rule: Host(`wallos.example.com`)
+      entryPoints: [web]
+      service: wallos
+      middlewares: [xfp-https]
+    pub-budget:
+      # Actual Budget (native OpenID, enforced)
+      rule: Host(`budget.example.com`)
+      entryPoints: [web]
+      service: actual-budget
+      middlewares: [xfp-https]
+    pub-tube-outpost:
+      rule: Host(`tube.example.com`) && PathPrefix(`/outpost.goauthentik.io/`)
+      entryPoints: [web]
+      service: authentik-outpost
+      middlewares: [xfp-https]
+      priority: 100
+    pub-tube:
+      # Invidious has no SSO of its own: Authentik forward auth (proxy provider invidious) gates everything
+      rule: Host(`tube.example.com`)
+      entryPoints: [web]
+      service: invidious
+      middlewares: [xfp-https, authentik-fwd]
+    pub-hub-outpost:
+      rule: Host(`hub.example.com`) && PathPrefix(`/outpost.goauthentik.io/`)
+      entryPoints: [web]
+      service: authentik-outpost
+      middlewares: [xfp-https]
+      priority: 100
+    pub-hub:
+      # Homepage family dashboard: Authentik forward auth (proxy provider hub), no login of its own
+      rule: Host(`hub.example.com`)
+      entryPoints: [web]
+      service: homepage
+      middlewares: [xfp-https, authentik-fwd]
+    pub-books-outpost:
+      rule: Host(`books.example.com`) && PathPrefix(`/outpost.goauthentik.io/`)
+      entryPoints: [web]
+      service: authentik-outpost
+      middlewares: [xfp-https]
+      priority: 100
+    pub-books:
+      # Calibre-Web (ebooks): Authentik forward auth (proxy provider calibre-web); the app logs the user in from X-authentik-username
+      rule: Host(`books.example.com`)
+      entryPoints: [web]
+      service: calibre-web
+      middlewares: [xfp-https, authentik-fwd]
+    pub-speed:
+      # LibreSpeed: PUBLIC on purpose (Alice 2026-10-13), no Authentik. Stats page is password-protected by the app itself.
+      rule: Host(`speed.example.com`)
+      entryPoints: [web]
+      service: librespeed
+      middlewares: [xfp-https]
+    pub-dash-outpost:
+      rule: Host(`dash.example.com`) && PathPrefix(`/outpost.goauthentik.io/`)
+      entryPoints: [web]
+      service: authentik-outpost
+      middlewares: [xfp-https]
+      priority: 100
+    pub-dash:
+      # HeardOS dashboard (custom app dash:_user): Authentik forward auth, no login of its own
+      rule: Host(`dash.example.com`)
+      entryPoints: [web]
+      service: dash
+      middlewares: [xfp-https, authentik-fwd]
+  services:
+    onlyoffice:
+      loadBalancer:
+        servers:
+          - url: http://onlyoffice__user-onlyoffice-1:80
+    homeassistant:
+      loadBalancer:
+        servers:
+          - url: http://192.168.10.20:8123
+    cronmaster:
+      loadBalancer:
+        servers:
+          - url: http://cronmaster__user-cronmaster-1:3000
+    wallos:
+      loadBalancer:
+        servers:
+          - url: http://wallos_migrated-wallos-1:80
+    invidious:
+      loadBalancer:
+        servers:
+          - url: http://invidious_migrated-invidious-1:3000
+    vaultwarden:
+      loadBalancer:
+        servers:
+          - url: http://vaultwarden_migrated-vaultwarden-1:80
+    actual-budget:
+      loadBalancer:
+        servers:
+          - url: http://actual-budget_migrated-actual-budget-1:5006
+    homepage:
+      loadBalancer:
+        servers:
+          - url: http://homepage_migrated-homepage-1:3000
+    calibre-web:
+      loadBalancer:
+        servers:
+          - url: http://calibre-web_migrated-calibre-web-1:8083
+    librespeed:
+      loadBalancer:
+        servers:
+          - url: http://librespeed_migrated-librespeed-1:80
+    dash:
+      loadBalancer:
+        servers:
+          - url: http://dash__user-dash-1:8080

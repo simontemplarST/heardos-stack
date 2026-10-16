@@ -1,0 +1,19 @@
+{% extends "email/base.html" %}{% load authentik_stages_email %}{% load i18n %}
+{% block preheader %}One tap to activate your HeardOS account.{% endblock %}
+{% block eyebrow %}Welcome{% endblock %}
+{% block content %}
+<tr><td><h1 class="ff">{% if user and user.name %}Welcome, {{ user.name }}.{% else %}Welcome to HeardOS.{% endif %}</h1></td></tr>
+<tr><td class="ff" style="padding:14px 0 20px 0;">
+  <p class="lead" style="font-size:16px;">Your account is ready. Confirm your email address and you can sign in to photos, recipes, documents and everything else the family shares.</p>
+</td></tr>
+<tr><td class="btn ff" style="padding-bottom:6px;">
+  <a id="confirm" href="{{ url }}" rel="noopener noreferrer" target="_blank" style="display:inline-block; background-color:#f2a35e; color:#1f2023; text-decoration:none; font-weight:600; font-size:15px; line-height:20px; padding:12px 28px; border-radius:6px;">Confirm my account</a>
+</td></tr>
+{% endblock %}
+{% block sub_content %}
+<tr><td class="ff muted" style="color:#8A8A90; font-size:12px; line-height:1.6;">
+  If the button does not open, paste this into your browser:<br><span class="raw" style="word-break:break-all; overflow-wrap:anywhere; color:#3a3b40;">{{ url }}</span><br><br>
+  Did not expect this? Nothing happens until the link is used, so you can ignore it.
+</td></tr>
+{% endblock %}
+{% block footer_note %}You received this because an account was created for this address.{% endblock %}

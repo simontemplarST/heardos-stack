@@ -1,0 +1,9 @@
+{% load i18n %}{% load humanize %}{% autoescape off %}Hi {{ user.name|default:user.username }},
+
+Your HeardOS sign-in code: {{ token }}
+
+It expires in {{ expires|timeuntil }}. Did not try to sign in? Ignore this email; the code is useless without your password.
+
+-- 
+HeardOS · family sign-in · https://auth.example.com/if/user/
+{% endautoescape %}

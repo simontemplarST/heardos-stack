@@ -1,0 +1,20 @@
+# Local override (2026-10-12): Authentik OIDC via Wallos' declarative OIDC_* env (overrides the DB settings at runtime).
+# Callback = any page with ?code&state (includes/checksession.php), so the redirect URL is the site root.
+# First user alice (local admin, WALLOS_ADMIN_* in credentials.env) links to Authentik by verified email on first SSO login;
+# other members auto-create. Password login disabled; flip OIDC_DISABLE_PASSWORD_LOGIN to false for break-glass.
+services:
+  wallos:
+    environment:
+      TZ: "America/Chicago"
+      OIDC_ENABLED: "true"
+      OIDC_PROVIDER_NAME: "HeardOS"
+      OIDC_ISSUER: "https://auth.example.com/application/o/wallos/"
+      OIDC_CLIENT_ID: "<OIDC_CLIENT_ID>"
+      OIDC_CLIENT_SECRET: "REDACTED"
+      OIDC_REDIRECT_URL: "https://wallos.example.com/"
+      OIDC_LOGOUT_URL: "https://auth.example.com/application/o/wallos/end-session/"
+      OIDC_USER_IDENTIFIER: "sub"
+      OIDC_SCOPES: "openid email profile"
+      OIDC_AUTO_CREATE_USER: "true"
+      OIDC_DISABLE_PASSWORD_LOGIN: "true"
+      OIDC_REQUIRE_EMAIL_VERIFIED: "true"

@@ -1,0 +1,13 @@
+{% extends "email/base.html" %}{% load authentik_stages_email %}{% load i18n %}
+{% block preheader %}HeardOS mail is configured correctly.{% endblock %}
+{% block eyebrow %}Test message{% endblock %}
+{% block content %}
+<tr><td><h1 class="ff">Mail is working</h1></td></tr>
+<tr><td class="ff" style="padding:14px 0 6px 0;">
+  <p class="lead" style="font-size:16px;">This test confirms that HeardOS can send email. Password resets, sign-in codes, invitations and notifications will arrive looking like this.</p>
+</td></tr>
+{% endblock %}
+{% block sub_content %}
+<tr><td class="ff muted" style="color:#8A8A90; font-size:12px; line-height:1.6;">Sent from the HeardOS admin console to check the outgoing mail setup.</td></tr>
+{% endblock %}
+{% block footer_note %}You received this because an administrator sent a test message.{% endblock %}

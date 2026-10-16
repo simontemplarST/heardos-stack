@@ -1,0 +1,21 @@
+# Local override (2026-10-12): public name + Authentik OIDC SSO (Vaultwarden native SSO, >=1.34).
+# SSO_ONLY: password login disabled; SIGNUPS_ALLOWED=false blocks password registration (identity.rs only checks is_signup_allowed),
+# SSO_SIGNUPS_ALLOWED=true still creates accounts on first Authentik login. Access is gated by Authentik group app-vaultwarden.
+# Admin panel: https://vault.example.com/admin (token VAULTWARDEN_ADMIN_TOKEN in credentials.env).
+services:
+  vaultwarden:
+    environment:
+      DOMAIN: "https://vault.example.com"
+      SIGNUPS_ALLOWED: "false"
+      SSO_SIGNUPS_ALLOWED: "true"
+      SIGNUPS_VERIFY: "false"
+      SSO_ENABLED: "true"
+      SSO_ONLY: "true"
+      SSO_AUTHORITY: "https://auth.example.com/application/o/vaultwarden/"
+      SSO_SCOPES: "profile email offline_access"
+      SSO_CLIENT_ID: "<OIDC_CLIENT_ID>"
+      SSO_CLIENT_SECRET: "REDACTED"
+      SSO_SIGNUPS_MATCH_EMAIL: "true"
+      SSO_CLIENT_CACHE_EXPIRATION: "600"
+      IP_HEADER: "X-Forwarded-For"
+      LOG_LEVEL: "info"

@@ -1,0 +1,8 @@
+# Local override (2026-10-13): serve the LAN name over plain http (noop instead of the https redirect) so a speed test from
+# the house measures the LAN/Wi-Fi, not the Region-1 lighthouse + Nebula path. Public name = https://speed.example.com (no auth).
+services:
+  librespeed:
+    environment:
+      TELEMETRY: "false"
+    labels:
+      traefik.http.routers.librespeed-migrated-local-insecure.middlewares: noop@file

@@ -1,0 +1,37 @@
+# Navidrome. Header login: Authentik forward auth passes X-authentik-username, trusted only from the proxy subnet.
+# Both LAN routers strip the header (strip-authentik) so nobody on the LAN can impersonate a user. No host port.
+services:
+  navidrome:
+    image: deluan/navidrome:latest
+    container_name: navidrome
+    restart: unless-stopped
+    user: "1000:1000"
+    environment:
+      ND_SCANSCHEDULE: 15m
+      ND_LOGLEVEL: info
+      ND_SESSIONTIMEOUT: 24h
+      ND_ENABLESHARING: "true"
+      ND_EXTAUTH_USERHEADER: X-authentik-username
+      ND_EXTAUTH_TRUSTEDSOURCES: "${PROXY_SUBNET}"
+    volumes:
+      - ${HEARDOS_ROOT}/data/navidrome:/data
+      - ${HEARDOS_ROOT}/media/music:/music:ro
+    networks: [proxy]
+    labels:
+      traefik.enable: "true"
+      traefik.http.routers.music-outpost.rule: Host(`music.${DOMAIN}`) && PathPrefix(`/outpost.goauthentik.io/`)
+      traefik.http.routers.music-outpost.entrypoints: web
+      traefik.http.routers.music-outpost.priority: "100"
+      traefik.http.routers.music-outpost.service: authentik-outpost@file
+      traefik.http.routers.music-outpost.middlewares: xfp-https@file
+      traefik.http.routers.music.rule: Host(`music.${DOMAIN}`)
+      traefik.http.routers.music.entrypoints: web
+      traefik.http.routers.music.middlewares: xfp-https@file,authentik-fwd@file
+      traefik.http.routers.music.service: music
+      traefik.http.routers.music-lan.rule: Host(`music.${LAN_DOMAIN}`)
+      traefik.http.routers.music-lan.entrypoints: web
+      traefik.http.routers.music-lan.middlewares: strip-authentik@file
+      traefik.http.routers.music-lan.service: music
+      traefik.http.services.music.loadbalancer.server.port: "4533"
+networks:
+  proxy: {external: true}

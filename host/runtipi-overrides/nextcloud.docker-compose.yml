@@ -1,0 +1,35 @@
+# Local override (2026-10-11, extended 2026-10-14): shared folders for external storage, reverse-proxy awareness, big uploads, LAN plain http.
+# 2026-10-14: user-content directories of the other apps mounted READ-ONLY so they can be browsed from Nextcloud via
+# files_external (Local) mounts. Databases, keys and app configs are deliberately NOT mounted. The cron service needs the same mounts.
+x-shared-volumes: &shared-volumes
+  - /root/runtipi/media/data/documents:/mnt/documents
+  - /root/runtipi/media/data/music:/mnt/music
+  - /root/runtipi/app-data/migrated/paperless-ngx/data/paperless_consume:/mnt/paperless-inbox
+  - /root/runtipi/app-data/migrated/paperless-ngx/data/paperless_media/documents/originals:/mnt/paperless-archive:ro
+  - /root/runtipi/media/data/books:/mnt/books:ro
+  - /root/runtipi/media/data/images/immich:/mnt/photos:ro
+  - /root/runtipi/media/data/comics:/mnt/comics:ro
+  - /root/runtipi/media/data/movies:/mnt/movies:ro
+  - /root/runtipi/media/data/tv:/mnt/tv:ro
+  - /root/runtipi/media/data/podcasts:/mnt/podcasts:ro
+  - /root/runtipi/media/data/roms:/mnt/roms:ro
+  - /root/runtipi/app-data/migrated/mealie-1/data/recipes:/mnt/mealie-recipes:ro
+  - /root/runtipi/app-data/migrated/paperless-ngx/data/paperless_export:/mnt/paperless-export:ro
+services:
+  nextcloud:
+    environment:
+      NEXTCLOUD_TRUSTED_DOMAINS: "docs.example.com nextcloud.192-168-10-20.sslip.io nextcloud_migrated-nextcloud-1"
+      TRUSTED_PROXIES: "172.16.0.0/12 10.42.0.1"
+      OVERWRITEPROTOCOL: https
+      OVERWRITECLIURL: https://docs.example.com
+      PHP_UPLOAD_LIMIT: 16G
+      PHP_MEMORY_LIMIT: 1G
+    volumes: *shared-volumes
+    labels:
+      traefik.http.routers.nextcloud-migrated-local-insecure.middlewares: noop@file
+  cron:
+    # the ONLYOFFICE connector health check runs here; it must reach Document Server on the shared network
+    networks:
+      - tipi_main_network
+      - nextcloud_migrated_network
+    volumes: *shared-volumes

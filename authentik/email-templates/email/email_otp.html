@@ -1,0 +1,19 @@
+{% extends "email/base.html" %}{% load i18n %}{% load humanize %}
+{% block preheader %}Your HeardOS sign-in code: {{ token }}{% endblock %}
+{% block eyebrow %}Sign-in code{% endblock %}
+{% block content %}
+<tr><td><h1 class="ff">Here is your code</h1></td></tr>
+<tr><td class="ff" style="padding:14px 0 16px 0;">
+  <p class="lead" style="font-size:16px;">Hi {{ user.name|default:user.username }}, enter this code to finish signing in. It expires in {{ expires|timeuntil }}.</p>
+</td></tr>
+<tr><td style="padding-bottom:8px;">
+  <table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>
+    <td class="code ff" style="font-family:'SFMono-Regular',Menlo,Consolas,'Liberation Mono',monospace; font-size:30px; font-weight:600; letter-spacing:8px; color:#1f2023; background-color:#ececec; border-left:4px solid #f2a35e; padding:14px 22px 14px 26px; border-radius:4px;">{{ token }}</td>
+  </tr></table>
+</td></tr>
+{% endblock %}
+{% block sub_content %}
+<tr><td class="ff muted" style="color:#8A8A90; font-size:12px; line-height:1.6;">
+  Did not try to sign in? Ignore this email. The code is useless without your password, but consider changing it from <a href="https://auth.example.com/if/user/" style="color:#8A8A90;">your account page</a>.
+</td></tr>
+{% endblock %}

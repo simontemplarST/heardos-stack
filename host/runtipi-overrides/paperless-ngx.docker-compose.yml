@@ -1,0 +1,29 @@
+# Local override (2026-09-28): plain-http local router, Authentik OIDC login (Authentik Admins -> superuser).
+services:
+  paperless-ngx:
+    environment:
+      PAPERLESS_URL: "https://paperless.example.com"
+      PAPERLESS_CSRF_TRUSTED_ORIGINS: "https://paperless.example.com,http://paperless.192-168-10-20.sslip.io,http://192.168.10.20:8012"
+      PAPERLESS_APPS: "allauth.socialaccount.providers.openid_connect"
+      PAPERLESS_SOCIALACCOUNT_PROVIDERS: '{"openid_connect": {"OAUTH_PKCE_ENABLED": true, "APPS": [{"provider_id": "authentik", "name": "HeardOS Login", "client_id": "<OIDC_CLIENT_ID>", "secret": "<REDACTED>", "settings": {"server_url": "https://auth.example.com/application/o/paperless"}}]}}'
+      PAPERLESS_SOCIAL_AUTO_SIGNUP: "true"
+      PAPERLESS_PROXY_SSL_HEADER: '["HTTP_X_FORWARDED_PROTO", "https"]'
+      PAPERLESS_ACCOUNT_DEFAULT_HTTP_PROTOCOL: "https"
+      PAPERLESS_SOCIAL_ACCOUNT_SYNC_GROUPS: "true"
+      PAPERLESS_SOCIAL_ACCOUNT_SYNC_SUPERUSER_GROUP: "authentik Admins"
+      # --- OCR (2026-10-11): built-in OCRmyPDF/Tesseract, every page without a text layer is OCR'd on consumption ---
+      PAPERLESS_OCR_LANGUAGE: "eng"
+      PAPERLESS_OCR_MODE: "auto"   # 3.x: auto = OCR only pages without a text layer (was "skip")
+      PAPERLESS_ARCHIVE_FILE_GENERATION: "always"   # 3.x replacement for OCR_SKIP_ARCHIVE_FILE=never
+      PAPERLESS_OCR_OUTPUT_TYPE: "pdfa"
+      PAPERLESS_OCR_ROTATE_PAGES: "true"
+      PAPERLESS_OCR_ROTATE_PAGES_THRESHOLD: "12.0"
+      PAPERLESS_OCR_DESKEW: "true"
+      PAPERLESS_OCR_CLEAN: "clean"
+      PAPERLESS_OCR_IMAGE_DPI: "300"
+      PAPERLESS_OCR_PAGES: "0"
+      PAPERLESS_OCR_MAX_IMAGE_PIXELS: "0"
+      # Office documents / e-mail bodies via the Tika + Gotenberg containers the store app already ships
+      PAPERLESS_TIKA_ENABLED: "true"
+    labels:
+      traefik.http.routers.paperless-ngx-migrated-local-insecure.middlewares: noop@file

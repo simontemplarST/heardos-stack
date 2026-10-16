@@ -1,0 +1,8 @@
+- greeting:
+    text_size: xl
+    text: Hi! Pick an app.
+- datetime:
+    text_size: xl
+    format:
+      dateStyle: full
+      timeStyle: short

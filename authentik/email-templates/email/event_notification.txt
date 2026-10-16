@@ -1,0 +1,14 @@
+{% load authentik_stages_email %}{% load i18n %}{% autoescape off %}{{ title }}
+
+{{ body|indent }}
+{% if link %}
+{{ link.label }}: {{ link.target }}
+{% endif %}{% if key_value %}
+Details:
+{% for key, value in key_value.items %}    {{ key }}: {{ value|indent }}
+{% endfor %}{% endif %}
+{% if source %}Sent by the HeardOS notification transport {{ source.from }}.{% else %}Automatic notification from HeardOS.{% endif %}
+
+-- 
+HeardOS · family sign-in · https://auth.example.com/if/user/
+{% endautoescape %}

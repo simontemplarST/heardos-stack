@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>HeardOS Dashboard</title>
+<style>
+  :root { --bg:#26272b; --card:#2f2f32; --line:#3d3d41; --text:#f3f3f3; --muted:#a6a6ab; --amber:#f2a35e; --green:#8BC34A; --red:#EF5350; --blue:#90CAF9; }
+  * { box-sizing: border-box; }
+  html, body { margin:0; background:var(--bg); color:var(--text); font-family: system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; }
+  header { display:flex; align-items:baseline; gap:1rem; padding:1.1rem 1.25rem .5rem; flex-wrap:wrap; }
+  header h1 { margin:0; font-size:1.35rem; font-weight:600; letter-spacing:.02em; }
+  header h1 span { color:var(--amber); }
+  header .meta { color:var(--muted); font-size:.85rem; margin-left:auto; }
+  header button { background:none; border:1px solid var(--amber); color:var(--amber); border-radius:.4rem; padding:.3rem .7rem; cursor:pointer; font:inherit; font-size:.85rem; }
+  main { display:grid; gap:1rem; padding:0 1.25rem 2rem; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:.75rem; padding:1rem 1.1rem; min-width:0; }
+  .card h2 { margin:0 0 .6rem; font-size:1rem; font-weight:600; color:var(--amber); display:flex; justify-content:space-between; align-items:baseline; }
+  .card h2 a { color:var(--muted); font-size:.8rem; text-decoration:none; }
+  .card h2 a:hover { color:var(--text); }
+  .err { color:var(--red); font-size:.9rem; } .muted { color:var(--muted); } .small { font-size:.85rem; }
+  table { width:100%; border-collapse:collapse; font-size:.92rem; }
+  td, th { padding:.28rem .25rem; border-bottom:1px solid var(--line); text-align:left; vertical-align:top; }
+  th { color:var(--muted); font-weight:500; font-size:.8rem; text-transform:uppercase; letter-spacing:.04em; }
+  td.num, th.num { text-align:right; font-variant-numeric: tabular-nums; white-space:nowrap; }
+  .pos { color:var(--green); } .neg { color:var(--red); }
+  .kpis { display:grid; grid-template-columns: repeat(auto-fit, minmax(110px,1fr)); gap:.5rem; margin-bottom:.7rem; }
+  .kpi { background:var(--bg); border-radius:.5rem; padding:.5rem .6rem; }
+  .kpi .v { font-size:1.25rem; font-weight:600; font-variant-numeric: tabular-nums; } .kpi .l { color:var(--muted); font-size:.75rem; }
+  ul.list { list-style:none; margin:0; padding:0; } ul.list li { padding:.22rem 0; border-bottom:1px solid var(--line); display:flex; gap:.5rem; }
+  ul.list li .tag { color:var(--muted); font-size:.75rem; margin-left:auto; white-space:nowrap; }
+  .day { font-weight:600; color:var(--blue); } .today .day { color:var(--amber); }
+  .bar { height:.35rem; background:var(--bg); border-radius:.2rem; overflow:hidden; } .bar i { display:block; height:100%; background:var(--green); }
+  .bar i.over { background:var(--red); }
+  @media (max-width:600px){ header{padding:.9rem 1rem .4rem;} main{padding:0 1rem 1.5rem;} }
+</style>
+</head>
+<body>
+<header>
+  <h1><span>HeardOS</span> dashboard</h1>
+  <div class="meta"><span id="stamp">loading…</span> <button id="refresh" title="Fetch fresh data from every source">refresh</button></div>
+</header>
+<main id="main"></main>
+<script>
+const $ = (s) => document.querySelector(s);
+const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const money = (n) => (n < 0 ? "-" : "") + "$" + Math.abs(n).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2});
+const dayName = (iso) => { const d = new Date(iso + "T12:00:00"); return d.toLocaleDateString(undefined, {weekday: "short", month: "short", day: "numeric"}); };
+const today = new Date().toISOString().slice(0, 10);
+function card(title, link, body) { return `<section class="card"><h2>${esc(title)}${link ? ` <a href="${esc(link)}">open ↗</a>` : ""}</h2>${body}</section>`; }
+function errOr(sec, fn) { return sec.error ? `<p class="err">${esc(sec.error)}</p>` : fn(sec); }
+
+function mealsCard(m) {
+  return card("This week's meals", m.link && m.link + "/g/home/mealplan/planner", errOr(m, (m) => {
+    if (!m.meals.length) return `<p class="muted">Nothing planned for the next 7 days.</p>`;
+    const byDay = {};
+    m.meals.forEach((e) => (byDay[e.date] ||= []).push(e));
+    return `<table>${Object.keys(byDay).sort().map((d) => `<tr class="${d === today ? "today" : ""}"><td class="day">${esc(dayName(d))}</td><td>${byDay[d].map((e) => `<div><span class="muted small">${esc(e.type)}</span> ${esc(e.title)}</div>`).join("")}</td></tr>`).join("")}</table>`;
+  }));
+}
+function shoppingCard(m) {
+  return card("Shopping list", m.link && m.link + "/shopping-lists", errOr(m, (m) => {
+    if (!m.shopping.length) return `<p class="muted">No shopping lists.</p>`;
+    return m.shopping.map((l) => `<p class="small"><b>${esc(l.name)}</b> <span class="muted">${l.open.length} to buy, ${l.checked} done</span></p>` +
+      (l.open.length ? `<ul class="list">${l.open.map((i) => `<li>${esc(i.text)}${i.label ? `<span class="tag">${esc(i.label)}</span>` : ""}</li>`).join("")}</ul>` : "")).join("");
+  }));
+}
+function budgetCard(a) {
+  return card(`Budget · ${a.month || ""}`, a.link, errOr(a, (a) => {
+    const kpi = (v, l, cls = "") => `<div class="kpi"><div class="v ${cls}">${money(v)}</div><div class="l">${l}</div></div>`;
+    const cats = a.categories.slice(0, 10).map((c) => {
+      const pct = c.budgeted > 0 ? Math.min(100, Math.abs(c.spent) / c.budgeted * 100) : (c.spent ? 100 : 0);
+      return `<tr><td>${esc(c.name)}<div class="bar"><i class="${c.balance < 0 ? "over" : ""}" style="width:${pct.toFixed(0)}%"></i></div></td><td class="num muted">${money(c.budgeted)}</td><td class="num">${money(Math.abs(c.spent))}</td><td class="num ${c.balance < 0 ? "neg" : "pos"}">${money(c.balance)}</td></tr>`;
+    }).join("");
+    return `<div class="kpis">${kpi(a.toBudget, "To budget", a.toBudget < 0 ? "neg" : "pos")}${kpi(a.totalIncome, "Income")}${kpi(Math.abs(a.totalSpent), "Spent")}${kpi(a.totalBudgeted, "Budgeted")}</div>` +
+      (cats ? `<table><tr><th>Category</th><th class="num">Budgeted</th><th class="num">Spent</th><th class="num">Left</th></tr>${cats}</table>` : `<p class="muted">No categories yet.</p>`);
+  }));
+}
+function accountsCard(a) {
+  return card("Accounts & upcoming", a.link, errOr(a, (a) => {
+    const acc = a.accounts.map((x) => `<tr><td>${esc(x.name)}${x.offbudget ? ` <span class="muted small">off budget</span>` : ""}</td><td class="num ${x.balance < 0 ? "neg" : ""}">${money(x.balance)}</td></tr>`).join("");
+    const sch = a.schedules.map((s) => `<li><span class="day">${esc(dayName(s.date))}</span> ${esc(s.name)}<span class="tag ${s.amount < 0 ? "neg" : "pos"}">${money(s.amount)}</span></li>`).join("");
+    return (acc ? `<table>${acc}</table>` : `<p class="muted">No accounts yet.</p>`) + `<p class="small muted" style="margin:.8rem 0 .3rem">Next 14 days</p>` + (sch ? `<ul class="list">${sch}</ul>` : `<p class="muted small">Nothing scheduled.</p>`);
+  }));
+}
+function inventoryCard(h) {
+  return card("Inventory", h.link, errOr(h, (h) => {
+    const t = h.totals;
+    const kpi = (v, l) => `<div class="kpi"><div class="v">${esc(v)}</div><div class="l">${l}</div></div>`;
+    const locs = h.locations.map((l) => `<li>${esc(l.name)}<span class="tag">${l.total} items</span></li>`).join("");
+    const rec = h.recent.map((i) => `<li>${esc(i.name)}${i.parent ? ` <span class="muted small">· ${esc(i.parent)}</span>` : ""}<span class="tag">${i.qty > 1 ? "×" + i.qty + " · " : ""}${esc(i.created)}</span></li>`).join("");
+    return `<div class="kpis">${kpi(t.items, "Items")}${kpi(t.locations, "Locations")}${kpi(money(t.value || 0), "Total value")}${kpi(t.withWarranty, "Under warranty")}</div>` +
+      `<p class="small muted" style="margin:.4rem 0 .2rem">Where things are</p><ul class="list">${locs || "<li class='muted'>No locations</li>"}</ul>` +
+      `<p class="small muted" style="margin:.8rem 0 .2rem">Recently added</p><ul class="list">${rec || "<li class='muted'>Nothing yet</li>"}</ul>`;
+  }));
+}
+async function load(refresh) {
+  $("#stamp").textContent = "loading…";
+  try {
+    const r = await fetch("/api/summary" + (refresh ? "?refresh=1" : ""), {cache: "no-store"});
+    const d = await r.json();
+    $("#main").innerHTML = mealsCard(d.mealie) + shoppingCard(d.mealie) + budgetCard(d.actual) + accountsCard(d.actual) + inventoryCard(d.homebox);
+    $("#stamp").textContent = "updated " + new Date(d.generatedAt).toLocaleTimeString(undefined, {hour: "numeric", minute: "2-digit"});
+  } catch (e) {
+    $("#stamp").textContent = "failed: " + e.message;
+  }
+}
+$("#refresh").addEventListener("click", () => load(true));
+load();
+setInterval(() => load(false), 5 * 60 * 1000);
+</script>
+</body>
+</html>

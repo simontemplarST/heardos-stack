@@ -1,0 +1,30 @@
+{% extends "email/base.html" %}{% load i18n %}
+{% block preheader %}{{ title }}{% endblock %}
+{% block eyebrow %}Notification{% endblock %}
+{% block content %}
+<tr><td><h1 class="ff">{{ title }}</h1></td></tr>
+<tr><td class="ff" style="padding:14px 0 16px 0;"><p class="lead" style="font-size:16px;">{{ body }}</p></td></tr>
+{% if link %}
+<tr><td class="btn ff" style="padding-bottom:20px;">
+  <a id="confirm" href="{{ link.target }}" rel="noopener noreferrer" target="_blank" style="display:inline-block; background-color:#f2a35e; color:#1f2023; text-decoration:none; font-weight:600; font-size:15px; line-height:20px; padding:12px 28px; border-radius:6px;">{{ link.label }}</a>
+</td></tr>
+{% endif %}
+{% if key_value %}
+<tr><td>
+  <table role="presentation" class="kv ff" width="100%" cellpadding="0" cellspacing="0" border="0" style="border-top:1px solid #E6E6EA;">
+    {% for key, value in key_value.items %}
+    <tr>
+      <td class="k" style="font-size:14px; line-height:22px; padding:9px 12px; border-bottom:1px solid #E6E6EA; color:#8A8A90; width:38%; vertical-align:top;">{{ key }}</td>
+      <td style="font-size:14px; line-height:22px; padding:9px 12px; border-bottom:1px solid #E6E6EA; color:#1f2023; vertical-align:top;">{{ value }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+</td></tr>
+{% endif %}
+{% endblock %}
+{% block sub_content %}
+<tr><td class="ff muted" style="color:#8A8A90; font-size:12px; line-height:1.6;">
+  {% if source %}Sent by the HeardOS notification transport <code style="font-family:Menlo,Consolas,monospace; font-size:12px;">{{ source.from }}</code>.{% else %}Automatic notification from HeardOS.{% endif %}
+</td></tr>
+{% endblock %}
+{% block footer_note %}You received this because notifications for your HeardOS account are turned on.{% endblock %}

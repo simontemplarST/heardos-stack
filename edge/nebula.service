@@ -1,0 +1,14 @@
+[Unit]
+Description=Nebula overlay network (example)
+Wants=basic.target network-online.target
+After=basic.target network-online.target
+[Service]
+Type=notify
+NotifyAccess=main
+SyslogIdentifier=nebula
+ExecReload=/bin/kill -HUP $MAINPID
+ExecStart=/usr/local/bin/nebula -config /etc/nebula/config.yml
+Restart=always
+RestartSec=2
+[Install]
+WantedBy=multi-user.target

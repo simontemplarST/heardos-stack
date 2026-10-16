@@ -1,0 +1,69 @@
+# Authentik (server + worker + PostgreSQL + Redis). Secrets come from .env (written by 40-authentik-stack.sh).
+# Bootstrap env vars create akadmin's password and an API token on first start, so no UI step is needed.
+services:
+  postgresql:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_PASSWORD: ${PG_PASS}
+      POSTGRES_USER: authentik
+      POSTGRES_DB: authentik
+    volumes: ["${HEARDOS_ROOT}/data/authentik/postgres:/var/lib/postgresql/data"]
+    healthcheck: {test: ["CMD-SHELL", "pg_isready -d authentik -U authentik"], interval: 10s, timeout: 5s, retries: 10, start_period: 20s}
+    networks: [internal]
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: --save 60 1 --loglevel warning
+    volumes: ["${HEARDOS_ROOT}/data/authentik/redis:/data"]
+    healthcheck: {test: ["CMD-SHELL", "redis-cli ping | grep PONG"], interval: 10s, timeout: 3s, retries: 5}
+    networks: [internal]
+  server:
+    image: ghcr.io/goauthentik/server:${AUTHENTIK_TAG:-2026.8}
+    container_name: authentik-server          # the dynamic config and other stacks reach it by this name
+    restart: unless-stopped
+    command: server
+    environment: &ak_env
+      AUTHENTIK_SECRET_KEY: ${AUTHENTIK_SECRET_KEY}
+      AUTHENTIK_REDIS__HOST: redis
+      AUTHENTIK_POSTGRESQL__HOST: postgresql
+      AUTHENTIK_POSTGRESQL__USER: authentik
+      AUTHENTIK_POSTGRESQL__NAME: authentik
+      AUTHENTIK_POSTGRESQL__PASSWORD: ${PG_PASS}
+      AUTHENTIK_BOOTSTRAP_PASSWORD: ${AUTHENTIK_BOOTSTRAP_PASSWORD}
+      AUTHENTIK_BOOTSTRAP_TOKEN: ${AUTHENTIK_BOOTSTRAP_TOKEN}
+      AUTHENTIK_BOOTSTRAP_EMAIL: ${ADMIN_EMAIL}
+      AUTHENTIK_ERROR_REPORTING__ENABLED: "false"
+      TZ: ${TZ}
+    volumes:
+      - ${HEARDOS_ROOT}/data/authentik/media:/media
+      - ${HEARDOS_ROOT}/data/authentik/templates:/templates
+    ports:
+      - "${HOST_LAN_IP}:9000:9000"             # LAN API/UI for the automation scripts; public access goes through Traefik
+    depends_on: {postgresql: {condition: service_healthy}, redis: {condition: service_healthy}}
+    networks: [internal, proxy]
+    labels:
+      traefik.enable: "true"
+      traefik.docker.network: proxy
+      traefik.http.routers.authentik.rule: Host(`auth.${DOMAIN}`)
+      traefik.http.routers.authentik.entrypoints: web
+      traefik.http.routers.authentik.middlewares: xfp-https@file
+      traefik.http.routers.authentik-lan.rule: Host(`auth.${LAN_DOMAIN}`)
+      traefik.http.routers.authentik-lan.entrypoints: web
+      traefik.http.services.authentik.loadbalancer.server.port: "9000"
+  worker:
+    image: ghcr.io/goauthentik/server:${AUTHENTIK_TAG:-2026.8}
+    restart: unless-stopped
+    command: worker
+    environment: *ak_env
+    user: root
+    volumes:
+      - ${HEARDOS_ROOT}/data/authentik/media:/media
+      - ${HEARDOS_ROOT}/data/authentik/templates:/templates
+      - ${HEARDOS_ROOT}/data/authentik/certs:/certs
+    depends_on: {postgresql: {condition: service_healthy}, redis: {condition: service_healthy}}
+    networks: [internal]
+networks:
+  internal: {}
+  proxy:
+    external: true

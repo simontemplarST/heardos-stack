@@ -1,0 +1,110 @@
+<title>HeardOS Network Map</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;800&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+  :root { --bg: #ECEAE3; --panel: #F7F6F2; --ink: #262628; --ink-2: #5F5E59; --line: #C9C6BC; --amber: #f2a35e; --amber-ink: #8a4a00; color-scheme: light; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg: #1B1B1D; --panel: #242427; --ink: #ECEAE3; --ink-2: #A8A59C; --line: #46463F; --amber-ink: #FFC45C; color-scheme: dark; } }
+  :root[data-theme="dark"] { --bg: #1B1B1D; --panel: #242427; --ink: #ECEAE3; --ink-2: #A8A59C; --line: #46463F; --amber-ink: #FFC45C; color-scheme: dark; }
+  body { background: var(--bg); color: var(--ink); font-family: Inter, system-ui, -apple-system, "Segoe UI", sans-serif; padding-inline: 16px; padding-block: 24px 48px; line-height: 1.45; }
+  .wrap { max-width: 1700px; margin: 0 auto; }
+  header { border-bottom: 4px solid var(--amber); padding-bottom: 12px; margin-bottom: 20px; }
+  h1 { font-size: clamp(26px, 4vw, 38px); font-weight: 800; letter-spacing: -0.02em; margin: 0 0 4px; }
+  h2 { font-size: 18px; font-weight: 800; letter-spacing: -0.01em; margin: 36px 0 6px; }
+  header p, .lede { margin: 0; color: var(--ink-2); max-width: 80ch; }
+  .files { display: flex; flex-wrap: wrap; gap: 8px 18px; margin: 10px 0 0; font-size: 13.5px; }
+  .files a { color: var(--amber-ink); font-weight: 600; text-decoration: none; border-bottom: 1px solid var(--amber); }
+  .mono { font-family: "JetBrains Mono", ui-monospace, Menlo, Consolas, monospace; font-size: 0.92em; }
+  .legend { display: flex; flex-wrap: wrap; gap: 6px 20px; font-size: 12.5px; color: var(--ink-2); margin: 8px 0 10px; padding: 0; list-style: none; }
+  .legend li { display: flex; align-items: center; gap: 7px; }
+  .legend svg { width: 36px; height: 12px; flex: none; }
+  figure { margin: 0; }
+  /* the drawings keep a fixed paper palette so the published SVG and PDF look identical to the page */
+  .scroller { overflow-x: auto; background: #F7F6F2; border: 1px solid var(--line); padding: 6px; }
+  .scroller svg { display: block; min-width: 1100px; width: 100%; height: auto; font-family: Inter, system-ui, sans-serif; }
+  .detail { margin-top: 10px; min-height: 58px; border-left: 4px solid var(--amber); background: var(--panel); padding: 10px 14px; font-size: 14px; }
+  .detail b { display: block; font-size: 15px; margin-bottom: 2px; }
+  .detail span { color: var(--ink-2); }
+  <!--STYLE-->
+  table { border-collapse: collapse; width: 100%; font-size: 13.5px; background: var(--panel); }
+  th, td { text-align: left; padding: 7px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { color: var(--ink-2); font-size: 12px; letter-spacing: 0.04em; text-transform: uppercase; }
+  .rw { color: var(--amber-ink); font-weight: 600; } .ro { color: var(--ink-2); }
+  .tbl { overflow-x: auto; border: 1px solid var(--line); }
+  .foot { font-size: 13px; color: var(--ink-2); margin: 8px 0 0; max-width: 90ch; }
+  @media (prefers-reduced-motion: no-preference) { .node rect, .e, .el { transition: opacity .18s; } }
+</style>
+<div class="wrap">
+  <header>
+    <h1>HeardOS Network Map</h1>
+    <p>Three views of the same setup: how a request reaches an app, how the apps feed each other, and who shares which files. Click any box for its details. Every box and arrow was checked against the live systems on 14 Oct 2026.</p>
+    <p class="files"><a href="heardos-map.svg" target="_blank" rel="noopener">Poster as SVG (scales without limit)</a><a href="heardos-map.pdf" target="_blank" rel="noopener">Poster as PDF</a><span class="mono" style="color:var(--ink-2)">also saved at ~/heardos-install/docs/</span></p>
+  </header>
+
+  <h2>1 · Request path</h2>
+  <p class="lede">All public hosts are <span class="mono">&lt;name&gt;.example.com</span>; the drawing shows only the name.</p>
+  <ul class="legend">
+    <li><svg viewBox="0 0 36 12"><line x1="2" y1="6" x2="34" y2="6" stroke="#262628" stroke-width="1.6"/></svg>HTTP(S)</li>
+    <li><svg viewBox="0 0 36 12"><line x1="2" y1="6" x2="34" y2="6" stroke="#262628" stroke-width="1.6" stroke-dasharray="2 3"/></svg>LAN-only path</li>
+    <li><svg viewBox="0 0 36 12"><line x1="2" y1="6" x2="34" y2="6" stroke="#B8781A" stroke-width="2" stroke-dasharray="7 4"/></svg>Nebula tunnel</li>
+    <li><svg viewBox="0 0 36 12"><line x1="2" y1="6" x2="34" y2="6" stroke="#7A4FB2" stroke-width="1.6"/></svg>login check</li>
+    <li><svg viewBox="0 0 36 12"><line x1="2" y1="6" x2="34" y2="6" stroke="#3C6E8F" stroke-width="1.8"/></svg>data flow</li>
+    <li><svg viewBox="0 0 36 12"><rect x="2" y="1" width="32" height="10" fill="none" stroke="#7A4FB2" stroke-dasharray="5 3"/></svg>gated before the app</li>
+    <li><svg viewBox="0 0 36 12"><rect x="2" y="1" width="32" height="10" fill="none" stroke="#262628"/></svg>app logs in with Authentik itself</li>
+    <li><svg viewBox="0 0 36 12"><rect x="2" y="1" width="32" height="10" fill="none" stroke="#B23B3B"/></svg>no SSO</li>
+  </ul>
+  <figure>
+    <div class="scroller"><!--FIG1--></div>
+    <div class="detail" id="detail1"><b>Click a box</b><span>Steps 1–5 follow one request from outside the house. The VPS is the only public address and the tunnel lets it reach only port 80 of LXC 108. At home, two shortcuts exist: the sslip.io names (same login) and the host ports (no login at all). Since 14 Oct the only host without SSO is the speed test.</span></div>
+  </figure>
+
+  <h2>2 · What feeds what</h2>
+  <p class="lede">Scheduled jobs, integrations and API reads between apps. Everything here runs inside LXC 108 except the public feeds on the left.</p>
+  <figure>
+    <div class="scroller"><!--FIG2--></div>
+    <div class="detail" id="detail2"><b>Click a box</b><span>Every arrow is one-way; nothing writes back into Mealie, Actual, Homebox or the public feeds.</span></div>
+  </figure>
+
+  <h2>3 · Who shares which files</h2>
+  <p class="lede">Folders on LXC 108 bind-mounted into more than one app (verified from the running containers). Databases, keys and app configs are never shared.</p>
+  <div class="tbl">
+    <table>
+      <tr><th>Folder on the CT</th><th>Owner app</th><th>Nextcloud external storage</th><th>Others</th></tr>
+      <tr><td class="mono">media/data/books</td><td>Calibre-Web <span class="rw">rw</span></td><td class="ro">read · "Books"</td><td>—</td></tr>
+      <tr><td class="mono">media/data/music</td><td>Navidrome <span class="ro">read</span></td><td class="rw">rw · "Music"</td><td>—</td></tr>
+      <tr><td class="mono">media/data/images/immich</td><td>Immich + machine learning <span class="rw">rw</span></td><td class="ro">read · "Immich photos"</td><td>—</td></tr>
+      <tr><td class="mono">media/data/documents</td><td>Nextcloud <span class="rw">rw</span></td><td class="rw">rw · "Family documents"</td><td>—</td></tr>
+      <tr><td class="mono">media/data/{comics, movies, tv, podcasts, roms}</td><td>none yet (empty)</td><td class="ro">read</td><td>—</td></tr>
+      <tr><td class="mono">app-data/…/paperless_consume</td><td>Paperless <span class="rw">rw</span> (ingests, then deletes)</td><td class="rw">rw · "Paperless inbox"</td><td>—</td></tr>
+      <tr><td class="mono">app-data/…/paperless_media/documents/originals</td><td>Paperless <span class="rw">rw</span></td><td class="ro">read · "Paperless archive"</td><td>—</td></tr>
+      <tr><td class="mono">app-data/…/paperless_export</td><td>Paperless <span class="rw">rw</span></td><td class="ro">read · "Paperless export"</td><td>—</td></tr>
+      <tr><td class="mono">app-data/…/mealie-1/data/recipes</td><td>Mealie <span class="rw">rw</span></td><td class="ro">read · "Mealie recipes"</td><td>—</td></tr>
+    </table>
+  </div>
+  <p class="foot">Secrets live on the laptop in <span class="mono">~/.config/credentials.env</span> and the Nebula CA in <span class="mono">~/.config/nebula-ca</span>; the rebuild kit is <span class="mono">~/heardos-install</span>. Edge config is the VPS Caddyfile and <span class="mono">traefik/dynamic/public-example.yml</span> on the CT. DNS is edited with cfdns-add / cfdns-del on the CT.</p>
+</div>
+<script>
+(function () {
+  document.querySelectorAll('svg.map').forEach(function (svg, i) {
+    var detail = document.getElementById('detail' + (i + 1));
+    var nodes = Array.prototype.slice.call(svg.querySelectorAll('.node'));
+    var current = null, rest = detail ? detail.innerHTML : '';
+    function clear() { svg.classList.remove('dim'); current = null; if (detail) detail.innerHTML = rest;
+      Array.prototype.forEach.call(svg.querySelectorAll('.hi, .on'), function (el) { el.classList.remove('hi'); el.classList.remove('on'); }); }
+    function show(node) {
+      if (current === node) { clear(); return; }
+      clear(); current = node; svg.classList.add('dim'); node.classList.add('on');
+      if (detail) { detail.innerHTML = ''; var b = document.createElement('b'); b.textContent = node.getAttribute('data-title') || ''; var s = document.createElement('span'); s.innerHTML = node.getAttribute('data-desc') || ''; detail.appendChild(b); detail.appendChild(s); }
+      (node.getAttribute('data-links') || '').split(' ').filter(Boolean).forEach(function (id) {
+        var edge = svg.getElementById(id); if (!edge) return; edge.classList.add('hi');
+        var sib = edge.nextElementSibling;
+        while (sib && !sib.id && (sib.classList.contains('el') || sib.classList.contains('e') || sib.classList.contains('step'))) { sib.classList.add('hi'); sib = sib.nextElementSibling; }
+        nodes.forEach(function (n) { if (n !== node && (' ' + n.getAttribute('data-links') + ' ').indexOf(' ' + id + ' ') >= 0) n.classList.add('hi'); });
+      });
+    }
+    nodes.forEach(function (n) {
+      n.addEventListener('click', function (e) { e.stopPropagation(); show(n); });
+      n.addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); show(n); } if (e.key === 'Escape') clear(); });
+    });
+    svg.addEventListener('click', clear);
+  });
+})();
+</script>

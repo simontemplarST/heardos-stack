@@ -1,0 +1,28 @@
+# HeardOS family hub — kept deliberately simple: big labelled tiles, no status dots, no widgets that need keys.
+title: HeardOS
+favicon: https://cloud.example.com/brand/favicon-32.png
+description: Our family apps
+theme: dark
+color: orange
+headerStyle: boxed
+language: en
+target: _self
+hideVersion: true
+disableUpdateCheck: true
+statusStyle: ""
+showStats: false
+quicklaunch:
+  searchDescriptions: true
+  hideInternetSearch: true
+  hideVisitURL: true
+layout:
+  Everyday:
+    style: row
+    columns: 4
+    iconsOnly: false
+  House & paperwork:
+    style: row
+    columns: 4
+  Account:
+    style: row
+    columns: 4

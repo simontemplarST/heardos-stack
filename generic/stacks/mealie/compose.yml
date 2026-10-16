@@ -1,0 +1,34 @@
+# Mealie (sqlite). OIDC login via Authentik; signup closed; the built-in admin stays as break-glass.
+services:
+  mealie:
+    image: ghcr.io/mealie-recipes/mealie:latest
+    container_name: mealie
+    restart: unless-stopped
+    environment:
+      TZ: "${TZ}"
+      BASE_URL: "https://mealie.${DOMAIN}"
+      ALLOW_SIGNUP: "false"
+      ALLOW_PASSWORD_LOGIN: "true"
+      OIDC_AUTH_ENABLED: "true"
+      OIDC_CONFIGURATION_URL: "https://auth.${DOMAIN}/application/o/mealie/.well-known/openid-configuration"
+      OIDC_CLIENT_ID: "${OIDC_CLIENT_ID}"
+      OIDC_CLIENT_SECRET: "${OIDC_CLIENT_SECRET}"
+      OIDC_PROVIDER_NAME: HeardOS
+      OIDC_AUTO_REDIRECT: "false"
+      OIDC_ADMIN_GROUP: "authentik Admins"
+      OIDC_REMEMBER_ME: "true"
+      DEFAULT_EMAIL: "${ADMIN_EMAIL}"
+      DEFAULT_PASSWORD: "${MEALIE_ADMIN_PASSWORD}"
+    volumes: ["${HEARDOS_ROOT}/data/mealie:/app/data"]
+    ports: ["${HOST_LAN_IP}:9925:9000"]       # LAN API for the meal-plan calendar importer
+    networks: [proxy]
+    labels:
+      traefik.enable: "true"
+      traefik.http.routers.mealie.rule: Host(`mealie.${DOMAIN}`)
+      traefik.http.routers.mealie.entrypoints: web
+      traefik.http.routers.mealie.middlewares: xfp-https@file
+      traefik.http.routers.mealie-lan.rule: Host(`mealie.${LAN_DOMAIN}`)
+      traefik.http.routers.mealie-lan.entrypoints: web
+      traefik.http.services.mealie.loadbalancer.server.port: "9000"
+networks:
+  proxy: {external: true}

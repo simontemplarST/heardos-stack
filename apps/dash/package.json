@@ -1,0 +1,10 @@
+{
+  "name": "heardos-dash",
+  "version": "0.1.0",
+  "private": true,
+  "description": "HeardOS family dashboard: Mealie + Actual Budget + Homebox summary page",
+  "type": "module",
+  "dependencies": {
+    "@actual-app/api": "26.10.0"
+  }
+}

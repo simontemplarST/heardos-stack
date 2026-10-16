@@ -1,0 +1,26 @@
+# Local override (2026-09-28): serve the local sslip.io name over plain http (no https redirect).
+# 2026-10-15: outgoing mail through the Stalwart mail server (Runtipi stalwart-mail, same Docker network). Port 25, no
+# TLS, no auth: Stalwart trusts the proxy subnet and Django's SMTP backend would reject Stalwart's self-signed cert on 587.
+# Both the server AND the worker need these — the worker is what actually sends recovery / notification mail.
+x-email: &email
+  AUTHENTIK_EMAIL__HOST: stalwart-mail_migrated-stalwart-mail-1
+  AUTHENTIK_EMAIL__PORT: "25"
+  AUTHENTIK_EMAIL__USE_TLS: "false"
+  AUTHENTIK_EMAIL__USE_SSL: "false"
+  AUTHENTIK_EMAIL__TIMEOUT: "15"
+  AUTHENTIK_EMAIL__FROM: "HeardOS <authentik@example.com>"
+services:
+  authentik-1:
+    hostname: authentik.example.com   # Django greets SMTP servers with the container's FQDN; Stalwart rejects non-FQDN EHLO
+    environment:
+      <<: *email
+    labels:
+      traefik.http.routers.authentik-1-migrated-local-insecure.middlewares: noop@file
+  authentik-worker:
+    # the worker only sits on the app's private network by default; it must reach Stalwart on the shared one
+    networks:
+      - tipi_main_network
+      - authentik-1_migrated_network
+    hostname: authentik-worker.example.com
+    environment:
+      <<: *email

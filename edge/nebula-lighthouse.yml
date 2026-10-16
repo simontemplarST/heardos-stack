@@ -1,0 +1,36 @@
+# Nebula lighthouse + relay for the example overlay (10.42.0.0/24). Installed 2026-10-11.
+pki:
+  ca: /etc/nebula/ca.crt
+  cert: /etc/nebula/host.crt
+  key: /etc/nebula/host.key
+static_host_map: {}
+lighthouse:
+  am_lighthouse: true
+  interval: 60
+listen:
+  host: "[::]"
+  port: 4242
+  read_buffer: 10485760
+  write_buffer: 10485760
+punchy:
+  punch: true
+  respond: true
+relay:
+  am_relay: true
+  use_relays: false
+tun:
+  disabled: false
+  dev: nebula1
+  mtu: 1300
+logging:
+  level: info
+  format: text
+firewall:
+  outbound_action: drop
+  inbound_action: drop
+  conntrack: {tcp_timeout: 12m, udp_timeout: 3m, default_timeout: 10m}
+  outbound:
+    - {port: any, proto: any, host: any}
+  inbound:
+    - {port: any, proto: icmp, host: any}
+    - {port: 22, proto: tcp, group: admins}

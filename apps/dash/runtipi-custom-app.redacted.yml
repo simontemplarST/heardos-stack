@@ -1,0 +1,26 @@
+services:
+  dash:
+    image: heardos-dash:0.1
+    pull_policy: never
+    restart: unless-stopped
+    environment:
+      TZ: America/Chicago
+      CACHE_SECONDS: "180"
+      MEALIE_URL: http://mealie-1_migrated-mealie-1-1:9000
+      MEALIE_PUBLIC_URL: https://cloud.example.com/mealie
+      MEALIE_TOKEN: REDACTED
+      ACTUAL_URL: http://actual-budget_migrated-actual-budget-1:5006
+      ACTUAL_PUBLIC_URL: https://cloud.example.com/actual-budget
+      ACTUAL_SYNC_ID: 00000000-0000-4000-8000-000000000000
+      ACTUAL_PASSWORD: REDACTED
+      HOMEBOX_URL: http://homebox_migrated-homebox-1:7745
+      HOMEBOX_PUBLIC_URL: https://cloud.example.com/homebox
+      HOMEBOX_API_KEY: REDACTED
+    volumes:
+      - ${APP_DATA_DIR}/data:/data
+    x-runtipi:
+      internal_port: 8080
+      is_main: true
+x-runtipi:
+  schema_version: 2
+

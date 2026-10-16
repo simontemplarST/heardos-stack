@@ -1,0 +1,13 @@
+# Local override (2026-10-12): Home Assistant on the host network so mDNS/zeroconf discovery and Apple TV / HomeKit /
+# Cast pairing work (the Runtipi bridge network has no multicast). HA listens on 192.168.10.20:8123; Traefik reaches it
+# through the file provider (dynamic/public-example.yml -> http://192.168.10.20:8123). `!reset` drops the generated
+# bridge network and the 8209 port mapping, which are invalid together with network_mode: host.
+# 2026-10-13: Sonoff Zigbee 3.0 USB Dongle Plus V2 (ZBDongle-E, EFR32MG21, CH9102 serial 1a86:55d4) passed from prox
+# (108.conf dev0, mode 0666) into the CT at its by-id path and into HA at the SAME by-id path (unprivileged LXC: docker bind-mounts devices, so host and container paths must match; ttyACM0 mapping failed).
+services:
+  homeassistant-1:
+    network_mode: host
+    networks: !reset []
+    ports: !reset []
+    devices:
+      - /dev/serial/by-id/usb-ITEAD_SONOFF_Zigbee_3.0_USB_Dongle_Plus_V2_20230605100332-if00:/dev/serial/by-id/usb-ITEAD_SONOFF_Zigbee_3.0_USB_Dongle_Plus_V2_20230605100332-if00
