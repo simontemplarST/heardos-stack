@@ -15,7 +15,7 @@
 //   or ACTUAL_API_PASSWORD, WALLOS_URL, WALLOS_API_KEY (+ WALLOS_API_KEY_<NAME> for every further Wallos user that
 //   should get the same subscriptions in their own account, e.g. WALLOS_API_KEY_SAM), WALLOS_CURRENCY (default USD), SYNC_CYCLES (default monthly; monthly,quarterly,yearly,weekly,daily),
 //   SUBSCRIPTION_GROUPS (default "Subscriptions"; comma list of Actual category-group names), MIN_CHARGES (2),
-//   STALE_CYCLES (2), LOOKBACK_DAYS (400)
+//   STALE_CYCLES (2), LOOKBACK_DAYS (400), WALLOS_SKIP / WALLOS_SKIP_<NAME> (names never added to that account)
 //   LOGO_SEARCH (1 = look up a logo on the internet through Wallos's own image search for new subscriptions and for
 //   existing synced ones that still have no logo; 0 = never touch logos)
 // Flags: --dry-run (print the plan, change nothing), --verbose
@@ -35,6 +35,10 @@ const ACCOUNTS = [[env('WALLOS_USER', 'primary'), env('WALLOS_API_KEY', '')],
   ...Object.entries(process.env).filter(([k, v]) => /^WALLOS_API_KEY_[A-Z0-9_]+$/.test(k) && v).map(([k, v]) => [k.slice(15).toLowerCase(), v])]
   .filter(([, key]) => key);
 const ONLY = env('WALLOS_ONLY', '').toLowerCase();   // optional: run for one account label only
+// names never to add to an account (subscriptions its owner deleted on purpose): WALLOS_SKIP for the WALLOS_API_KEY
+// account, WALLOS_SKIP_<NAME> for the others; comma-separated, case-insensitive
+const skipFor = (label, primary) => new Set(env(primary ? 'WALLOS_SKIP' : `WALLOS_SKIP_${label.toUpperCase()}`, '')
+  .split(',').map((x) => x.trim().toLowerCase()).filter(Boolean));
 const CYCLES = new Set(env('SYNC_CYCLES', 'monthly').split(',').map((s) => s.trim().toLowerCase()).filter(Boolean));
 const GROUPS = new Set(env('SUBSCRIPTION_GROUPS', 'Subscriptions').split(',').map((s) => s.trim().toLowerCase()).filter(Boolean));
 const MIN_CHARGES = Number(env('MIN_CHARGES', '2')); const STALE_CYCLES = Number(env('STALE_CYCLES', '2')); const LOOKBACK = Number(env('LOOKBACK_DAYS', '400'));
@@ -222,9 +226,10 @@ function fieldsFor(it, L) {
 
 // ---------- apply, once per Wallos account ----------
 let failed = 0;
-for (const [label, key] of ACCOUNTS) {
+for (const [i, [label, key]] of ACCOUNTS.entries()) {
   if (ONLY && label !== ONLY) continue;
   WALLOS_KEY = key;
+  const SKIP = skipFor(label, i === 0); let skipped = 0;
   let L;
   try { L = await loadAccount(); } catch (e) { console.error(`[${label}] cannot read Wallos account: ${e.message}`); failed++; continue; }
   console.log(`== Wallos account: ${label}`);
@@ -232,6 +237,7 @@ for (const [label, key] of ACCOUNTS) {
   const seen = new Set();
   for (const it of plan) {
     const p = { marker: it.marker, fields: fieldsFor(it, L) };
+    if (SKIP.has(it.name.toLowerCase()) && !L.existing.has(it.marker.toLowerCase())) { vlog(`[${label}] skip (on the skip list): ${it.name}`); skipped++; continue; }
     const key = p.marker.toLowerCase(); seen.add(key); const e = L.existing.get(key);
     if (!e) {
       const logo = DRY ? null : await findLogo(p.fields.name);
@@ -257,6 +263,6 @@ for (const [label, key] of ACCOUNTS) {
     if (!DRY) await wallos('/api/subscriptions/set_subscriptions.php', { action: 'edit', id: String(e.id), inactive: '1' }, 'POST');
     deactivated++;
   }
-  console.log(`${DRY ? 'DRY RUN — ' : ''}[${label}] subscriptions found in Actual: ${plan.length}; added ${added}, updated ${updated}, unchanged ${unchanged}, deactivated ${deactivated}`);
+  console.log(`${DRY ? 'DRY RUN — ' : ''}[${label}] subscriptions found in Actual: ${plan.length}; added ${added}, updated ${updated}, unchanged ${unchanged}, deactivated ${deactivated}, skipped ${skipped}`);
 }
 if (failed) process.exit(1);
