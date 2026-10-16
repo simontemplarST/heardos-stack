@@ -7,6 +7,9 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 ENV_FILE="${HEARDOS_ENV:-$HERE/heardos.env}"
 
 msg()  { printf '\033[1;36m::\033[0m %s\n' "$*"; }
+# out KEY VALUE — a machine-readable result for the HeardOS installer (it parses "HEARDOS_OUTPUT KEY=VALUE" lines)
+out()  { printf 'HEARDOS_OUTPUT %s=%s\n' "$1" "$2"; }
+dry()  { [ -n "${HEARDOS_DRY_RUN:-}" ]; }   # true when the installer asked for a dry run
 warn() { printf '\033[1;33m!!\033[0m %s\n' "$*" >&2; }
 die()  { printf '\033[1;31mxx\033[0m %s\n' "$*" >&2; exit 1; }
 need() { command -v "$1" >/dev/null 2>&1 || die "missing '$1' — install it and re-run"; }
@@ -32,14 +35,18 @@ secret() {
 # render SRC DST — substitute ${VAR} placeholders from the environment (only the variables we export).
 render() { envsubst < "$1" > "$2"; }
 
-# ssh helpers for the VPS
-lh() { ssh -o BatchMode=yes -o ConnectTimeout=10 "root@${NEBULA_LH_IP:?set NEBULA_LH_IP}" "$@"; }
-lh_put() { scp -q -o BatchMode=yes "$1" "root@${NEBULA_LH_IP:?}:$2"; }
+# ssh helpers for the VPS (SSH_KEY lets the installer's dedicated key be used from the laptop scripts too)
+_sshkey() { [ -n "${SSH_KEY:-}" ] && printf -- '-i %s -o IdentitiesOnly=yes' "$SSH_KEY"; }
+lh() { ssh -o BatchMode=yes -o ConnectTimeout=10 $(_sshkey) "root@${NEBULA_LH_IP:?set NEBULA_LH_IP}" "$@"; }
+# wait_ssh SECONDS — until the VPS accepts our key (fresh VPSes take a minute or two); fails instead of looping forever
+wait_ssh() { local t="${1:-600}" i=0; until lh true 2>/dev/null; do sleep 5; i=$((i+5)); [ "$i" -ge "$t" ] && return 1; done; }
+lh_put() { scp -q -o BatchMode=yes $(_sshkey) "$1" "root@${NEBULA_LH_IP:?}:$2"; }
 
 # deploy_stack NAME — bring up $HEARDOS_ROOT/stacks/NAME/compose.yml, via Portainer when a token is set, else docker compose.
 deploy_stack() {
   local name="$1" dir="$HEARDOS_ROOT/stacks/$1"
   [ -f "$dir/compose.yml" ] || die "no compose.yml in $dir"
+  if dry; then msg "[dry-run] would deploy stack $name from $dir"; return 0; fi
   if [ -n "${PORTAINER_TOKEN:-}" ]; then
     "$HERE/lib/portainer-stack.py" "$name" "$dir/compose.yml" "$dir/.env"
   else

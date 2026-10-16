@@ -26,13 +26,14 @@ install -d -m 700 "$HEARDOS_ROOT/secrets"
 docker network inspect proxy >/dev/null 2>&1 || docker network create proxy >/dev/null
 PROXY_SUBNET="$(docker network inspect proxy -f '{{(index .IPAM.Config 0).Subnet}}')"
 grep -q '^PROXY_SUBNET=' "$ENV_FILE" || echo "PROXY_SUBNET=$PROXY_SUBNET" >> "$ENV_FILE"
-msg "proxy network: $PROXY_SUBNET"
+msg "proxy network: $PROXY_SUBNET"; out PROXY_SUBNET "$PROXY_SUBNET"
 
 if ! docker ps -a --format '{{.Names}}' | grep -qx portainer; then
   msg "Portainer CE on https://$HOST_LAN_IP:9443 (set the admin password in the UI within 5 minutes of first start)"
   docker volume create portainer_data >/dev/null
   docker run -d --name portainer --restart=always -p "$HOST_LAN_IP:9443:9443" \
     -v /var/run/docker.sock:/var/run/docker.sock -v portainer_data:/data portainer/portainer-ce:lts >/dev/null
+  out PORTAINER_FRESH 1   # the installer sets the admin password via the API inside Portainer's 5-minute window
 fi
 
 msg "kernel: TUN + socket buffers for Nebula"
@@ -69,8 +70,8 @@ else
 fi
 printf '[sshd]\nenabled = true\nmaxretry = 4\nbantime = 1h\n' > /etc/fail2ban/jail.d/sshd.local; systemctl enable --now fail2ban >/dev/null
 
-msg "ufw: ssh + http from LAN and overlay, Portainer from LAN, Nebula outbound only"
-ufw --force reset >/dev/null; ufw default deny incoming >/dev/null; ufw default allow outgoing >/dev/null
+msg "ufw: ssh + http from LAN and overlay, Portainer from LAN, Nebula outbound only (adds rules; never resets your own)"
+ufw default deny incoming >/dev/null; ufw default allow outgoing >/dev/null
 for src in "$LAN_SUBNET" "$OVERLAY_CIDR"; do ufw allow from "$src" to any port 22 proto tcp >/dev/null; ufw allow from "$src" to any port 80 proto tcp >/dev/null; done
 ufw allow from "$LAN_SUBNET" to any port 9443 proto tcp >/dev/null
 ufw --force enable >/dev/null; ufw status | sed -n '1,12p'

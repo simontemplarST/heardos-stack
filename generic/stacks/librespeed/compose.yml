@@ -1,0 +1,25 @@
+# LibreSpeed: public on purpose (no sign-in), stripped to just the test (page from apps/librespeed). Telemetry off.
+# The LAN name measures the home network; the public name measures client -> VPS -> overlay -> home.
+services:
+  librespeed:
+    image: lscr.io/linuxserver/librespeed:latest
+    container_name: librespeed
+    restart: unless-stopped
+    environment:
+      PUID: "1000"
+      PGID: "1000"
+      TZ: "${TZ}"
+      TELEMETRY: "false"
+      PASSWORD: "${LIBRESPEED_STATS_PASSWORD}"   # /results/stats.php only
+    volumes: ["${HEARDOS_ROOT}/data/librespeed:/config"]
+    networks: [proxy]
+    labels:
+      traefik.enable: "true"
+      traefik.http.routers.speed.rule: Host(`speed.${DOMAIN}`)
+      traefik.http.routers.speed.entrypoints: web
+      traefik.http.routers.speed.middlewares: xfp-https@file
+      traefik.http.routers.speed-lan.rule: Host(`speed.${LAN_DOMAIN}`)
+      traefik.http.routers.speed-lan.entrypoints: web
+      traefik.http.services.speed.loadbalancer.server.port: "80"
+networks:
+  proxy: {external: true}

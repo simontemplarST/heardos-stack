@@ -16,7 +16,7 @@ print("authentik", ak.get("/admin/version/").get("version_current"))
 
 # 1. brand
 brand = ak.results("/core/brands/")[0]
-ak.patch(f"/core/brands/{brand['brand_uuid']}/", {"branding_title": env.get("BRAND_TITLE", "HeardOS"), "flow_recovery": None})
+ak.patch(f"/core/brands/{brand['brand_uuid']}/", {"branding_title": env.get("BRAND_TITLE") or "HeardOS", "flow_recovery": None})
 print("brand: title set, recovery flow off")
 
 # 2. verified-email scope mapping
@@ -34,7 +34,13 @@ if not u:
                                   "is_active": True, "type": "internal", "groups": [admins["pk"]]})
     pw = "".join(secrets.choice(string.ascii_letters + string.digits) for _ in range(20)) + "!"
     ak.post(f"/core/users/{u['pk']}/set_password/", {"password": pw})
-    print(f"admin user {env['ADMIN_USER']} created. PASSWORD (store it now): {pw}")
+    pw_file = os.environ.get("HEARDOS_ADMIN_PW_FILE")
+    if pw_file:   # the installer collects it into its vault; never echo it
+        fd = os.open(pw_file, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600); os.write(fd, pw.encode()); os.close(fd)
+        print(f"admin user {env['ADMIN_USER']} created; password written to {pw_file}")
+        print(f"HEARDOS_OUTPUT ADMIN_PASSWORD_FILE={pw_file}")
+    else:
+        print(f"admin user {env['ADMIN_USER']} created. PASSWORD (store it now): {pw}")
 else:
     if admins["pk"] not in [g["pk"] for g in u.get("groups_obj", [])]:
         ak.post(f"/core/groups/{admins['pk']}/add_user/", {"pk": u["pk"]})

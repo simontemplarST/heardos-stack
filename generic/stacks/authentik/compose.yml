@@ -34,6 +34,15 @@ services:
       AUTHENTIK_BOOTSTRAP_TOKEN: ${AUTHENTIK_BOOTSTRAP_TOKEN}
       AUTHENTIK_BOOTSTRAP_EMAIL: ${ADMIN_EMAIL}
       AUTHENTIK_ERROR_REPORTING__ENABLED: "false"
+      # outgoing mail (password resets, invitations); written by 43-authentik-mail.sh, empty = mail off
+      AUTHENTIK_EMAIL__HOST: ${EMAIL_HOST:-localhost}
+      AUTHENTIK_EMAIL__PORT: ${EMAIL_PORT:-25}
+      AUTHENTIK_EMAIL__USERNAME: ${EMAIL_USERNAME:-}
+      AUTHENTIK_EMAIL__PASSWORD: ${EMAIL_PASSWORD:-}
+      AUTHENTIK_EMAIL__USE_TLS: ${EMAIL_USE_TLS:-false}
+      AUTHENTIK_EMAIL__USE_SSL: ${EMAIL_USE_SSL:-false}
+      AUTHENTIK_EMAIL__TIMEOUT: "15"
+      AUTHENTIK_EMAIL__FROM: ${EMAIL_FROM:-}
       TZ: ${TZ}
     volumes:
       - ${HEARDOS_ROOT}/data/authentik/media:/media

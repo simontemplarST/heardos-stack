@@ -1,0 +1,44 @@
+name: installer
+on:
+  push:
+    paths: ["installer/**", "generic/**", "authentik/**", "brand/**", "apps/**", "edge/**", "security/**", "mail/**"]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    defaults: {run: {working-directory: installer}}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.12"}
+      - run: pip install -e ".[dev]"
+      - run: pytest -q tests/unit
+
+  build:
+    needs: test
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-14, ubuntu-24.04]
+    runs-on: ${{ matrix.os }}
+    defaults: {run: {working-directory: installer}}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.12"}
+      - run: pip install -e ".[dev]"
+      - run: pyinstaller --noconfirm heardos.spec
+      - name: smoke test (headless commands work from the bundle)
+        shell: bash
+        run: |
+          if [ -d dist/HeardOS.app ]; then B=dist/HeardOS.app/Contents/MacOS/HeardOS; elif [ -f dist/HeardOS.exe ]; then B=dist/HeardOS.exe; else B=dist/HeardOS; fi
+          "$B" cli --help
+      - uses: actions/upload-artifact@v4
+        with:
+          name: HeardOS-${{ runner.os }}
+          path: |
+            installer/dist/HeardOS.exe
+            installer/dist/HeardOS.app
+            installer/dist/HeardOS

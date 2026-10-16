@@ -1,9 +1,14 @@
 #!/usr/bin/env bash
-# 50-app.sh — run ON THE HOST as root:  50-app.sh <app>   (paperless mealie homeassistant homebox baikal navidrome onlyoffice nextcloud immich)
+# 50-app.sh — run ON THE HOST as root:  50-app.sh <app>   (see --list: paperless mealie homeassistant homebox baikal navidrome onlyoffice nextcloud immich vaultwarden wallos actual invidious homepage calibre-web librespeed dash)
 # One command per app: registers it in Authentik (via 42-ak-app.py, using AUTHENTIK_TOKEN from the plan file),
 # generates its secrets, renders its stack .env, creates data dirs, deploys, and runs the app's post-install.
 # Public DNS and the Caddy host list are laptop-side: run 30-vps-caddy.sh and 32-dns.py once PUBLIC_HOSTS is final.
-. "$(dirname "$0")/lib/common.sh"; require_root; load_env
+. "$(dirname "$0")/lib/common.sh"
+if [ "${1:-}" = "--list" ]; then   # apps this kit can install (from catalog.json), one per line: stack<TAB>name<TAB>depends_on
+  python3 -c 'import json,sys,os; c=json.load(open(sys.argv[1])); [print(a["stack"]+"\t"+a["name"]+"\t"+",".join(a.get("depends_on",[]))) for a in c["apps"] if not a.get("core") and os.path.isdir(os.path.join(sys.argv[2],a["stack"]))]' "$HERE/catalog.json" "$HERE/stacks"; exit 0
+fi
+[ "${1:-}" = "--dry-run" ] && { export HEARDOS_DRY_RUN=1; shift; }
+require_root; load_env
 app="${1:?app name}"; : "${PROXY_SUBNET:?}" "${AUTHENTIK_TOKEN:?run 40-authentik-stack.sh first}" "${TZ:=UTC}"
 d="$HEARDOS_ROOT/stacks/$app"; [ -d "$HERE/stacks/$app" ] || die "no stack definition for '$app'"
 install -d "$d"; cp "$HERE/stacks/$app/compose.yml" "$d/compose.yml"
@@ -16,6 +21,7 @@ oidc() { # SLUG NAME LAUNCH REDIRECT... -> sets OIDC_CLIENT_ID/SECRET from secre
   else HEARDOS_ENV="$ENV_FILE" python3 "$HERE/42-ak-app.py" oidc "$slug" --name "$name" --launch "$launch" "${args[@]}" >/dev/null; fi
   OIDC_CLIENT_ID="$(grep "^${key}_CLIENT_ID=" "$HEARDOS_ROOT/secrets/secrets.env" | cut -d= -f2-)"; OIDC_CLIENT_SECRET="$(grep "^${key}_CLIENT_SECRET=" "$HEARDOS_ROOT/secrets/secrets.env" | cut -d= -f2-)"
 }
+have() { grep -E "^$1=" "$HEARDOS_ROOT/secrets/secrets.env" 2>/dev/null | head -1 | cut -d= -f2- || true; }   # read a secret, never create it
 proxy() { HEARDOS_ENV="$ENV_FILE" python3 "$HERE/42-ak-app.py" proxy "$@"; }
 pub="https://$app.$DOMAIN"
 case "$app" in
@@ -87,6 +93,42 @@ EOF
     pub="https://photos.$DOMAIN"; oidc immich "Immich (photos)" "$pub/" "$pub/auth/login" "$pub/user-settings" "$pub/api/oauth/mobile-redirect" "app.immich:///oauth-callback" "http://photos.$LAN_DOMAIN/auth/login" "http://$HOST_LAN_IP:2283/auth/login"
     install -d "$HEARDOS_ROOT/data/immich"/{postgres,model-cache} "$HEARDOS_ROOT/media/photos"
     { base_env; printf 'IMMICH_DB_PASSWORD=%s\nIMMICH_VERSION=release\n' "$(secret IMMICH_DB_PASSWORD)"; } > "$d/.env" ;;
+  vaultwarden)
+    pub="https://vault.$DOMAIN"; oidc vaultwarden "Vaultwarden (passwords)" "$pub/" "$pub/identity/connect/oidc-signin" "http://vault.$LAN_DOMAIN/identity/connect/oidc-signin"
+    install -d "$HEARDOS_ROOT/data/vaultwarden"
+    { base_env; printf 'OIDC_CLIENT_ID=%s\nOIDC_CLIENT_SECRET=%s\nVAULTWARDEN_ADMIN_TOKEN=%s\n' "$OIDC_CLIENT_ID" "$OIDC_CLIENT_SECRET" "$(secret VAULTWARDEN_ADMIN_TOKEN 48)"; } > "$d/.env" ;;
+  wallos)
+    oidc wallos "Wallos (subscriptions)" "$pub/" "$pub/" "http://wallos.$LAN_DOMAIN/"
+    install -d "$HEARDOS_ROOT/data/wallos"/{db,logos}
+    { base_env; printf 'BRAND_TITLE=%s\nOIDC_CLIENT_ID=%s\nOIDC_CLIENT_SECRET=%s\n' "${BRAND_TITLE:-HeardOS}" "$OIDC_CLIENT_ID" "$OIDC_CLIENT_SECRET"; } > "$d/.env" ;;
+  actual)
+    pub="https://budget.$DOMAIN"; oidc actual-budget "Actual (budget)" "$pub/" "$pub/openid/callback" "http://budget.$LAN_DOMAIN/openid/callback"
+    install -d "$HEARDOS_ROOT/data/actual"
+    { base_env; printf 'OIDC_CLIENT_ID=%s\nOIDC_CLIENT_SECRET=%s\nNEBULA_LH_OVERLAY=%s\n' "$OIDC_CLIENT_ID" "$OIDC_CLIENT_SECRET" "$NEBULA_LH_OVERLAY"; } > "$d/.env" ;;
+  invidious)
+    proxy invidious --name "Invidious (videos)" --host "https://tube.$DOMAIN" --skip '^/api/v1/.*' --skip '^/feed/private.*'
+    install -d "$HEARDOS_ROOT/data/invidious"/{postgres,companion-cache}; chown 10001:10001 "$HEARDOS_ROOT/data/invidious/companion-cache"
+    { base_env; printf 'INVIDIOUS_DB_PASSWORD=%s\nINVIDIOUS_HMAC_KEY=%s\nINVIDIOUS_COMPANION_KEY=%s\n' "$(secret INVIDIOUS_DB_PASSWORD)" "$(secret INVIDIOUS_HMAC_KEY 32)" "$(secret INVIDIOUS_COMPANION_KEY 16)"; } > "$d/.env" ;;
+  homepage)
+    proxy hub --name "Family hub" --host "https://hub.$DOMAIN"
+    install -d "$HEARDOS_ROOT/data/homepage"; base_env > "$d/.env" ;;
+  calibre-web)
+    proxy calibre-web --name "Books (Calibre-Web)" --host "https://books.$DOMAIN" --skip '^/opds(/.*)?$' --skip '^/kobo(/.*)?$'
+    install -d "$HEARDOS_ROOT/data/calibre-web" "$HEARDOS_ROOT/media/books"; chown 1000:1000 "$HEARDOS_ROOT/data/calibre-web" "$HEARDOS_ROOT/media/books"
+    base_env > "$d/.env" ;;
+  librespeed)
+    install -d "$HEARDOS_ROOT/data/librespeed/www"
+    [ -f "$HERE/../apps/librespeed/index.html" ] && install -m 644 "$HERE/../apps/librespeed/index.html" "$HEARDOS_ROOT/data/librespeed/www/index.html"
+    { base_env; printf 'LIBRESPEED_STATS_PASSWORD=%s\n' "$(secret LIBRESPEED_STATS_PASSWORD 24)"; } > "$d/.env" ;;
+  dash)
+    proxy dash --name "Family dashboard" --host "https://dash.$DOMAIN"
+    install -d "$HEARDOS_ROOT/data/dash"; chown 1000:1000 "$HEARDOS_ROOT/data/dash"
+    if dry; then msg "[dry-run] would build heardos-dash:local from apps/dash"
+    else msg "building the dashboard image"; docker build -q -t heardos-dash:local "$HERE/../apps/dash" >/dev/null; fi
+    # tokens come from the post-install automation (Mealie token, Homebox API key, Actual session); empty = "not configured" card
+    { base_env; c="https://cloud.$DOMAIN"
+      printf 'MEALIE_PUBLIC_URL=%s\nHOMEBOX_PUBLIC_URL=%s\nACTUAL_PUBLIC_URL=%s\n' "$c/mealie" "$c/homebox" "$c/actual-budget"
+      printf 'MEALIE_TOKEN=%s\nHOMEBOX_API_KEY=%s\nACTUAL_SYNC_ID=%s\nACTUAL_PASSWORD=%s\n' "$(have MEALIE_TOKEN)" "$(have HOMEBOX_API_KEY)" "$(have ACTUAL_SYNC_ID)" "$(have ACTUAL_SESSION_TOKEN)"; } > "$d/.env" ;;
   *) die "unknown app $app" ;;
 esac
 chmod 600 "$d/.env"
@@ -99,6 +141,11 @@ case "$app" in
     msg "waiting for Paperless, then creating category tags/types + workflows (lib/paperless-workflows.py)"
     for i in $(seq 1 60); do curl -fs -o /dev/null -u "$ADMIN_USER:$(grep '^PAPERLESS_ADMIN_PASSWORD=' "$d/.env" | cut -d= -f2-)" "http://paperless.$LAN_DOMAIN/api/ui_settings/" && break; sleep 5; done
     PAPERLESS_URL="http://paperless.$LAN_DOMAIN" PAPERLESS_ADMIN_USER="$ADMIN_USER" PAPERLESS_ADMIN_PASSWORD="$(grep '^PAPERLESS_ADMIN_PASSWORD=' "$d/.env" | cut -d= -f2-)" python3 "$HERE/lib/paperless-workflows.py" || warn "workflow bootstrap failed — re-run lib/paperless-workflows.py later" ;;
+  calibre-web)
+    msg "waiting for Calibre-Web (the Calibre tools install on first start, ~1-2 min), then enabling header login"
+    dry || PROXY_SUBNET="$PROXY_SUBNET" ADMIN_USER="$ADMIN_USER" ADMIN_EMAIL="$ADMIN_EMAIL" CALIBREWEB_ADMIN_PASSWORD="$(secret CALIBREWEB_ADMIN_PASSWORD 24)" HEARDOS_ROOT="$HEARDOS_ROOT" python3 "$HERE/lib/calibre-web-setup.py" ;;
+  vaultwarden) msg "admin page: https://vault.$DOMAIN/admin (token VAULTWARDEN_ADMIN_TOKEN in secrets.env); people sign in with their family account" ;;
+  actual) msg "the first person to sign in to https://budget.$DOMAIN becomes the budget owner — sign in as $ADMIN_USER first" ;;
   ocr) msg "check: docker exec paperless-webserver python3 -c \"import urllib.request;print(urllib.request.urlopen('http://heardos-ocr:8000/health').read())\"; then consume a scanned PDF and confirm its text in Paperless" ;;
   onlyoffice) msg "Document Server builds fonts on first start (several minutes); check: curl -s http://office.$LAN_DOMAIN/healthcheck -> true" ;;
   nextcloud)
@@ -108,4 +155,5 @@ case "$app" in
   baikal) msg "finish Baïkal in the browser: http://dav.$LAN_DOMAIN/admin/install/  (choose DAV auth type BASIC; set an admin password; create users)" ;;
   homeassistant) msg "finish HA onboarding at http://home.$LAN_DOMAIN (create the owner account); OIDC login appears on the login page afterwards" ;;
 esac
+if [ -f "$HEARDOS_ROOT/stacks/homepage/compose.yml" ]; then DOMAIN="$DOMAIN" HEARDOS_ROOT="$HEARDOS_ROOT" BRAND_TITLE="${BRAND_TITLE:-}" BRAND_COLOR="${BRAND_COLOR:-}" python3 "$HERE/lib/homepage-config.py" "$HEARDOS_ROOT/data/homepage"; fi
 msg "$app deployed. Public URL works once 30-vps-caddy.sh + 32-dns.py include it. Secrets: $HEARDOS_ROOT/secrets/secrets.env"

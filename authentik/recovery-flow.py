@@ -11,7 +11,7 @@
   default-authentication-identification: recovery_flow = this flow (adds the "Forgot password?" link)
 Requires AUTHENTIK_TOKEN in env."""
 import os, json, urllib.request
-A = "http://192.168.10.20:9000/api/v3"; H = {"Authorization": "Bearer " + os.environ["AUTHENTIK_TOKEN"], "Content-Type": "application/json"}
+A = (os.environ.get("AUTHENTIK_URL", "http://192.168.10.20:9000").rstrip("/") + "/api/v3"); H = {"Authorization": "Bearer " + os.environ["AUTHENTIK_TOKEN"], "Content-Type": "application/json"}
 def call(m, p, d=None):
     r = urllib.request.Request(A + p, method=m, data=json.dumps(d).encode() if d is not None else None, headers=H)
     try:

@@ -1,0 +1,39 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "heardos-installer"
+version = "0.1.0"
+description = "Desktop installer and day-two console for the HeardOS self-hosting stack"
+readme = "README.md"
+requires-python = ">=3.12"
+license = { text = "MIT" }
+dependencies = [
+  "imgui-bundle>=1.92",
+  "paramiko>=3.4",
+  "pynacl>=1.5",
+  "keyring>=25",
+  "httpx>=0.27",
+  "dnspython>=2.6",
+  "pyyaml>=6",
+  "websockets>=12",
+  "pillow>=10.1",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "respx>=0.21", "pyinstaller>=6", "numpy", "werkzeug"]
+
+[project.scripts]
+heardos = "heardos_installer.__main__:gui"
+heardos-cli = "heardos_installer.__main__:cli"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["heardos_installer*"]
+
+[tool.setuptools.package-data]
+heardos_installer = ["kit/data/**/*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

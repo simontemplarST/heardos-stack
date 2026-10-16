@@ -1,0 +1,70 @@
+# Invidious (YouTube front end) + its companion + Postgres. No login of its own: Authentik forward auth gates the whole site.
+services:
+  invidious:
+    image: quay.io/invidious/invidious:latest
+    container_name: invidious
+    restart: unless-stopped
+    environment:
+      INVIDIOUS_CONFIG: |
+        db:
+          dbname: invidious
+          user: kemal
+          password: ${INVIDIOUS_DB_PASSWORD}
+          host: invidious-db
+          port: 5432
+        check_tables: true
+        invidious_companion:
+        - private_url: "http://invidious-companion:8282/companion"
+        invidious_companion_key: ${INVIDIOUS_COMPANION_KEY}
+        hmac_key: ${INVIDIOUS_HMAC_KEY}
+        use_innertube_for_captions: true
+        domain: tube.${DOMAIN}
+        external_port: 443
+        https_only: true
+        captcha_enabled: false
+        registration_enabled: false
+    depends_on: [invidious-db]
+    networks: [proxy, invidious]
+    labels:
+      traefik.enable: "true"
+      traefik.docker.network: proxy
+      traefik.http.routers.tube-outpost.rule: Host(`tube.${DOMAIN}`) && PathPrefix(`/outpost.goauthentik.io/`)
+      traefik.http.routers.tube-outpost.entrypoints: web
+      traefik.http.routers.tube-outpost.priority: "100"
+      traefik.http.routers.tube-outpost.service: authentik-outpost@file
+      traefik.http.routers.tube-outpost.middlewares: xfp-https@file
+      traefik.http.routers.tube.rule: Host(`tube.${DOMAIN}`)
+      traefik.http.routers.tube.entrypoints: web
+      traefik.http.routers.tube.middlewares: xfp-https@file,authentik-fwd@file
+      traefik.http.routers.tube.service: tube
+      traefik.http.routers.tube-lan.rule: Host(`tube.${LAN_DOMAIN}`)
+      traefik.http.routers.tube-lan.entrypoints: web
+      traefik.http.routers.tube-lan.service: tube
+      traefik.http.services.tube.loadbalancer.server.port: "3000"
+  invidious-companion:
+    image: quay.io/invidious/invidious-companion:latest
+    container_name: invidious-companion
+    restart: unless-stopped
+    environment:
+      SERVER_SECRET_KEY: "${INVIDIOUS_COMPANION_KEY}"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    volumes: ["${HEARDOS_ROOT}/data/invidious/companion-cache:/var/tmp/youtubei.js:rw"]
+    networks: [invidious]
+  invidious-db:
+    image: docker.io/library/postgres:14
+    container_name: invidious-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: invidious
+      POSTGRES_USER: kemal
+      POSTGRES_PASSWORD: "${INVIDIOUS_DB_PASSWORD}"
+    volumes: ["${HEARDOS_ROOT}/data/invidious/postgres:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U kemal -d invidious"]
+      interval: 30s
+    networks: [invidious]
+networks:
+  proxy: {external: true}
+  invidious: {}

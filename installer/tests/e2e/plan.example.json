@@ -1,0 +1,13 @@
+{
+  "DOMAIN": "e2e.example.com",
+  "ADMIN_USER": "alice",
+  "ADMIN_EMAIL": "admin@example.net",
+  "ADMIN_NAME": "Alice Example",
+  "BRAND_TITLE": "HeardOS",
+  "HOST_LAN_IP": "192.168.10.50",
+  "HOST_SSH_USER": "root",
+  "provider": "cloudzy",
+  "dns_mode": "cloudflare",
+  "profile": "essentials",
+  "CADDY_FRONT_DOOR": true
+}
