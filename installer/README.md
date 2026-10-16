@@ -25,8 +25,8 @@ pipx install ./installer        # from a checkout of this repository; the kit is
 heardos                          # the app;  heardos-cli --help  for the headless version
 ```
 
-**Windows and macOS**: download `HeardOS.exe` / `HeardOS.app` from the latest *installer* workflow run
-(Actions → installer → artifacts), or build it yourself:
+**Windows, macOS and Linux**: download the app from the
+[latest release](https://github.com/simontemplarST/heardos-stack/releases/latest), or build it yourself:
 
 ```bash
 cd installer && pip install -e ".[dev]" && pyinstaller heardos.spec      # -> dist/
