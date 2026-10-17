@@ -24,7 +24,7 @@ def ensure_app(slug, name, provider_pk, launch, users):
     return app, g
 
 def cmd_oidc(a):
-    mappings = [m["pk"] for m in ak.results("/propertymappings/all/") if m["name"] in ("authentik default OAuth Mapping: OpenID 'openid'", "authentik default OAuth Mapping: OpenID 'profile'", "heardos-email-verified")]
+    mappings = [m["pk"] for m in ak.results("/propertymappings/all/") if m["name"] in ("authentik default OAuth Mapping: OpenID 'openid'", "authentik default OAuth Mapping: OpenID 'profile'", "heardos-email-verified", "HeardOS email (verified)")]
     key = next((k["pk"] for k in ak.results("/crypto/certificatekeypairs/?has_key=true") if "authentik Self-signed" in k["name"]), None)
     prov = ak.one("/providers/oauth2/", name=a.slug)
     cid = csec = None

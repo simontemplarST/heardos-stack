@@ -1,5 +1,9 @@
 # Tiles for the family. Icons come from dashboard-icons (loaded by the browser). Keep names in plain words.
 - Everyday:
+    - This week:
+        icon: mdi-view-dashboard
+        href: https://cloud.example.com/dash
+        description: Meals, shopping list, budget and what we have, at a glance
     - Photos:
         icon: immich.png
         href: https://cloud.example.com/immich
@@ -42,6 +46,10 @@
         icon: homebox.png
         href: https://cloud.example.com/homebox
         description: What we own and where it lives
+    - Budget:
+        icon: actual-budget.png
+        href: https://cloud.example.com/actual-budget
+        description: Monthly budget and where the money goes
     - Subscriptions:
         icon: wallos.png
         href: https://cloud.example.com/wallos

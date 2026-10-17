@@ -64,10 +64,10 @@ A detailed, annotated map of every host, route and app is in [`docs/network-map.
 | Path | What it holds |
 |---|---|
 | `generic/` | A from-scratch rebuild kit for any x86-64 Ubuntu host + any VPS: numbered scripts (`10-host-bootstrap.sh` → `90-verify.sh`), compose stacks, a plan file (`heardos.env.example`). Start here if you want to build your own. |
-| `edge/` | The lighthouse as it actually runs: `Caddyfile` (TLS, headers, the cloud front door, brand asset hosting), Nebula configs for lighthouse and Proxmox node, the node installer, and Cloudflare DNS helpers. |
+| `edge/` | The lighthouse as it actually runs: `Caddyfile` (TLS, headers, the cloud front door, brand asset hosting), Nebula configs for lighthouse and Proxmox node, the node installer, Cloudflare DNS helpers, and `kasm-egress/` (full-tunnel egress, kill switch and inbound filter for the remote-browser VM). |
 | `host/` | The app host: Traefik public/local router files, per-app Runtipi overrides (secrets redacted), the Runtipi API helper `tipi.py`, Nextcloud/Immich/calendar helpers. |
 | `authentik/` | Group-driven business flows and their test harness, the recovery flow builder, launch-URL tool, the branded email kit and its render check, and the sign-in background generator. |
-| `security/` | The written security baseline, a re-runnable read-only posture check, the external port scan, and the remediation scripts from the 2026-10 audit. |
+| `security/` | The written security baseline, a re-runnable read-only posture check, the external port scan, and the remediation scripts from the 2026-10 audit, and the laptop firewalld tightening. |
 | `mail/` | Resend set-up and DNS verification. |
 | `nebula-lan/` | Reaching the home LAN over the overlay: router-side (Proxmox) and client-side (laptop) scripts. |
 | `apps/` | Custom pieces: the family dashboard (`dash/`), Homepage hub config, the trimmed LibreSpeed page, Actual Budget tooling, the Actual → Wallos subscription sync, the cookbook importer. |
@@ -83,6 +83,8 @@ A detailed, annotated map of every host, route and app is in [`docs/network-map.
 - [Outbound mail through Resend](docs/outbound-mail.md)
 - [The cloud front door](docs/front-door.md)
 - [Home LAN over Nebula](docs/lan-over-nebula.md)
+- [Remote browser egress through the lighthouse](docs/kasm-egress.md)
+- [Skipping app login pages when already signed in](docs/sso-auto-redirect.md)
 - [Operating Runtipi: things that bite](docs/runtipi-notes.md)
 - [Brand package](brand/README.md)
 
