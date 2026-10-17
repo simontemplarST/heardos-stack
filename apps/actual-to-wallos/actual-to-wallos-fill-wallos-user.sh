@@ -4,7 +4,7 @@
 set -e
 U="${1:?wallos username}"; VAR="WALLOS_API_KEY_$(echo "$U" | tr 'a-z-' 'A-Z_')"
 E=/root/runtipi/app-data/_user/cronmaster/scripts/actual-to-wallos.env
-WK=$(docker exec -e WU="$U" wallos_migrated-wallos-1 php -r '$db=new SQLite3("/var/www/html/db/wallos.db",SQLITE3_OPEN_READONLY); $s=$db->prepare("select api_key from user where username=:u"); $s->bindValue(":u",getenv("WU")); $r=$s->execute()->fetchArray(); echo $r ? $r[0] : "";')
+WK=$(docker exec -e WU="$U" wallos php -r '$db=new SQLite3("/var/www/html/db/wallos.db",SQLITE3_OPEN_READONLY); $s=$db->prepare("select api_key from user where username=:u"); $s->bindValue(":u",getenv("WU")); $r=$s->execute()->fetchArray(); echo $r ? $r[0] : "";')
 [ -n "$WK" ] || { echo "no Wallos API key for user $U (they must sign in to Wallos once; the key is created with the account)"; exit 1; }
 grep -q "^$VAR=" "$E" && sed -i "s|^$VAR=.*|$VAR=$WK|" "$E" || printf '# %s'"'"'s Wallos account gets the same subscriptions\n%s=%s\n' "$U" "$VAR" "$WK" >> "$E"
 chmod 600 "$E"
