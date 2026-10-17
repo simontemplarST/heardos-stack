@@ -62,8 +62,10 @@ def portainer_init(ctx: Ctx) -> StepResult:
     s = ctx.sessions.host()
     url = f"https://{ctx.plan['HOST_LAN_IP']}:9443"
     body = '{"Username":"admin","Password":"%s"}' % pw
-    r = s.run(f"for i in $(seq 1 30); do code=$(curl -sk -o /tmp/pinit -w '%{{http_code}}' -X POST {url}/api/users/admin/init "
-              f"-H 'Content-Type: application/json' -d {repr(body)}); [ \"$code\" = 200 ] && echo created && break; "
+    # Portainer >= 2.45 also wants the one-time setup token it prints in its log at start-up (X-Setup-Token)
+    r = s.run(f"for i in $(seq 1 30); do st=$(docker logs portainer 2>&1 | grep -o 'setup_token=[A-Za-z0-9_-]*' | tail -1 | cut -d= -f2); "
+              f"code=$(curl -sk -o /tmp/pinit -w '%{{http_code}}' -X POST {url}/api/users/admin/init "
+              f"-H \"X-Setup-Token: $st\" -H 'Content-Type: application/json' -d {repr(body)}); [ \"$code\" = 200 ] && echo created && break; "
               f"[ \"$code\" = 409 ] && echo exists && break; sleep 2; done; rm -f /tmp/pinit", sudo=True, timeout=120)
     state = r.stdout.strip().splitlines()[-1:] or [""]
     if state[0] == "created":
