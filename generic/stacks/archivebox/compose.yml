@@ -1,0 +1,43 @@
+# ArchiveBox (saved web pages). archive.$DOMAIN behind the Authentik gate; ArchiveBox trusts X-authentik-username from the
+# proxy network only. Nothing public; archived JavaScript is not replayed (single-domain safe mode). No LAN route on purpose.
+services:
+  archivebox:
+    image: archivebox/archivebox:0.9.73
+    container_name: archivebox
+    restart: unless-stopped
+    environment:
+      BASE_URL: "https://archive.${DOMAIN}"
+      ALLOWED_HOSTS: "archive.${DOMAIN},admin.archivebox.localhost"   # 2nd = the image's own healthcheck host
+      CSRF_TRUSTED_ORIGINS: "https://archive.${DOMAIN}"
+      SERVER_SECURITY_MODE: safe-onedomain-nojsreplay
+      PUBLIC_INDEX: "False"
+      PUBLIC_SNAPSHOTS: "False"
+      PUBLIC_ADD_VIEW: "False"
+      ARCHIVEDOTORG_ENABLED: "False"
+      ADMIN_USERNAME: "${ADMIN_USER}"
+      ADMIN_PASSWORD: "${ARCHIVEBOX_ADMIN_PASSWORD}"
+      REVERSE_PROXY_USER_HEADER: X-authentik-username
+      REVERSE_PROXY_WHITELIST: "${PROXY_SUBNET}"
+      TZ: "${TZ}"
+    volumes:
+      - ${HEARDOS_ROOT}/data/archivebox:/data
+      - archivebox-tmp:/tmp/archivebox
+    shm_size: 1gb
+    pids_limit: 2048
+    networks: [proxy]
+    labels:
+      traefik.enable: "true"
+      traefik.http.routers.archive-outpost.rule: Host(`archive.${DOMAIN}`) && PathPrefix(`/outpost.goauthentik.io/`)
+      traefik.http.routers.archive-outpost.entrypoints: web
+      traefik.http.routers.archive-outpost.priority: "100"
+      traefik.http.routers.archive-outpost.service: authentik-outpost@file
+      traefik.http.routers.archive-outpost.middlewares: xfp-https@file
+      traefik.http.routers.archive.rule: Host(`archive.${DOMAIN}`)
+      traefik.http.routers.archive.entrypoints: web
+      traefik.http.routers.archive.middlewares: xfp-https@file,authentik-fwd@file
+      traefik.http.routers.archive.service: archive
+      traefik.http.services.archive.loadbalancer.server.port: "5797"
+volumes:
+  archivebox-tmp:
+networks:
+  proxy: {external: true}

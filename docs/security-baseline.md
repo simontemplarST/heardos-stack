@@ -75,3 +75,11 @@ Done = applied and verified. Pending = blocked in the autonomous session; a scri
 - The LAN DNS intercept caches NXDOMAIN for 30 min; verify new records from the lighthouse.
 - Auto-mode classifier: changes to shared family services and the public edge get refused mid-task.
   Stage files, validate, and hand the final swap to a human when that happens.
+
+## CrowdSec on the lighthouse (2026-10-17)
+
+CrowdSec agent + nftables firewall bouncer ([`security/crowdsec-lighthouse.sh`](../security/crowdsec-lighthouse.sh)).
+Caddy writes a JSON access log (snippet `(accesslog)` in [`edge/Caddyfile`](../edge/Caddyfile), rolled at 50 MiB × 5);
+collections caddy, linux, sshd, http-cve, base-http-scenarios; the Nebula overlay is whitelisted so the admin can never be
+banned. The package's automatic bouncer registration produced "access forbidden" — re-add the bouncer key with
+`cscli bouncers add`. Optional: enrol in the free CrowdSec console for shared blocklists.

@@ -1,0 +1,19 @@
+/* HeardOS Hearth Crest for Immich (2026-10-17): orange accent, charcoal/ink dark surfaces */
+:root {
+  --immich-primary: 237 131 37;
+  --immich-dark-primary: 242 163 94;
+  --immich-dark-bg: 31 32 35;
+  --immich-dark-fg: 236 236 236;
+  --immich-dark-gray: 38 39 43;
+  --immich-ui-primary-50: #fdf2e8; --immich-ui-primary-100: #fbe3cc; --immich-ui-primary-200: #f8ca9f;
+  --immich-ui-primary-300: #f5b984; --immich-ui-primary-400: #f2a35e; --immich-ui-primary-500: #ed8325;
+  --immich-ui-primary-600: #c86a16; --immich-ui-primary-700: #9c5212; --immich-ui-primary-800: #6f3a0d;
+  --immich-ui-primary-900: #4a270a; --immich-ui-primary-950: #2c1706;
+}
+.dark {
+  --immich-ui-primary-950: #fdf2e8; --immich-ui-primary-900: #fbe3cc; --immich-ui-primary-800: #f8ca9f;
+  --immich-ui-primary-700: #f5b984; --immich-ui-primary-600: #f4ad71; --immich-ui-primary-500: #f2a35e;
+  --immich-ui-primary-400: #ed8325; --immich-ui-primary-300: #c86a16; --immich-ui-primary-200: #9c5212;
+  --immich-ui-primary-100: #6f3a0d; --immich-ui-primary-50: #3f2107;
+  --immich-ui-gray: #26272b; --immich-ui-default-border: #3a3b40;
+}

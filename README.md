@@ -67,10 +67,10 @@ A detailed, annotated map of every host, route and app is in [`docs/network-map.
 | `edge/` | The lighthouse as it actually runs: `Caddyfile` (TLS, headers, the cloud front door, brand asset hosting), Nebula configs for lighthouse and Proxmox node, the node installer, Cloudflare DNS helpers, and `kasm-egress/` (full-tunnel egress, kill switch and inbound filter for the remote-browser VM). |
 | `host/` | The app host: Traefik public/local router files, per-app Runtipi overrides (secrets redacted), the Runtipi API helper `tipi.py`, Nextcloud/Immich/calendar helpers. |
 | `authentik/` | Group-driven business flows and their test harness, the recovery flow builder, launch-URL tool, the branded email kit and its render check, and the sign-in background generator. |
-| `security/` | The written security baseline, a re-runnable read-only posture check, the external port scan, and the remediation scripts from the 2026-10 audit, and the laptop firewalld tightening. |
+| `security/` | The written security baseline, a re-runnable read-only posture check, the external port scan, and the remediation scripts from the 2026-10 audit, the laptop firewalld tightening, CrowdSec for the edge and the step-ca LAN CA. |
 | `mail/` | Resend set-up and DNS verification. |
 | `nebula-lan/` | Reaching the home LAN over the overlay: router-side (Proxmox) and client-side (laptop) scripts. |
-| `apps/` | Custom pieces: the family dashboard (`dash/`), Homepage hub config, the trimmed LibreSpeed page, Actual Budget tooling, the Actual → Wallos subscription sync, the cookbook importer. |
+| `apps/` | Custom pieces: the family dashboard (`dash/`), Homepage hub config, the trimmed LibreSpeed page, Actual Budget tooling, the Actual → Wallos subscription sync, the cookbook importer, the per-app Hearth theme files (`brand-theme/`), the HortusFox plant template and the paperless-gpt CPU benchmark. |
 | `brand/` | The HeardOS identity ("Hearth Crest"): SVG marks, lockups, icons, palette, the sign-in background. |
 | `docs/` | Architecture, security baseline, flow and email documentation, operations notes, the Runtipi → Portainer migration plan. |
 
@@ -85,6 +85,10 @@ A detailed, annotated map of every host, route and app is in [`docs/network-map.
 - [Home LAN over Nebula](docs/lan-over-nebula.md)
 - [Remote browser egress through the lighthouse](docs/kasm-egress.md)
 - [Skipping app login pages when already signed in](docs/sso-auto-redirect.md)
+- [Trusted certificates for LAN names (step-ca)](docs/lan-ca.md)
+- [Plants, newsletters and saved pages](docs/household-apps.md)
+- [AI filing for Paperless on a CPU](docs/paperless-gpt.md)
+- [One look across the apps](docs/hearth-theme.md)
 - [Operating Runtipi: things that bite](docs/runtipi-notes.md)
 - [Brand package](brand/README.md)
 

@@ -5,6 +5,11 @@
   mealie-token      log in as Mealie's built-in admin and create an API token for the family dashboard -> MEALIE_TOKEN
   nextcloud-admin   put ADMIN_USER in Nextcloud's admin group (exit 3 = they have not signed in to Nextcloud yet)
   baikal-user       (exit 3 = Baïkal wizard not finished) create the Baïkal user for ADMIN_USER -> BAIKAL_ADMIN_PASSWORD
+  paperless-gpt-token  service user `paperless-gpt` in Paperless + its API token -> PAPERLESS_GPT_TOKEN
+  paperless-gpt     pull the Ollama model, add the Paperless workflow that tags new documents paperless-gpt-auto,
+                    and queue every existing document once
+  listmonk-config   Listmonk root URL, sender (MAIL_FROM), SMTP (MAIL_MODE=resend + RESEND_API_KEY, or SMTP_*), OIDC
+  hortusfox-cron    HortusFox cronjob password + an hourly root cron entry (recurring tasks, calendar reminders)
 
 Results are stored in $HEARDOS_ROOT/secrets/secrets.env and printed as HEARDOS_OUTPUT lines for the installer's vault.
 Idempotent: a value already in secrets.env is reused. stdlib only.
@@ -191,7 +196,98 @@ def baikal_user():
     print(f"Baïkal user {USER} ready (calendar password stored as BAIKAL_ADMIN_PASSWORD)")
 
 
-TASKS = {"ha-onboard": ha_onboard, "mealie-token": mealie_token, "nextcloud-admin": nextcloud_admin, "baikal-user": baikal_user}
+# ------------------------------------------------------------------ helpers for container-internal APIs
+def cip(name, net="proxy"):
+    return subprocess.check_output(["docker", "inspect", name, "--format", "{{(index .NetworkSettings.Networks \"%s\").IPAddress}}" % net], text=True).strip()
+
+
+# ------------------------------------------------------------------ paperless-gpt
+def paperless_gpt_token():
+    tok = have("PAPERLESS_GPT_TOKEN")
+    if tok:
+        print("PAPERLESS_GPT_TOKEN already present"); return
+    code = ("from django.contrib.auth.models import User\nfrom rest_framework.authtoken.models import Token\n"
+            "u,_=User.objects.get_or_create(username='paperless-gpt', defaults={'is_staff':True,'is_superuser':True})\n"
+            "u.set_unusable_password(); u.is_staff=True; u.is_superuser=True; u.save()\n"
+            "print('TOKEN='+Token.objects.get_or_create(user=u)[0].key)")
+    out = subprocess.check_output(["docker", "exec", "paperless-webserver", "python3", "manage.py", "shell", "-c", code], text=True)
+    keep("PAPERLESS_GPT_TOKEN", [l for l in out.splitlines() if l.startswith("TOKEN=")][-1].split("=", 1)[1])
+
+
+def paperless_gpt():
+    model = env.get("PAPERLESS_GPT_MODEL") or "llama3.2:3b"
+    subprocess.run(["docker", "exec", "ollama", "ollama", "pull", model], check=True, stdout=subprocess.DEVNULL)
+    B = f"http://{cip('paperless-webserver')}:8000/api"
+    H = {"Authorization": "Token " + have("PAPERLESS_GPT_TOKEN"), "Accept": "application/json; version=9"}
+    _, tags = http("GET", B + "/tags/?page_size=500", headers=H)
+    ids = {t["name"]: t["id"] for t in tags["results"]}
+    if "paperless-gpt-auto" not in ids:
+        _, t = http("POST", B + "/tags/", {"name": "paperless-gpt-auto", "matching_algorithm": 0}, headers=H); ids["paperless-gpt-auto"] = t["id"]
+    _, wfs = http("GET", B + "/workflows/?page_size=100", headers=H)
+    if not any(w["name"] == "AI filing (paperless-gpt)" for w in wfs["results"]):
+        http("POST", B + "/workflows/", {"name": "AI filing (paperless-gpt)", "order": 99, "enabled": True,
+             "triggers": [{"type": 2, "sources": [1, 2, 3], "filter_filename": "*"}],
+             "actions": [{"type": 1, "assign_tags": [ids["paperless-gpt-auto"]]}]}, headers=H)
+    _, docs = http("GET", B + "/documents/?page_size=1000&fields=id", headers=H)
+    ds = [d["id"] for d in docs["results"]]
+    if ds:
+        http("POST", B + "/documents/bulk_edit/", {"documents": ds, "method": "add_tag", "parameters": {"tag": ids["paperless-gpt-auto"]}}, headers=H)
+    print(f"paperless-gpt: model {model} pulled, workflow in place, {len(ds)} existing documents queued (~30-60 s each)")
+
+
+# ------------------------------------------------------------------ Listmonk
+def listmonk_config():
+    import http.cookiejar, re
+    B = f"http://{cip('listmonk')}:9000"
+    op = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()))
+    page = op.open(B + "/admin/login").read().decode()          # v6: admin API needs the browser session, not basic auth
+    n = re.search(r'name="nonce" value="([^"]+)"', page)
+    op.open(urllib.request.Request(B + "/admin/login", data=urllib.parse.urlencode(
+        {"username": USER, "password": have("LISTMONK_ADMIN_PASSWORD"), **({"nonce": n.group(1)} if n else {})}).encode()))
+    s = json.load(op.open(B + "/api/settings"))["data"]
+    domain = env["DOMAIN"]
+    s["app.root_url"] = f"https://news.{domain}"
+    s["app.from_email"] = os.environ.get("MAIL_FROM") or env.get("MAIL_FROM") or f"{env.get('BRAND_TITLE') or 'HeardOS'} <noreply@{domain}>"
+    mode = os.environ.get("MAIL_MODE") or env.get("MAIL_MODE") or ""
+    smtp = s["smtp"][0]
+    if mode == "resend":
+        smtp.update({"enabled": True, "host": "smtp.resend.com", "port": 587, "auth_protocol": "login", "username": "resend",
+                     "password": os.environ.get("RESEND_API_KEY") or have("RESEND_API_KEY"), "tls_type": "STARTTLS"})
+    elif mode == "smtp":
+        smtp.update({"enabled": True, "host": os.environ["SMTP_HOST"], "port": int(os.environ.get("SMTP_PORT", 587)), "auth_protocol": "login",
+                     "username": os.environ["SMTP_USER"], "password": os.environ["SMTP_PASSWORD"], "tls_type": "STARTTLS"})
+    else:
+        print("listmonk: MAIL_MODE not set — SMTP left unconfigured"); smtp["password"] = ""
+    s["smtp"] = [smtp]
+    cid, csec = have("AUTHENTIK_LISTMONK_SSO_CLIENT_ID"), have("AUTHENTIK_LISTMONK_SSO_CLIENT_SECRET")
+    # GET masks secrets; a PUT must re-supply the real SMTP password AND OIDC client secret or the mask gets stored
+    s["security.oidc"].update({"enabled": bool(cid), "provider_url": f"https://auth.{domain}/application/o/listmonk-sso/",
+                               "provider_name": env.get("BRAND_TITLE") or "HeardOS", "client_id": cid, "client_secret": csec, "auto_create_users": False})
+    op.open(urllib.request.Request(B + "/api/settings", data=json.dumps(s).encode(), headers={"Content-Type": "application/json"}, method="PUT"))
+    time.sleep(5)
+    print(f"listmonk configured: https://news.{domain} (sign in to /admin with your family account)")
+
+
+# ------------------------------------------------------------------ HortusFox
+def hortusfox_cron():
+    pw = have("HORTUS_CRON_PW") or secrets.token_urlsafe(24)
+    q = f"UPDATE AppModel SET cronjob_pw = '{pw}';"
+    subprocess.run(["docker", "exec", "hortusfox-db", "mariadb", "-uhortusfox", f"-p{have('HORTUS_DB_PASSWORD')}", "hortusfox", "-e", q], check=True)
+    keep("HORTUS_CRON_PW", pw)
+    os.makedirs("/usr/local/sbin", exist_ok=True)
+    with open("/usr/local/sbin/hortusfox-cron.sh", "w") as f:
+        f.write("#!/bin/sh\n# HortusFox cron endpoints: recurring tasks reset + calendar reminders (password from secrets.env)\n"
+                f"PW=$(grep '^HORTUS_CRON_PW=' {SECRETS} | cut -d= -f2-)\n"
+                'for ep in "$@"; do docker exec hortusfox curl -fsS -m 60 -X POST -d "cronpw=$PW" "http://127.0.0.1/cronjob/$ep" >/dev/null || echo "hortusfox cron $ep failed" >&2; done\n')
+    os.chmod("/usr/local/sbin/hortusfox-cron.sh", 0o700)
+    cur = subprocess.run(["crontab", "-l"], capture_output=True, text=True).stdout
+    lines = [l for l in cur.splitlines() if "hortusfox-cron.sh" not in l] + ["7 * * * * /usr/local/sbin/hortusfox-cron.sh tasks/recurring calendar/reminder"]
+    subprocess.run(["crontab", "-"], input="\n".join(lines) + "\n", text=True, check=True)
+    print("hortusfox: hourly cron installed (recurring tasks reset, calendar reminders)")
+
+
+TASKS = {"ha-onboard": ha_onboard, "mealie-token": mealie_token, "nextcloud-admin": nextcloud_admin, "baikal-user": baikal_user,
+         "paperless-gpt-token": paperless_gpt_token, "paperless-gpt": paperless_gpt, "listmonk-config": listmonk_config, "hortusfox-cron": hortusfox_cron}
 if __name__ == "__main__":
     if len(sys.argv) != 2 or sys.argv[1] not in TASKS:
         sys.exit(__doc__)

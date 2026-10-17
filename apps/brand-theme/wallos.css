@@ -1,0 +1,5 @@
+/* HeardOS Hearth Crest (2026-10-17) */
+:root, body { --background-color: #1f2023; --background-color-rgb: 31, 32, 35; --box-background-color: #26272b; --box-background-color-rgb: 38, 39, 43;
+  --box-border-color: #3a3b40; --header-background-color: #26272b; --input-background-color: #1f2023; --input-border-color: #3a3b40;
+  --surface-hover: #2c2d32; --text-color: #ececec; --text-color-rgb: 236, 236, 236; --text-muted: #a3a3aa; --focus-ring: 0 0 0 2px #f2a35e; }
+body { font-family: Inter, "Segoe UI", Roboto, system-ui, sans-serif; }

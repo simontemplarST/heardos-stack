@@ -3,6 +3,17 @@
 	email admin@example.net
 }
 
+# JSON access log for CrowdSec (security/crowdsec-lighthouse.sh)
+(accesslog) {
+	log {
+		output file /var/log/caddy/access.log {
+			roll_size 50MiB
+			roll_keep 5
+		}
+		format json
+	}
+}
+
 photos.example.com,
 docs.example.com,
 office.example.com,
@@ -21,7 +32,12 @@ tube.example.com,
 books.example.com,
 hub.example.com,
 speed.example.com,
+plants.example.com,
+news.example.com,
+archive.example.com,
+browser.example.com,
 dash.example.com {
+	import accesslog
 	header {
 		Strict-Transport-Security "max-age=31536000"
 		X-Content-Type-Options nosniff
@@ -51,6 +67,7 @@ dash.example.com {
 # https://cloud.example.com/<authentik-app-slug>[/path] -> 302 to the app's real host (aliases = the public subdomain names).
 # "/" and unknown slugs -> the Authentik "My applications" library. Pure redirects: no overlay hop, no auth needed here.
 cloud.example.com {
+	import accesslog
 	header {
 		Strict-Transport-Security "max-age=31536000"
 		X-Content-Type-Options nosniff
@@ -63,6 +80,9 @@ cloud.example.com {
 		~^/(?:baikal|dav)(/[^?]*)?(\?.*)?$ "https://dav.example.com${1}${2}"
 		~^/(?:cronmaster|cron)(/[^?]*)?(\?.*)?$ "https://cron.example.com${1}${2}"
 		~^/dash(/[^?]*)?(\?.*)?$ "https://dash.example.com${1}${2}"
+		~^/(?:hortusfox|plants)(/[^?]*)?(\?.*)?$ "https://plants.example.com${1}${2}"
+		~^/(?:archivebox|archive)(/[^?]*)?(\?.*)?$ "https://archive.example.com${1}${2}"
+		~^/(?:listmonk|news)(/[^?]*)?(\?.*)?$ "https://news.example.com${1}${2}"
 		~^/(?:home-assistant|home)(/[^?]*)?(\?.*)?$ "https://home.example.com${1}${2}"
 		~^/homebox(/[^?]*)?(\?.*)?$ "https://homebox.example.com${1}${2}"
 		~^/hub(/[^?]*)?(\?.*)?$ "https://hub.example.com${1}${2}"

@@ -23,6 +23,8 @@ services:
         https_only: true
         captcha_enabled: false
         registration_enabled: false
+        default_user_preferences:
+          dark_mode: dark
     depends_on: [invidious-db]
     networks: [proxy, invidious]
     labels:

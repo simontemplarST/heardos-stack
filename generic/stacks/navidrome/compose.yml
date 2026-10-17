@@ -7,6 +7,7 @@ services:
     restart: unless-stopped
     user: "1000:1000"
     environment:
+      ND_DEFAULTTHEME: Gruvbox Dark   # closest built-in to the Hearth look
       ND_SCANSCHEDULE: 15m
       ND_LOGLEVEL: info
       ND_SESSIONTIMEOUT: 24h

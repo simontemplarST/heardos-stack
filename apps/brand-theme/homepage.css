@@ -1,0 +1,12 @@
+/* HeardOS Hearth Crest for the hub (2026-10-17): ink background, charcoal tiles, orange accent, Hearth logo in the header */
+html, body, #page_wrapper, #inner_wrapper { background: #1f2023 !important; }
+body { color: #ececec; font-family: Inter, "Segoe UI", Roboto, system-ui, sans-serif; }
+.service-card { background: #26272b !important; border: 1px solid #3a3b40; box-shadow: none !important; }
+.service-card:hover { border-color: #f2a35e; }
+.service-name, .service-title { color: #ececec !important; }
+.service-description { color: #a3a3aa !important; }
+.service-group-name, h2 { color: #f2a35e !important; font-weight: 600; letter-spacing: .02em; }
+#information-widgets { border-bottom: 4px solid #f2a35e !important; background: #26272b !important; }
+#information-widgets::before { content: ""; display: block; width: 260px; height: 56px; margin: 6px 0;
+  background: url("https://cloud.example.com/brand/logo-dark.png") left center / contain no-repeat; }
+a:focus-visible, .service-card:focus-within { outline: 2px solid #f2a35e; outline-offset: 2px; }

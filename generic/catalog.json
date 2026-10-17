@@ -369,6 +369,68 @@
         "paperless"
       ],
       "profiles": []
+    },
+    {
+      "stack": "hortusfox",
+      "slug": "hortusfox",
+      "name": "Plants",
+      "blurb": "Houseplants and garden: watering tasks, photos, where each plant lives.",
+      "hosts": [
+        "plants"
+      ],
+      "profiles": [
+        "family",
+        "everything"
+      ],
+      "hub": {
+        "group": "House & paperwork",
+        "icon": "hortusfox.png",
+        "label": "Plants",
+        "description": "Watering, photos and where each plant lives"
+      }
+    },
+    {
+      "stack": "archivebox",
+      "slug": "archivebox",
+      "name": "Saved pages",
+      "blurb": "Keep a private copy of a web page before it disappears.",
+      "hosts": [
+        "archive"
+      ],
+      "profiles": [
+        "everything"
+      ],
+      "hub": {
+        "group": "Everyday",
+        "icon": "archivebox.png",
+        "label": "Saved pages",
+        "description": "Keep a copy of a web page before it disappears"
+      }
+    },
+    {
+      "stack": "listmonk",
+      "slug": "listmonk",
+      "name": "Newsletters",
+      "blurb": "Family newsletters and holiday letters with public subscribe pages; sends through your outbound mail.",
+      "hosts": [
+        "news"
+      ],
+      "profiles": [
+        "everything"
+      ]
+    },
+    {
+      "stack": "paperless-gpt",
+      "slug": "paperless-gpt",
+      "name": "AI filing for Paperless",
+      "blurb": "A small local AI model writes titles, correspondents and dates for new documents (CPU only, no cloud).",
+      "hosts": [],
+      "profiles": [
+        "everything"
+      ],
+      "depends_on": [
+        "paperless"
+      ]
     }
   ]
 }

@@ -28,6 +28,10 @@
         icon: invidious.png
         href: https://cloud.example.com/invidious
         description: YouTube without ads or tracking
+    - Saved pages:
+        icon: archivebox.png
+        href: https://cloud.example.com/archive
+        description: Keep a copy of a web page before it disappears
     - Passwords:
         icon: vaultwarden.png
         href: https://cloud.example.com/vaultwarden
@@ -46,6 +50,10 @@
         icon: homebox.png
         href: https://cloud.example.com/homebox
         description: What we own and where it lives
+    - Plants:
+        icon: hortusfox.png
+        href: https://cloud.example.com/plants
+        description: Watering, photos and where each plant lives
     - Budget:
         icon: actual-budget.png
         href: https://cloud.example.com/actual-budget

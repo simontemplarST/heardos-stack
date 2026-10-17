@@ -1,0 +1,60 @@
+# HortusFox (plants). plants.$DOMAIN behind the Authentik gate; the app logs people in from X-authentik-email/-username
+# (proxy auth, auto-signup). No LAN route on purpose: only gated routers may reach an app that trusts identity headers.
+services:
+  hortusfox:
+    image: ghcr.io/danielbrendel/hortusfox-web:latest
+    container_name: hortusfox
+    restart: unless-stopped
+    environment:
+      APP_ADMIN_EMAIL: "${ADMIN_EMAIL}"
+      APP_ADMIN_PASSWORD: "${HORTUS_ADMIN_PASSWORD}"
+      APP_TIMEZONE: "${TZ}"
+      DB_HOST: hortusfox-db
+      DB_PORT: 3306
+      DB_DATABASE: hortusfox
+      DB_USERNAME: hortusfox
+      DB_PASSWORD: "${HORTUS_DB_PASSWORD}"
+      DB_CHARSET: utf8mb4
+      PROXY_ENABLE: "true"
+      PROXY_HEADER_EMAIL: X-authentik-email
+      PROXY_HEADER_USERNAME: X-authentik-username
+      PROXY_AUTO_SIGNUP: "true"
+      PROXY_WHITELIST: ""
+      PROXY_HIDE_LOGOUT: "true"
+      PROXY_OVERWRITE_VALUES: "true"
+    volumes:
+      - ${HEARDOS_ROOT}/data/hortusfox/img:/var/www/html/public/img
+      - ${HEARDOS_ROOT}/data/hortusfox/attachments:/var/www/html/public/attachments
+      - ${HEARDOS_ROOT}/data/hortusfox/logs:/var/www/html/app/logs
+      - ${HEARDOS_ROOT}/data/hortusfox/backup:/var/www/html/public/backup
+      - ${HEARDOS_ROOT}/data/hortusfox/themes:/var/www/html/public/themes
+      - ${HEARDOS_ROOT}/data/hortusfox/migrate:/var/www/html/app/migrations
+    depends_on: [hortusfox-db]
+    networks: [proxy, internal]
+    labels:
+      traefik.enable: "true"
+      traefik.docker.network: proxy
+      traefik.http.routers.plants-outpost.rule: Host(`plants.${DOMAIN}`) && PathPrefix(`/outpost.goauthentik.io/`)
+      traefik.http.routers.plants-outpost.entrypoints: web
+      traefik.http.routers.plants-outpost.priority: "100"
+      traefik.http.routers.plants-outpost.service: authentik-outpost@file
+      traefik.http.routers.plants-outpost.middlewares: xfp-https@file
+      traefik.http.routers.plants.rule: Host(`plants.${DOMAIN}`)
+      traefik.http.routers.plants.entrypoints: web
+      traefik.http.routers.plants.middlewares: xfp-https@file,authentik-fwd@file
+      traefik.http.routers.plants.service: plants
+      traefik.http.services.plants.loadbalancer.server.port: "80"
+  hortusfox-db:
+    image: mariadb:11.8
+    container_name: hortusfox-db
+    restart: unless-stopped
+    environment:
+      MARIADB_ROOT_PASSWORD: "${HORTUS_DB_ROOT_PASSWORD}"
+      MARIADB_DATABASE: hortusfox
+      MARIADB_USER: hortusfox
+      MARIADB_PASSWORD: "${HORTUS_DB_PASSWORD}"
+    volumes: ["${HEARDOS_ROOT}/data/hortusfox/db:/var/lib/mysql"]
+    networks: [internal]
+networks:
+  proxy: {external: true}
+  internal: {name: hortusfox_internal}

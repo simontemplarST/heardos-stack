@@ -1,0 +1,56 @@
+# Listmonk (family newsletters). news.$DOMAIN: subscribe/unsubscribe/archive pages are public; /admin and the admin API
+# (everything under /api except /api/public) sit behind the Authentik gate, then Listmonk's own OIDC sign-in.
+# Settings (root URL, sender, SMTP, OIDC) are applied by `63-post-install.py listmonk-config`.
+services:
+  listmonk:
+    image: listmonk/listmonk:v6.2.0
+    container_name: listmonk
+    restart: unless-stopped
+    command: [sh, -c, "./listmonk --install --idempotent --yes --config '' && ./listmonk --upgrade --yes --config '' && ./listmonk --config ''"]
+    environment:
+      LISTMONK_app__address: 0.0.0.0:9000
+      LISTMONK_db__host: listmonk-db
+      LISTMONK_db__port: 5432
+      LISTMONK_db__user: listmonk
+      LISTMONK_db__password: "${LISTMONK_DB_PASSWORD}"
+      LISTMONK_db__database: listmonk
+      LISTMONK_db__ssl_mode: disable
+      LISTMONK_ADMIN_USER: "${ADMIN_USER}"
+      LISTMONK_ADMIN_PASSWORD: "${LISTMONK_ADMIN_PASSWORD}"
+      TZ: "${TZ}"
+    volumes: ["${HEARDOS_ROOT}/data/listmonk/uploads:/listmonk/uploads"]
+    depends_on:
+      listmonk-db: {condition: service_healthy}
+    networks: [proxy, internal]
+    labels:
+      traefik.enable: "true"
+      traefik.docker.network: proxy
+      traefik.http.routers.news-outpost.rule: Host(`news.${DOMAIN}`) && PathPrefix(`/outpost.goauthentik.io/`)
+      traefik.http.routers.news-outpost.entrypoints: web
+      traefik.http.routers.news-outpost.priority: "100"
+      traefik.http.routers.news-outpost.service: authentik-outpost@file
+      traefik.http.routers.news-outpost.middlewares: xfp-https@file
+      traefik.http.routers.news-admin.rule: Host(`news.${DOMAIN}`) && (PathPrefix(`/admin`) || (PathPrefix(`/api`) && !PathPrefix(`/api/public`)))
+      traefik.http.routers.news-admin.entrypoints: web
+      traefik.http.routers.news-admin.priority: "50"
+      traefik.http.routers.news-admin.middlewares: xfp-https@file,authentik-fwd@file
+      traefik.http.routers.news-admin.service: news
+      traefik.http.routers.news.rule: Host(`news.${DOMAIN}`)
+      traefik.http.routers.news.entrypoints: web
+      traefik.http.routers.news.middlewares: xfp-https@file
+      traefik.http.routers.news.service: news
+      traefik.http.services.news.loadbalancer.server.port: "9000"
+  listmonk-db:
+    image: postgres:17-alpine
+    container_name: listmonk-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: listmonk
+      POSTGRES_PASSWORD: "${LISTMONK_DB_PASSWORD}"
+      POSTGRES_DB: listmonk
+    healthcheck: {test: ["CMD-SHELL", "pg_isready -U listmonk"], interval: 10s, timeout: 5s, retries: 6}
+    volumes: ["${HEARDOS_ROOT}/data/listmonk/db:/var/lib/postgresql/data"]
+    networks: [internal]
+networks:
+  proxy: {external: true}
+  internal: {name: listmonk_internal}

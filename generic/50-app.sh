@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 50-app.sh — run ON THE HOST as root:  50-app.sh <app>   (see --list: paperless mealie homeassistant homebox baikal navidrome onlyoffice nextcloud immich vaultwarden wallos actual invidious homepage calibre-web librespeed dash)
+# 50-app.sh — run ON THE HOST as root:  50-app.sh <app>   (see --list: paperless mealie homeassistant homebox baikal navidrome onlyoffice nextcloud immich vaultwarden wallos actual invidious homepage calibre-web librespeed dash hortusfox archivebox listmonk paperless-gpt)
 # One command per app: registers it in Authentik (via 42-ak-app.py, using AUTHENTIK_TOKEN from the plan file),
 # generates its secrets, renders its stack .env, creates data dirs, deploys, and runs the app's post-install.
 # Public DNS and the Caddy host list are laptop-side: run 30-vps-caddy.sh and 32-dns.py once PUBLIC_HOSTS is final.
@@ -129,6 +129,25 @@ EOF
     { base_env; c="https://cloud.$DOMAIN"
       printf 'MEALIE_PUBLIC_URL=%s\nHOMEBOX_PUBLIC_URL=%s\nACTUAL_PUBLIC_URL=%s\n' "$c/mealie" "$c/homebox" "$c/actual-budget"
       printf 'MEALIE_TOKEN=%s\nHOMEBOX_API_KEY=%s\nACTUAL_SYNC_ID=%s\nACTUAL_PASSWORD=%s\n' "$(have MEALIE_TOKEN)" "$(have HOMEBOX_API_KEY)" "$(have ACTUAL_SYNC_ID)" "$(have ACTUAL_SESSION_TOKEN)"; } > "$d/.env" ;;
+  hortusfox)
+    proxy hortusfox --name "Plants (HortusFox)" --host "https://plants.$DOMAIN" --launch "https://cloud.$DOMAIN/plants"
+    install -d "$HEARDOS_ROOT/data/hortusfox"/{img,attachments,logs,backup,themes,migrate,db}
+    { base_env; printf 'HORTUS_ADMIN_PASSWORD=%s\nHORTUS_DB_PASSWORD=%s\nHORTUS_DB_ROOT_PASSWORD=%s\n' "$(secret HORTUS_ADMIN_PASSWORD 24)" "$(secret HORTUS_DB_PASSWORD)" "$(secret HORTUS_DB_ROOT_PASSWORD)"; } > "$d/.env" ;;
+  archivebox)
+    proxy archivebox --name "Saved pages (ArchiveBox)" --host "https://archive.$DOMAIN" --launch "https://cloud.$DOMAIN/archive"
+    install -d "$HEARDOS_ROOT/data/archivebox"
+    { base_env; printf 'ARCHIVEBOX_ADMIN_PASSWORD=%s\n' "$(secret ARCHIVEBOX_ADMIN_PASSWORD 24)"; } > "$d/.env" ;;
+  listmonk)
+    # gate for /admin + admin API (owner only), then Listmonk's own OIDC sign-in (hidden app); public pages stay open
+    proxy listmonk --name "Newsletters (Listmonk)" --host "https://news.$DOMAIN" --launch "https://cloud.$DOMAIN/news" --users "$ADMIN_USER"
+    oidc listmonk-sso "Listmonk sign-in" "https://news.$DOMAIN/" "https://news.$DOMAIN/auth/oidc"
+    install -d "$HEARDOS_ROOT/data/listmonk"/{uploads,db}
+    { base_env; printf 'LISTMONK_ADMIN_PASSWORD=%s\nLISTMONK_DB_PASSWORD=%s\n' "$(secret LISTMONK_ADMIN_PASSWORD 24)" "$(secret LISTMONK_DB_PASSWORD)"; } > "$d/.env" ;;
+  paperless-gpt)
+    # needs Paperless running: creates the paperless-gpt service user + API token (PAPERLESS_GPT_TOKEN) first
+    install -d "$HEARDOS_ROOT/data/ollama" "$HEARDOS_ROOT/data/paperless-gpt/prompts"
+    dry || python3 "$HERE/63-post-install.py" paperless-gpt-token >/dev/null || die "paperless-gpt needs Paperless running (50-app.sh paperless)"
+    { base_env; printf 'PAPERLESS_GPT_TOKEN=%s\nPAPERLESS_GPT_MODEL=%s\nOLLAMA_CPUS=%s\n' "$(have PAPERLESS_GPT_TOKEN)" "${PAPERLESS_GPT_MODEL:-llama3.2:3b}" "${OLLAMA_CPUS:-6}"; } > "$d/.env" ;;
   *) die "unknown app $app" ;;
 esac
 chmod 600 "$d/.env"
@@ -154,6 +173,11 @@ case "$app" in
     msg "log in once via Authentik, then make yourself admin: docker exec -u www-data nextcloud php occ group:adduser admin $ADMIN_USER" ;;
   baikal) msg "finish Baïkal in the browser: http://dav.$LAN_DOMAIN/admin/install/  (choose DAV auth type BASIC; set an admin password; create users)" ;;
   homeassistant) msg "finish HA onboarding at http://home.$LAN_DOMAIN (create the owner account); OIDC login appears on the login page afterwards" ;;
+  hortusfox) dry || python3 "$HERE/63-post-install.py" hortusfox-cron ;;
+  listmonk)
+    msg "waiting for Listmonk, then setting root URL, sender, SMTP (MAIL_MODE as for Authentik) and OIDC"
+    dry || { wait_http "http://news.$LAN_DOMAIN/" 300 2>/dev/null || sleep 20; python3 "$HERE/63-post-install.py" listmonk-config || warn "listmonk-config failed — re-run 63-post-install.py listmonk-config"; } ;;
+  paperless-gpt) dry || python3 "$HERE/63-post-install.py" paperless-gpt ;;
 esac
 if [ -f "$HEARDOS_ROOT/stacks/homepage/compose.yml" ]; then DOMAIN="$DOMAIN" HEARDOS_ROOT="$HEARDOS_ROOT" BRAND_TITLE="${BRAND_TITLE:-}" BRAND_COLOR="${BRAND_COLOR:-}" python3 "$HERE/lib/homepage-config.py" "$HEARDOS_ROOT/data/homepage"; fi
 msg "$app deployed. Public URL works once 30-vps-caddy.sh + 32-dns.py include it. Secrets: $HEARDOS_ROOT/secrets/secrets.env"

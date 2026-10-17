@@ -1,0 +1,10 @@
+/* HeardOS Hearth Crest (2026-10-17) */
+:root {
+  color-scheme: dark;
+  --primary: light-dark(#ed8325, #f2a35e); --ring: light-dark(#ed8325, #f2a35e);
+  --body: light-dark(#ececec, #1f2023); --card: light-dark(#fff, #26272b); --faint: light-dark(#fafafa, #232428);
+  --muted: light-dark(#f4f4f5, #2c2d32); --secondary: light-dark(#f4f4f5, #2c2d32); --accent: light-dark(#f4f4f5, #33343a);
+  --background: light-dark(#fff, #26272b); --foreground: light-dark(#1f2023, #ececec); --card-foreground: light-dark(#1f2023, #ececec);
+  --border: light-dark(#e5e7eb, #3a3b40); --input: light-dark(#d4d4d8, #3a3b40);
+  --font-sans: Inter, "Segoe UI", Roboto, system-ui, sans-serif;
+}

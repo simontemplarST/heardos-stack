@@ -1,0 +1,12 @@
+/* HeardOS Hearth Crest (2026-10-17): subscribe / archive pages */
+body { background: #1f2023; color: #ececec; font-family: Inter, "Segoe UI", Roboto, system-ui, sans-serif; }
+.wrap, .container, .box, section { background: #26272b; color: #ececec; border-color: #3a3b40; box-shadow: none; }
+.wrap { border-top: 4px solid #f2a35e; border-radius: 6px; }
+a { color: #f2a35e; text-decoration-color: #ed8325; }
+a:hover { color: #f5b984; }
+.button, button, input[type="submit"] { background: #f2a35e; color: #1f2023; border-color: #f2a35e; font-weight: 600; }
+.button:hover, button:hover, input[type="submit"]:hover { background: #f5b984; border-color: #f5b984; color: #1f2023; }
+.button.button-outline { background: transparent; color: #f2a35e; }
+input, select, textarea { background: #1f2023; color: #ececec; border-color: #3a3b40; }
+input:focus, select:focus, textarea:focus { border-color: #f2a35e; }
+.header .logo img { max-height: 56px; }
