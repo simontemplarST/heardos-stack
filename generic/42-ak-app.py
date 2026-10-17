@@ -17,7 +17,7 @@ FLOW_AUTHZ = "default-provider-authorization-implicit-consent"; FLOW_INVAL = "de
 def all_internal_users(): return [u["pk"] for u in ak.results("/core/users/?type=internal&is_active=true") if u["username"] != "akadmin"]
 def users_arg(s): return [ak.user(x.strip())["pk"] for x in s.split(",")] if s else all_internal_users()
 def ensure_app(slug, name, provider_pk, launch, users):
-    app = ak.one("/core/applications/", slug=slug) or ak.post("/core/applications/", {"name": name, "slug": slug, "provider": provider_pk, "meta_launch_url": launch or "", "open_in_new_tab": False, "policy_engine_mode": "any"})
+    app = ak.one("/core/applications/?superuser_full_list=true", slug=slug) or ak.post("/core/applications/", {"name": name, "slug": slug, "provider": provider_pk, "meta_launch_url": launch or "", "open_in_new_tab": False, "policy_engine_mode": "any"})
     if app.get("provider") != provider_pk: ak.patch(f"/core/applications/{slug}/", {"provider": provider_pk})
     g = ak.ensure_group(f"app-{slug}", users, f"Access to application '{name}'. Membership = access.")
     ak.ensure_binding(app["pk"], group=g["pk"])
