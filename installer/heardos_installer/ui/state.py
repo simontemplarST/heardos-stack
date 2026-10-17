@@ -25,7 +25,7 @@ DAY2 = [("dashboard", "Health"), ("people", "People"), ("manage", "Apps"), ("bac
 
 DRAFT_KEYS = ["BRAND_TITLE", "BRAND_PRIMARY", "BRAND_LOGO", "DOMAIN", "ADMIN_USER", "ADMIN_EMAIL", "ADMIN_NAME", "TZ", "provider", "byo_ip",
               "vps_region", "vps_plan", "vps_monthly", "vps_region_name", "vps_plan_name", "HOST_LAN_IP", "HOST_SSH_USER",
-              "HOST_SSH_PORT", "dns_mode", "CF_ZONE_ID", "profile", "apps", "CADDY_FRONT_DOOR", "mail_mode", "SMTP_HOST",
+              "HOST_SSH_PORT", "dns_mode", "CF_ZONE_ID", "profile", "apps", "CADDY_FRONT_DOOR", "CROWDSEC", "mail_mode", "SMTP_HOST",
               "SMTP_PORT", "SMTP_USER", "MAIL_FROM"]
 
 
@@ -38,7 +38,7 @@ class UIState:
         self.screen = "welcome"
         self.mode = "wizard"            # wizard | day2
         self.draft: dict = {"BRAND_TITLE": "HeardOS", "BRAND_PRIMARY": "#f2a35e", "provider": "cloudzy", "dns_mode": "cloudflare",
-                            "profile": "family", "HOST_SSH_USER": "root", "CADDY_FRONT_DOOR": True, "mail_mode": "resend"}
+                            "profile": "family", "HOST_SSH_USER": "root", "CADDY_FRONT_DOOR": True, "CROWDSEC": True, "mail_mode": "resend"}
         self.inputs: dict[str, str] = {}   # secrets typed but not yet saved, and transient form text
         self.inst = None                   # session.Installation once Install is pressed (or an install is resumed)
         self.step_status: dict[str, tuple[StepStatus, str]] = {}

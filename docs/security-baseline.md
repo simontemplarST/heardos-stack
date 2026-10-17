@@ -82,4 +82,6 @@ CrowdSec agent + nftables firewall bouncer ([`security/crowdsec-lighthouse.sh`](
 Caddy writes a JSON access log (snippet `(accesslog)` in [`edge/Caddyfile`](../edge/Caddyfile), rolled at 50 MiB × 5);
 collections caddy, linux, sshd, http-cve, base-http-scenarios; the Nebula overlay is whitelisted so the admin can never be
 banned. The package's automatic bouncer registration produced "access forbidden" — re-add the bouncer key with
-`cscli bouncers add`. Optional: enrol in the free CrowdSec console for shared blocklists.
+`cscli bouncers add`. Optional: enrol in the free CrowdSec console for shared blocklists. Fresh installs: `generic/33-vps-crowdsec.sh`
+(kit, `CS_ENROLL_KEY` optional) or the installer's *Block known attackers* option; `generic/lib/caddyfile.py` always
+writes the access log.

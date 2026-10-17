@@ -239,6 +239,7 @@ def paperless_gpt():
 def listmonk_config():
     import http.cookiejar, re
     B = f"http://{cip('listmonk')}:9000"
+    wait(B + "/health", 300)
     op = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()))
     page = op.open(B + "/admin/login").read().decode()          # v6: admin API needs the browser session, not basic auth
     n = re.search(r'name="nonce" value="([^"]+)"', page)

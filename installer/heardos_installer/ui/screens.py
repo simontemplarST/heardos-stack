@@ -19,7 +19,8 @@ from . import widgets as w
 # rough steady-state memory per app (MB), used to warn when the home server is too small
 RAM_MB = {"immich": 2500, "nextcloud": 800, "onlyoffice": 1500, "paperless": 1000, "mealie": 400, "homeassistant": 500, "homebox": 120,
           "baikal": 60, "navidrome": 150, "vaultwarden": 60, "wallos": 60, "actual": 150, "invidious": 600, "homepage": 150,
-          "calibre-web": 200, "librespeed": 50, "dash": 200, "ocr": 800}
+          "calibre-web": 200, "librespeed": 50, "dash": 200, "ocr": 800,
+          "hortusfox": 300, "archivebox": 1000, "listmonk": 200, "paperless-gpt": 3500}
 BASE_RAM_MB = 1600  # Authentik, its database, Traefik, Portainer, the OS
 PROVIDERS = [("cloudzy", "Cloudzy"), ("linode", "Linode (Akamai)"), ("vultr", "Vultr"), ("byo", "I already have a server")]
 TOKEN_NAMES = {"cloudzy": "CLOUDZY_API_TOKEN", "linode": "LINODE_TOKEN", "vultr": "VULTR_API_KEY"}
@@ -487,6 +488,14 @@ def apps(st: UIState) -> None:
     imgui.spacing()
     _, d["CADDY_FRONT_DOOR"] = imgui.checkbox(f"Also give everything one easy address: cloud.{d.get('DOMAIN') or 'example.com'}/photos, /recipes, ...",
                                               bool(d.get("CADDY_FRONT_DOOR", True)))
+    _, d["CROWDSEC"] = imgui.checkbox("Block known attackers at the front door (CrowdSec, free)", bool(d.get("CROWDSEC", True)))
+    if d.get("CROWDSEC", True):
+        have_key = st.vault.get("CROWDSEC_ENROLL_KEY")
+        st.inputs["CROWDSEC_ENROLL_KEY"] = w.field("Console enrolment key (optional)", st.inputs.get("CROWDSEC_ENROLL_KEY", ""),
+                                                   "already saved" if have_key else "from app.crowdsec.net > Security Engines > Add",
+                                                   password=True, key="csk")
+        if st.inputs.get("CROWDSEC_ENROLL_KEY"):
+            st.vault.set("CROWDSEC_ENROLL_KEY", st.inputs.pop("CROWDSEC_ENROLL_KEY"))
     need_mb = BASE_RAM_MB + sum(RAM_MB.get(a, 200) for a in full)
     imgui.spacing()
     w.chip(f"{len([a for a in full if catalog.apps()[a].available])} apps  ·  needs about {need_mb // 1024 + 1} GB of memory on the home server")

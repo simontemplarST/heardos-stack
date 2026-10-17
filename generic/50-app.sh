@@ -173,11 +173,9 @@ case "$app" in
     msg "log in once via Authentik, then make yourself admin: docker exec -u www-data nextcloud php occ group:adduser admin $ADMIN_USER" ;;
   baikal) msg "finish Baïkal in the browser: http://dav.$LAN_DOMAIN/admin/install/  (choose DAV auth type BASIC; set an admin password; create users)" ;;
   homeassistant) msg "finish HA onboarding at http://home.$LAN_DOMAIN (create the owner account); OIDC login appears on the login page afterwards" ;;
-  hortusfox) dry || python3 "$HERE/63-post-install.py" hortusfox-cron ;;
-  listmonk)
-    msg "waiting for Listmonk, then setting root URL, sender, SMTP (MAIL_MODE as for Authentik) and OIDC"
-    dry || { wait_http "http://news.$LAN_DOMAIN/" 300 2>/dev/null || sleep 20; python3 "$HERE/63-post-install.py" listmonk-config || warn "listmonk-config failed — re-run 63-post-install.py listmonk-config"; } ;;
-  paperless-gpt) dry || python3 "$HERE/63-post-install.py" paperless-gpt ;;
+  hortusfox) msg "next: 63-post-install.py hortusfox-cron (recurring watering tasks only come back via its cron endpoint)" ;;
+  listmonk) msg "next: [MAIL_MODE=resend RESEND_API_KEY=… | MAIL_MODE=smtp SMTP_*=…] 63-post-install.py listmonk-config" ;;
+  paperless-gpt) msg "next: 63-post-install.py paperless-gpt (pulls the model, adds the Paperless workflow, queues existing documents)" ;;
 esac
 if [ -f "$HEARDOS_ROOT/stacks/homepage/compose.yml" ]; then DOMAIN="$DOMAIN" HEARDOS_ROOT="$HEARDOS_ROOT" BRAND_TITLE="${BRAND_TITLE:-}" BRAND_COLOR="${BRAND_COLOR:-}" python3 "$HERE/lib/homepage-config.py" "$HEARDOS_ROOT/data/homepage"; fi
 msg "$app deployed. Public URL works once 30-vps-caddy.sh + 32-dns.py include it. Secrets: $HEARDOS_ROOT/secrets/secrets.env"

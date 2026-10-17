@@ -387,7 +387,10 @@
         "icon": "hortusfox.png",
         "label": "Plants",
         "description": "Watering, photos and where each plant lives"
-      }
+      },
+      "post_install": [
+        "hortusfox-cron"
+      ]
     },
     {
       "stack": "archivebox",
@@ -417,6 +420,9 @@
       ],
       "profiles": [
         "everything"
+      ],
+      "post_install": [
+        "listmonk-config"
       ]
     },
     {
@@ -430,6 +436,9 @@
       ],
       "depends_on": [
         "paperless"
+      ],
+      "post_install": [
+        "paperless-gpt"
       ]
     }
   ]

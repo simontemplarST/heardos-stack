@@ -39,6 +39,7 @@ def apply_defaults(plan: dict) -> dict:
     except ValueError:
         p["BRAND_PRIMARY"], p["BRAND_COLOR"] = "#f2a35e", "orange"
     p.setdefault("CADDY_FRONT_DOOR", True)
+    p.setdefault("CROWDSEC", True)
     p.setdefault("HOST_SSH_USER", "root")
     p.setdefault("HOST_SSH_PORT", 22)
     p.setdefault("dns_mode", "cloudflare")

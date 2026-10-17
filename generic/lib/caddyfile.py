@@ -39,6 +39,19 @@ PROXY_BLOCK = """\theader {{
 \t}}
 """
 
+# JSON access log for CrowdSec (vps/crowdsec-install.sh reads it); rolled by Caddy itself
+ACCESSLOG = """# JSON access log for CrowdSec
+(accesslog) {
+\tlog {
+\t\toutput file /var/log/caddy/access.log {
+\t\t\troll_size 50MiB
+\t\t\troll_keep 5
+\t\t}
+\t\tformat json
+\t}
+}
+"""
+
 
 def load_catalog() -> dict:
     return json.loads((HERE / "catalog.json").read_text())
@@ -61,11 +74,12 @@ def render(env: dict) -> str:
     hosts = env["PUBLIC_HOSTS"].split() if isinstance(env["PUBLIC_HOSTS"], str) else list(env["PUBLIC_HOSTS"])
     site = ",\n".join(f"{h}.{domain}" for h in hosts)
     parts = [f"# {domain} public edge: TLS here, then over the Nebula overlay to Traefik on the home host ({upstream}:80).",
-             "{", f"\temail {email}", "}", "", site + " {", PROXY_BLOCK.format(upstream=upstream).rstrip("\n"), "}"]
+             "{", f"\temail {email}", "}", "", ACCESSLOG,
+             site + " {", "\timport accesslog", PROXY_BLOCK.format(upstream=upstream).rstrip("\n"), "}"]
     if str(env.get("CADDY_FRONT_DOOR", "")) in ("1", "true", "yes"):
         fd = env.get("FRONT_DOOR_HOST") or "cloud"
         lines = [f"\t\t~^/(?:{alt})(/[^?]*)?(\\?.*)?$ \"https://{target}${{1}}${{2}}\"" for alt, target in front_door_map(domain, hosts)]
-        parts += ["", f"# {fd}.{domain}: one address for everything; /<app> redirects to the app's own host.", f"{fd}.{domain} {{",
+        parts += ["", f"# {fd}.{domain}: one address for everything; /<app> redirects to the app's own host.", f"{fd}.{domain} {{", "\timport accesslog",
                   "\theader Strict-Transport-Security \"max-age=31536000\"",
                   "\tmap {uri} {dest} {", *lines, f"\t\tdefault \"https://auth.{domain}/if/user/\"", "\t}",
                   "\thandle_path /brand/* {", "\t\troot * /srv/heardos-brand", "\t\theader Cache-Control \"public, max-age=86400\"",

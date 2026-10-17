@@ -43,7 +43,9 @@ macOS builds are not notarised: the first time, right-click the app and choose O
    plan are pre-selected, with the price shown.
 4. **Home server**: address and login; *Test connection* checks the OS, memory, disk and TUN device.
 5. **Domain**: Cloudflare token, or manual mode (the app lists the records and waits until the internet sees them).
-6. **Apps**: *Essentials*, *Family*, *Everything* or pick your own. Apps that need another app pull it in.
+6. **Apps**: *Essentials*, *Family*, *Everything* or pick your own. Apps that need another app pull it in (AI filing pulls in
+   Paperless). The memory estimate counts each app; AI filing alone needs about 3.5 GB. Also here: the `cloud.<domain>` front
+   door and **Block known attackers** (CrowdSec on the VPS, on by default; an enrolment key from app.crowdsec.net is optional).
 7. **Email**: Resend (a full-access key lets the app add and verify your domain itself), SMTP, or none.
 8. **Review**: everything that will be created, and what it costs. Nothing billable happens before you confirm.
 9. **Install**: about an hour, mostly waiting. Steps run in parallel where they can; you can close the app and resume.
@@ -64,7 +66,8 @@ The app works out the order from step dependencies rather than a fixed list:
 | 2 | create the VPS, copy the scripts to the home server |
 | 3 | harden the VPS, publish DNS, install Docker at home |
 | 4 | Nebula lighthouse + Caddy on the VPS, traffic router at home (certificates are issued while apps install) |
-| 5+ | home server joins the private network, Authentik, admin account, brand, email, then apps one by one, then each app's first-run setup |
+| 5 | CrowdSec on the VPS (reads Caddy's access log), while the home server joins the private network and Authentik starts |
+| 6+ | admin account, brand, email, then apps one by one, then each app's first-run setup (Listmonk's waits for email so it can send; AI filing pulls its model and queues existing documents; Plants gets its hourly task cron) |
 | last | verify: every web address over HTTPS, no unhealthy containers |
 
 ## After the install

@@ -38,17 +38,27 @@ def mail_domain(ctx: Ctx) -> StepResult:
     return StepResult(True, outputs={"RESEND_DOMAIN_ID": d["id"]}, message=f"{dom} verified for sending")
 
 
-def mail_configure(ctx: Ctx) -> StepResult:
+def mail_env(ctx: Ctx) -> dict:
+    """MAIL_MODE + credentials for kit scripts that send mail (Authentik, Listmonk); {} when email is off.
+    The calling step must list RESEND_API_KEY and SMTP_PASSWORD in its inputs."""
     p = ctx.plan
     mode = p.get("mail_mode") or "none"
     if mode == "none":
-        return StepResult(True, message="email skipped (passwords are reset by the admin)")
+        return {}
     env = {"MAIL_MODE": mode, "MAIL_FROM": p.get("MAIL_FROM", "")}
     if mode == "resend":
         env["RESEND_API_KEY"] = ctx.vault.get("RESEND_API_KEY") or ""
     else:
         env.update(SMTP_HOST=p.get("SMTP_HOST", ""), SMTP_PORT=str(p.get("SMTP_PORT", 587)), SMTP_USER=p.get("SMTP_USER", ""),
                    SMTP_PASSWORD=ctx.vault.get("SMTP_PASSWORD") or "")
+    return env
+
+
+def mail_configure(ctx: Ctx) -> StepResult:
+    p = ctx.plan
+    env = mail_env(ctx)
+    if not env:
+        return StepResult(True, message="email skipped (passwords are reset by the admin)")
     res = run_kit(ctx, "43-authentik-mail.sh", env=env, timeout=900)
     if res.ok:
         res.message = f"email works (a test message went to {p.get('ADMIN_EMAIL')})"

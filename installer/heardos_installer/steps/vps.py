@@ -58,9 +58,26 @@ def vps_caddy(ctx: Ctx) -> StepResult:
     return StepResult(True, message="public web entrance (Caddy) running with automatic HTTPS")
 
 
+def vps_crowdsec(ctx: Ctx) -> StepResult:
+    """CrowdSec + nftables bouncer on the VPS (kit: generic/vps/crowdsec-install.sh). Reads Caddy's JSON access log."""
+    if not ctx.plan.get("CROWDSEC", True):
+        return StepResult(True, message="attack blocking (CrowdSec) skipped")
+    s = ctx.sessions.vps()
+    s.put_text((ctx.kit_root / "generic" / "vps" / "crowdsec-install.sh").read_text(), "/tmp/heardos-crowdsec.sh", 0o700)
+    env = {"OVERLAY_CIDR": ctx.plan.get("OVERLAY_CIDR", "10.42.0.0/24"), "CS_ENROLL_KEY": ctx.vault.get("CROWDSEC_ENROLL_KEY") or "",
+           "CS_NAME": f"{(ctx.plan.get('BRAND_TITLE') or 'heardos').lower().replace(' ', '-')}-edge"}
+    r = s.run("bash /tmp/heardos-crowdsec.sh; rc=$?; rm -f /tmp/heardos-crowdsec.sh; exit $rc", env=env, timeout=900, on_line=ctx.log)
+    if not r.ok:
+        return StepResult(False, message="CrowdSec install failed (the site still works; retry or skip)")
+    enrolled = " and enrolled in the CrowdSec console (accept it at app.crowdsec.net)" if env["CS_ENROLL_KEY"] else ""
+    return StepResult(True, message=f"known attackers are blocked before they reach the sign-in page{enrolled}")
+
+
 def steps() -> list[Step]:
     return [
         Step("vps.harden", "vps", vps_harden, deps=["vps.create"], title="Secure the VPS", timeout=1800, retries=2),
         Step("vps.nebula", "vps", vps_nebula, deps=["vps.harden", "nebula.ca"], title="Start the private-network hub on the VPS", retries=2),
         Step("vps.caddy", "vps", vps_caddy, deps=["vps.harden", "dns.publish"], title="Set up HTTPS on the VPS", timeout=1800, retries=2),
+        Step("vps.crowdsec", "vps", vps_crowdsec, deps=["vps.caddy"], title="Block known attackers (CrowdSec)",
+             inputs=["CROWDSEC_ENROLL_KEY"], timeout=1200, retries=2, optional=True),
     ]
