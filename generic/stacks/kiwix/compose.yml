@@ -1,0 +1,27 @@
+# Kiwix: offline Wikipedia. wiki.$DOMAIN behind the Authentik gate (kiwix-serve has no login of its own). The ZIM file
+# is downloaded by apps/kiwix/fetch.sh (aria2 + Kiwix metalink, sha256-checked) into data/kiwix; until it finishes the
+# container restarts quietly. Don't add --port: the image's start.sh already passes --port=$PORT and a second one makes
+# kiwix-serve print its usage and exit.
+services:
+  kiwix:
+    image: ghcr.io/kiwix/kiwix-serve:3.8.2
+    container_name: kiwix
+    restart: unless-stopped
+    command: ["--address=all", "--threads=8", "--searchLimit=8", "/data/${KIWIX_ZIM}"]
+    volumes:
+      - ${HEARDOS_ROOT}/data/kiwix:/data:ro
+    networks: [proxy]
+    labels:
+      traefik.enable: "true"
+      traefik.http.routers.wiki-outpost.rule: Host(`wiki.${DOMAIN}`) && PathPrefix(`/outpost.goauthentik.io/`)
+      traefik.http.routers.wiki-outpost.entrypoints: web
+      traefik.http.routers.wiki-outpost.priority: "100"
+      traefik.http.routers.wiki-outpost.service: authentik-outpost@file
+      traefik.http.routers.wiki-outpost.middlewares: xfp-https@file
+      traefik.http.routers.wiki.rule: Host(`wiki.${DOMAIN}`)
+      traefik.http.routers.wiki.entrypoints: web
+      traefik.http.routers.wiki.middlewares: xfp-https@file,authentik-fwd@file
+      traefik.http.routers.wiki.service: wiki
+      traefik.http.services.wiki.loadbalancer.server.port: "8080"
+networks:
+  proxy: {external: true}

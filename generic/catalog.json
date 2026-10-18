@@ -426,6 +426,41 @@
       ]
     },
     {
+      "stack": "kiwix",
+      "slug": "wiki",
+      "name": "Wikipedia",
+      "blurb": "All of English Wikipedia with pictures, stored at home and searchable offline (about 120 GB of disk).",
+      "hosts": [
+        "wiki"
+      ],
+      "profiles": [
+        "everything"
+      ],
+      "hub": {
+        "group": "Everyday",
+        "icon": "wikipedia.png",
+        "label": "Wikipedia",
+        "description": "All of English Wikipedia, with pictures, stored at home"
+      }
+    },
+    {
+      "stack": "searxng",
+      "name": "Search",
+      "blurb": "Private web search with no tracking or ads; public so it can be every browser's search engine.",
+      "hosts": [
+        "search"
+      ],
+      "profiles": [
+        "everything"
+      ],
+      "hub": {
+        "group": "Everyday",
+        "icon": "searxng.png",
+        "label": "Search",
+        "description": "Private web search, no tracking or ads"
+      }
+    },
+    {
       "stack": "paperless-gpt",
       "slug": "paperless-gpt",
       "name": "AI filing for Paperless",

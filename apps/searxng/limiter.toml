@@ -1,0 +1,13 @@
+# Requests arrive client -> Caddy (lighthouse, ${NEBULA_LH_OVERLAY}) -> Traefik (docker proxy network) -> searxng.
+# Rendered by 50-app.sh searxng with envsubst.
+[botdetection]
+ipv4_prefix = 32
+ipv6_prefix = 48
+trusted_proxies = ["127.0.0.0/8", "::1", "${PROXY_SUBNET}", "${OVERLAY_CIDR}"]
+
+[botdetection.ip_limit]
+filter_link_local = true
+link_token = false
+
+[botdetection.ip_lists]
+pass_ip = ["${OVERLAY_CIDR}", "${LAN_SUBNET}"]   # family devices on the overlay and the home LAN skip the limiter

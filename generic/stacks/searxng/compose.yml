@@ -1,0 +1,42 @@
+# SearXNG: private metasearch. search.$DOMAIN is PUBLIC (no Authentik gate) so anyone in the family can set it as their
+# browser's search engine; the bot limiter (Valkey) is on and only HTML results are served. Config is rendered by
+# 50-app.sh from apps/searxng into data/searxng/config — files must be 0644 (root in the container has no capabilities).
+services:
+  searxng:
+    image: searxng/searxng:2026.10.17-1c10abe2d
+    container_name: searxng
+    restart: unless-stopped
+    environment:
+      SEARXNG_BASE_URL: "https://search.${DOMAIN}/"
+      SEARXNG_SECRET: "${SEARXNG_SECRET}"
+    volumes:
+      - ${HEARDOS_ROOT}/data/searxng/config:/etc/searxng
+      - searxng-cache:/var/cache/searxng
+    depends_on: [searxng-valkey]
+    networks: [proxy, searxng]
+    cap_drop: [ALL]
+    cap_add: [CHOWN, SETGID, SETUID]
+    labels:
+      traefik.enable: "true"
+      traefik.http.routers.search.rule: Host(`search.${DOMAIN}`)
+      traefik.http.routers.search.entrypoints: web
+      traefik.http.routers.search.middlewares: xfp-https@file
+      traefik.http.routers.search-lan.rule: Host(`search.${LAN_DOMAIN}`)
+      traefik.http.routers.search-lan.entrypoints: web
+      traefik.http.services.search.loadbalancer.server.port: "8080"
+  searxng-valkey:
+    image: valkey/valkey:9.0.6-alpine
+    container_name: searxng-valkey
+    restart: unless-stopped
+    command: valkey-server --save 30 1 --loglevel warning
+    volumes:
+      - searxng-valkey:/data
+    networks: [searxng]
+    cap_drop: [ALL]
+    cap_add: [SETGID, SETUID, DAC_OVERRIDE]
+volumes:
+  searxng-cache:
+  searxng-valkey:
+networks:
+  proxy: {external: true}
+  searxng: {}

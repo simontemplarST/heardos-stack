@@ -20,7 +20,7 @@ from . import widgets as w
 RAM_MB = {"immich": 2500, "nextcloud": 800, "onlyoffice": 1500, "paperless": 1000, "mealie": 400, "homeassistant": 500, "homebox": 120,
           "baikal": 60, "navidrome": 150, "vaultwarden": 60, "wallos": 60, "actual": 150, "invidious": 600, "homepage": 150,
           "calibre-web": 200, "librespeed": 50, "dash": 200, "ocr": 800,
-          "hortusfox": 300, "archivebox": 1000, "listmonk": 200, "paperless-gpt": 3500}
+          "hortusfox": 300, "archivebox": 1000, "listmonk": 200, "paperless-gpt": 3500, "kiwix": 300, "searxng": 250}
 BASE_RAM_MB = 1600  # Authentik, its database, Traefik, Portainer, the OS
 PROVIDERS = [("cloudzy", "Cloudzy"), ("linode", "Linode (Akamai)"), ("vultr", "Vultr"), ("ovh", "OVHcloud"), ("byo", "I already have a server")]
 TOKEN_NAMES = {"cloudzy": "CLOUDZY_API_TOKEN", "linode": "LINODE_TOKEN", "vultr": "VULTR_API_KEY", "ovh": "OVH_CREDENTIALS"}

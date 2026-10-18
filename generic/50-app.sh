@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 50-app.sh — run ON THE HOST as root:  50-app.sh <app>   (see --list: paperless mealie homeassistant homebox baikal navidrome onlyoffice nextcloud immich vaultwarden wallos actual invidious homepage calibre-web librespeed dash hortusfox archivebox listmonk paperless-gpt)
+# 50-app.sh — run ON THE HOST as root:  50-app.sh <app>   (see --list: paperless mealie homeassistant homebox baikal navidrome onlyoffice nextcloud immich vaultwarden wallos actual invidious homepage calibre-web librespeed dash hortusfox archivebox listmonk paperless-gpt kiwix searxng)
 # One command per app: registers it in Authentik (via 42-ak-app.py, using AUTHENTIK_TOKEN from the plan file),
 # generates its secrets, renders its stack .env, creates data dirs, deploys, and runs the app's post-install.
 # Public DNS and the Caddy host list are laptop-side: run 30-vps-caddy.sh and 32-dns.py once PUBLIC_HOSTS is final.
@@ -143,6 +143,22 @@ EOF
     oidc listmonk-sso "Listmonk sign-in" "https://news.$DOMAIN/" "https://news.$DOMAIN/auth/oidc"
     install -d "$HEARDOS_ROOT/data/listmonk"/{uploads,db}
     { base_env; printf 'LISTMONK_ADMIN_PASSWORD=%s\nLISTMONK_DB_PASSWORD=%s\n' "$(secret LISTMONK_ADMIN_PASSWORD 24)" "$(secret LISTMONK_DB_PASSWORD)"; } > "$d/.env" ;;
+  kiwix)
+    # offline Wikipedia behind the gate; the ZIM (default: full English with pictures, ~119 GB) downloads in the background
+    proxy wiki --name "Wikipedia (Kiwix)" --host "https://wiki.$DOMAIN" --launch "https://cloud.$DOMAIN/wiki"
+    install -d "$HEARDOS_ROOT/data/kiwix"
+    command -v aria2c >/dev/null || { dry && msg "[dry-run] would apt-get install aria2" || apt-get -qq install -y aria2 >/dev/null; }
+    free_gb=$(df -BG --output=avail "$HEARDOS_ROOT/data/kiwix" | tail -1 | tr -dc 0-9)
+    [ "${free_gb:-0}" -ge "${KIWIX_MIN_FREE_GB:-130}" ] || warn "only ${free_gb} GB free under $HEARDOS_ROOT/data/kiwix — the default ZIM needs ~120 GB (set KIWIX_ZIM to a smaller one, e.g. wikipedia_en_all_nopic_*)"
+    { base_env; printf 'KIWIX_ZIM=%s\n' "${KIWIX_ZIM:-wikipedia_en_all_maxi_2026-08.zim}"; } > "$d/.env" ;;
+  searxng)
+    # PUBLIC on purpose (browser search engine for everyone); limiter on, overlay + home LAN pass it
+    install -d "$HEARDOS_ROOT/data/searxng/config"
+    export BRAND_TITLE="${BRAND_TITLE:-HeardOS}" OVERLAY_CIDR="${OVERLAY_CIDR:-10.42.0.0/24}" NEBULA_LH_OVERLAY="${NEBULA_LH_OVERLAY:-10.42.0.1}" LAN_SUBNET="${LAN_SUBNET:?set LAN_SUBNET}"
+    render "$HERE/../apps/searxng/settings.yml" "$HEARDOS_ROOT/data/searxng/config/settings.yml"
+    render "$HERE/../apps/searxng/limiter.toml" "$HEARDOS_ROOT/data/searxng/config/limiter.toml"
+    chmod 644 "$HEARDOS_ROOT/data/searxng/config"/*   # cap_drop ALL: root in the container can't read 0600 files
+    { base_env; printf 'SEARXNG_SECRET=%s\n' "$(secret SEARXNG_SECRET 48)"; } > "$d/.env" ;;
   paperless-gpt)
     # needs Paperless running: creates the paperless-gpt service user + API token (PAPERLESS_GPT_TOKEN) first
     install -d "$HEARDOS_ROOT/data/ollama" "$HEARDOS_ROOT/data/paperless-gpt/prompts"
@@ -175,6 +191,16 @@ case "$app" in
   homeassistant) msg "finish HA onboarding at http://home.$LAN_DOMAIN (create the owner account); OIDC login appears on the login page afterwards" ;;
   hortusfox) msg "next: 63-post-install.py hortusfox-cron (recurring watering tasks only come back via its cron endpoint)" ;;
   listmonk) msg "next: [MAIL_MODE=resend RESEND_API_KEY=… | MAIL_MODE=smtp SMTP_*=…] 63-post-install.py listmonk-config" ;;
+  kiwix)
+    z="$(grep '^KIWIX_ZIM=' "$d/.env" | cut -d= -f2-)"
+    if [ -s "$HEARDOS_ROOT/data/kiwix/$z" ] && [ ! -f "$HEARDOS_ROOT/data/kiwix/$z.aria2" ]; then msg "$z already present"
+    elif dry; then msg "[dry-run] would start kiwix-fetch (aria2 download of $z)"
+    elif systemctl is-active -q kiwix-fetch; then msg "kiwix-fetch already running"
+    else systemctl reset-failed kiwix-fetch 2>/dev/null || true
+      systemd-run -q --unit=kiwix-fetch sh "$HERE/../apps/kiwix/fetch.sh" "$HEARDOS_ROOT/data/kiwix" "$z"
+      msg "downloading $z in the background (unit kiwix-fetch; progress: journalctl -fu kiwix-fetch). The wiki starts by itself once it is verified."
+    fi ;;
+  searxng) msg "set https://search.$DOMAIN as the browser's search engine (URL: https://search.$DOMAIN/search?q=%s)" ;;
   paperless-gpt) msg "next: 63-post-install.py paperless-gpt (pulls the model, adds the Paperless workflow, queues existing documents)" ;;
 esac
 if [ -f "$HEARDOS_ROOT/stacks/homepage/compose.yml" ]; then DOMAIN="$DOMAIN" HEARDOS_ROOT="$HEARDOS_ROOT" BRAND_TITLE="${BRAND_TITLE:-}" BRAND_COLOR="${BRAND_COLOR:-}" python3 "$HERE/lib/homepage-config.py" "$HEARDOS_ROOT/data/homepage"; fi

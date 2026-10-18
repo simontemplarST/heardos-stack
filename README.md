@@ -70,7 +70,7 @@ A detailed, annotated map of every host, route and app is in [`docs/network-map.
 | `security/` | The written security baseline, a re-runnable read-only posture check, the external port scan, and the remediation scripts from the 2026-10 audit, the laptop firewalld tightening, CrowdSec for the edge (the kit installs it with `generic/33-vps-crowdsec.sh`; the GUI installer offers it as an option) and the step-ca LAN CA. |
 | `mail/` | Resend set-up and DNS verification. |
 | `nebula-lan/` | Reaching the home LAN over the overlay: router-side (Proxmox) and client-side (laptop) scripts. |
-| `apps/` | Custom pieces: the family dashboard (`dash/`), Homepage hub config, the trimmed LibreSpeed page, Actual Budget tooling, the Actual → Wallos subscription sync, the cookbook importer, the per-app Hearth theme files (`brand-theme/`), the HortusFox plant template and the paperless-gpt CPU benchmark. |
+| `apps/` | Custom pieces: the family dashboard (`dash/`), Homepage hub config, the trimmed LibreSpeed page, Actual Budget tooling, the Actual → Wallos subscription sync, the cookbook importer, the per-app Hearth theme files (`brand-theme/`), the HortusFox plant template, the paperless-gpt CPU benchmark, the Kiwix ZIM downloader (`kiwix/`) and the SearXNG config templates (`searxng/`). |
 | `brand/` | The HeardOS identity ("Hearth Crest"): SVG marks, lockups, icons, palette, the sign-in background. |
 | `docs/` | Architecture, security baseline, flow and email documentation, operations notes, the Runtipi → Portainer migration plan. |
 
@@ -88,6 +88,7 @@ A detailed, annotated map of every host, route and app is in [`docs/network-map.
 - [Trusted certificates for LAN names (step-ca)](docs/lan-ca.md)
 - [Plants, newsletters and saved pages](docs/household-apps.md)
 - [AI filing for Paperless on a CPU](docs/paperless-gpt.md)
+- [Offline Wikipedia and private search](docs/wiki-search.md)
 - [One look across the apps](docs/hearth-theme.md)
 - [Operating Runtipi: things that bite](docs/runtipi-notes.md)
 - [Brand package](brand/README.md)

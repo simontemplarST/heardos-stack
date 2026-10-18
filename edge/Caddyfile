@@ -35,6 +35,8 @@ speed.example.com,
 plants.example.com,
 news.example.com,
 archive.example.com,
+wiki.example.com,
+search.example.com,
 browser.example.com,
 dash.example.com {
 	import accesslog
@@ -83,6 +85,8 @@ cloud.example.com {
 		~^/(?:hortusfox|plants)(/[^?]*)?(\?.*)?$ "https://plants.example.com${1}${2}"
 		~^/(?:archivebox|archive)(/[^?]*)?(\?.*)?$ "https://archive.example.com${1}${2}"
 		~^/(?:listmonk|news)(/[^?]*)?(\?.*)?$ "https://news.example.com${1}${2}"
+		~^/(?:kiwix|wiki|wikipedia)(/[^?]*)?(\?.*)?$ "https://wiki.example.com${1}${2}"
+		~^/(?:searxng|search)(/[^?]*)?(\?.*)?$ "https://search.example.com${1}${2}"
 		~^/(?:home-assistant|home)(/[^?]*)?(\?.*)?$ "https://home.example.com${1}${2}"
 		~^/homebox(/[^?]*)?(\?.*)?$ "https://homebox.example.com${1}${2}"
 		~^/hub(/[^?]*)?(\?.*)?$ "https://hub.example.com${1}${2}"

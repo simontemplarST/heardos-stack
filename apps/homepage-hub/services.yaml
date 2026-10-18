@@ -28,6 +28,14 @@
         icon: invidious.png
         href: https://cloud.example.com/invidious
         description: YouTube without ads or tracking
+    - Wikipedia:
+        icon: wikipedia.png
+        href: https://cloud.example.com/wiki
+        description: All of English Wikipedia, with pictures, stored at home
+    - Search:
+        icon: searxng.png
+        href: https://search.example.com/
+        description: Private web search, no tracking or ads
     - Saved pages:
         icon: archivebox.png
         href: https://cloud.example.com/archive
