@@ -83,11 +83,11 @@ def steps() -> list[Step]:
     return [
         Step("ssh.keygen", "local", ssh_keygen, title="Create the installer's SSH key"),
         Step("provider.validate", "local", provider_validate, deps=["ssh.keygen"], title="Check the VPS provider account",
-             inputs=["CLOUDZY_API_TOKEN", "LINODE_TOKEN", "VULTR_API_KEY"]),
+             inputs=["CLOUDZY_API_TOKEN", "LINODE_TOKEN", "VULTR_API_KEY", "OVH_CREDENTIALS"]),
         Step("dns.validate", "local", dns_validate, title="Check DNS access", inputs=["CF_API_TOKEN"]),
         Step("nebula.ca", "local", nebula_ca, title="Issue private-network certificates", timeout=300),
         Step("vps.create", "local", vps_create, deps=["provider.validate"], title="Create the public server (VPS)",
-             inputs=["CLOUDZY_API_TOKEN", "LINODE_TOKEN", "VULTR_API_KEY"], timeout=1200,
+             inputs=["CLOUDZY_API_TOKEN", "LINODE_TOKEN", "VULTR_API_KEY", "OVH_CREDENTIALS"], timeout=1200,
              check=lambda c: bool(c.state.handle("vps") and c.plan.get("NEBULA_LH_IP"))),
         Step("dns.publish", "local", dns_publish, deps=["vps.create", "dns.validate"], title="Point your domain at the VPS",
              inputs=["CF_API_TOKEN"], timeout=2400, retries=2),

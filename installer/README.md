@@ -13,7 +13,7 @@ repository (`generic/`, `authentik/`, …) so nobody has to use ssh, edit plan f
 | A computer to run the app | Linux, macOS or Windows. It holds your secrets vault and the private-network certificates. |
 | A home server | Ubuntu 24.04 with root SSH (a password is fine the first time), 4 GB RAM or more, `/dev/net/tun`. A Proxmox LXC works once TUN is enabled. |
 | A domain | One you own. DNS at Cloudflare is the easiest; any other DNS host works in manual mode. |
-| A VPS provider account | Cloudzy, Linode or Vultr (the app creates a ~$5–7/month server, billed hourly), or bring your own Ubuntu VPS. |
+| A VPS provider account | Cloudzy, Linode or Vultr (the app creates a ~$5–7/month server, billed hourly), OVHcloud (~$6–11/month, billed monthly; see `docs/ovh-vps.md`), or bring your own Ubuntu VPS. |
 | Optional: a Resend account | For password-reset and invitation emails. Any SMTP provider works too. |
 
 ## Install the app
@@ -129,5 +129,5 @@ heardos-cli install --plan tests/e2e/plan.example.json --dry-run --yes  # the wh
 and port scan, then deletes the VPS. Never point it at a machine you care about.
 
 Layout: `engine/` (step DAG, runner, state, logs), `vault/`, `remote/` (SSH, kit upload, plan file), `providers/`
-(Cloudzy, Linode, Vultr, bring-your-own), `dns/`, `mail.py`, `brand/`, `steps/` (one function per install step),
+(Cloudzy, Linode, Vultr, OVHcloud, bring-your-own), `dns/`, `mail.py`, `brand/`, `steps/` (one function per install step),
 `ops.py` (day-two jobs), `ui/` (screens).

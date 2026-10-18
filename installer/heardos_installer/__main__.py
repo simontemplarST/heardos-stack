@@ -6,6 +6,7 @@
   heardos-cli status [ID]                  step table for an install
   heardos-cli retry ID STEP                forget a step's result and run the install again from there
   heardos-cli destroy ID                   delete the VPS this install created (billing stops)
+  heardos-cli ovh-confirm SERVICE TOKEN    finish an OVH termination with the token from OVH's email
   heardos-cli list                         installs on this machine
 """
 from __future__ import annotations
@@ -97,7 +98,7 @@ def _cost_line(inst) -> str:
             sys.exit("no eligible plan available at this provider right now")
         p["vps_region"], p["vps_plan"], p["vps_monthly"] = ch.region.id, ch.plan.id, ch.plan.monthly_usd
         inst.state.save()
-        return f"{p['provider']}: {ch.region.name}, {ch.plan.name}, about ${ch.plan.monthly_usd:.2f}/month (billed hourly)"
+        return f"{p['provider']}: {ch.region.name}, {ch.plan.name}, about ${ch.plan.monthly_usd:.2f}/month (billed {'monthly' if p['provider'] == 'ovh' else 'hourly'})"
     return f"{p['provider']}: region {p['vps_region']}, plan {p['vps_plan']}" + (f", about ${p['vps_monthly']}/month" if p.get("vps_monthly") else "")
 
 
@@ -157,6 +158,13 @@ def cmd_destroy(a) -> None:
     print(inst.destroy_vps())
 
 
+def cmd_ovh_confirm(a) -> None:
+    """Finish an OVH termination with the token from the confirmation email."""
+    from .providers.ovh import Ovh
+    Ovh(_vault().get("OVH_CREDENTIALS") or "").confirm_destroy(a.service, a.token)
+    print(f"termination of {a.service} confirmed")
+
+
 def cmd_health(a) -> None:
     from . import ops
     from .session import Installation
@@ -197,6 +205,7 @@ def cli(argv=None) -> None:
     s = sub.add_parser("status"); s.add_argument("id", nargs="?"); s.set_defaults(fn=cmd_status)
     s = sub.add_parser("retry"); s.add_argument("id"); s.add_argument("step"); s.set_defaults(fn=cmd_retry)
     s = sub.add_parser("destroy"); s.add_argument("id"); s.add_argument("--yes", action="store_true"); s.set_defaults(fn=cmd_destroy)
+    s = sub.add_parser("ovh-confirm", help="confirm an OVH VPS termination with the emailed token"); s.add_argument("service"); s.add_argument("token"); s.set_defaults(fn=cmd_ovh_confirm)
     s = sub.add_parser("health", help="posture check of an install (read-only)"); s.add_argument("id"); s.add_argument("--scan", action="store_true", help="also scan all TCP ports of the VPS"); s.set_defaults(fn=cmd_health)
     s = sub.add_parser("people", help="list family accounts, or --add USER NAME EMAIL"); s.add_argument("id"); s.add_argument("--add", nargs=3, metavar=("USER", "NAME", "EMAIL"))
     s.add_argument("--apps", help="comma-separated app stacks (default: all installed)"); s.add_argument("--welcome", action="store_true", help="email a set-password link"); s.set_defaults(fn=cmd_people)

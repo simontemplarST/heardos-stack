@@ -22,13 +22,18 @@ RAM_MB = {"immich": 2500, "nextcloud": 800, "onlyoffice": 1500, "paperless": 100
           "calibre-web": 200, "librespeed": 50, "dash": 200, "ocr": 800,
           "hortusfox": 300, "archivebox": 1000, "listmonk": 200, "paperless-gpt": 3500}
 BASE_RAM_MB = 1600  # Authentik, its database, Traefik, Portainer, the OS
-PROVIDERS = [("cloudzy", "Cloudzy"), ("linode", "Linode (Akamai)"), ("vultr", "Vultr"), ("byo", "I already have a server")]
-TOKEN_NAMES = {"cloudzy": "CLOUDZY_API_TOKEN", "linode": "LINODE_TOKEN", "vultr": "VULTR_API_KEY"}
+PROVIDERS = [("cloudzy", "Cloudzy"), ("linode", "Linode (Akamai)"), ("vultr", "Vultr"), ("ovh", "OVHcloud"), ("byo", "I already have a server")]
+TOKEN_NAMES = {"cloudzy": "CLOUDZY_API_TOKEN", "linode": "LINODE_TOKEN", "vultr": "VULTR_API_KEY", "ovh": "OVH_CREDENTIALS"}
 TOKEN_HELP = {
     "cloudzy": "Cloudzy dashboard > Account > API > create a token. It needs permission to manage instances and SSH keys.",
     "linode": "Linode Cloud Manager > your profile > API Tokens > Create a Personal Access Token with Read/Write on Linodes.",
     "vultr": "Vultr dashboard > Account > API > enable the API and copy the key. Allow access from this computer's IP.",
+    "ovh": "Open the key page for your OVHcloud region (link below), sign in, set validity to Unlimited and add these rights: "
+           "GET /me, GET /me/order/*, GET /order/*, POST /order/cart, POST /order/cart/*, GET /vps, GET /vps/*, "
+           "POST /vps/*/rebuild, POST /vps/*/terminate, POST /vps/*/confirmTermination. Paste the three keys it shows. "
+           "OVH bills monthly, so a server costs the full month even if removed early; set a default payment method first.",
 }
+OVH_FIELDS = [("app_key", "Application key"), ("app_secret", "Application secret"), ("consumer_key", "Consumer key")]
 
 
 def _nav(st: UIState, can_next: bool = True, next_label: str = "Continue") -> None:
@@ -203,7 +208,7 @@ def vps(st: UIState) -> None:
     from ..keys import DEFAULT_KEY, ensure_key
     d = st.draft
     w.title("Public server")
-    w.help_text("A small rented server (about $5–7 a month) is the only part of your cloud on the open internet. It holds "
+    w.help_text("A small rented server (about $5–12 a month) is the only part of your cloud on the open internet. It holds "
                 "the web certificates and forwards traffic to your home over a private, encrypted network. Nothing is "
                 "stored on it.")
     imgui.spacing()
@@ -236,15 +241,41 @@ def vps(st: UIState) -> None:
 
     tok_name = TOKEN_NAMES[prov]
     have = st.vault.get(tok_name)
-    w.heading(f"{dict(PROVIDERS)[prov]} API token", TOKEN_HELP[prov])
-    st.inputs[tok_name] = w.field("API token", st.inputs.get(tok_name, ""), "already saved" if have else "paste it here",
-                                  password=True, key=tok_name)
-    token = st.inputs.get(tok_name) or have or ""
+    if prov == "ovh":
+        import json as _json
+        from ..providers.ovh import CREATE_TOKEN_URL, ENDPOINTS
+        w.heading("OVHcloud API keys", TOKEN_HELP[prov])
+        eps = sorted(ENDPOINTS)
+        cur = d.get("ovh_endpoint", "us")
+        imgui.set_next_item_width(220)
+        changed, i = imgui.combo("Account region", eps.index(cur), [{"us": "OVHcloud US", "ca": "OVHcloud Canada", "eu": "OVHcloud Europe"}[e] for e in eps])
+        if changed:
+            d["ovh_endpoint"] = cur = eps[i]
+        imgui.text_colored(C["MUTED"], CREATE_TOKEN_URL[cur])
+        imgui.same_line()
+        if w.secondary("Copy link"):
+            imgui.set_clipboard_text(CREATE_TOKEN_URL[cur])
+        vals = {}
+        for k, label in OVH_FIELDS:
+            st.inputs[f"ovh_{k}"] = w.field(label, st.inputs.get(f"ovh_{k}", ""), "already saved" if have else "paste it here",
+                                            password=k != "app_key", key=f"ovh_{k}")
+            vals[k] = st.inputs[f"ovh_{k}"].strip()
+        typed = all(vals.values())
+        token = _json.dumps({"endpoint": cur, **vals}) if typed else (have or "")
+        if typed:
+            st.inputs[tok_name] = token
+    else:
+        w.heading(f"{dict(PROVIDERS)[prov]} API token", TOKEN_HELP[prov])
+        st.inputs[tok_name] = w.field("API token", st.inputs.get(tok_name, ""), "already saved" if have else "paste it here",
+                                      password=True, key=tok_name)
+        token = st.inputs.get(tok_name) or have or ""
     if w.secondary("Check token", bool(token) and not st.tasks.running("vps.check")):
         def check():
             acct = providers.make(prov, token).validate_token()
             st.vault.set(tok_name, token)
             st.inputs.pop(tok_name, None)
+            for k, _ in OVH_FIELDS:
+                st.inputs.pop(f"ovh_{k}", None)
             return acct.label
         st.tasks.start("vps.check", check)
         st.tasks.clear("vps.regions")
@@ -320,7 +351,7 @@ def vps(st: UIState) -> None:
             imgui.end_table()
     if d.get("vps_plan"):
         imgui.spacing()
-        w.chip(f"{d.get('vps_region_name')}  ·  {d.get('vps_plan_name')}  ·  about ${d.get('vps_monthly', 0):.2f} / month", "SLATE", "LIGHT")
+        w.chip(f"{d.get('vps_region_name')}  ·  {d.get('vps_plan_name')}  ·  about ${d.get('vps_monthly', 0):.2f} / month" + ("  ·  billed monthly" if prov == "ovh" else ""), "SLATE", "LIGHT")
     _nav(st, bool(d.get("vps_plan")))
 
 

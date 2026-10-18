@@ -28,7 +28,13 @@ def import_credentials_env(vault, path: Path | None = None, overwrite: bool = Fa
     if not path.exists():
         return []
     have = set(vault.names())
-    new = {k: v for k, v in parse_env_file(path).items() if v and (overwrite or k not in have)}
+    env = parse_env_file(path)
+    if all(env.get(k) for k in ("OVH_APP_KEY", "OVH_APP_SECRET", "OVH_CONSUMER_KEY")):
+        # the OVH provider takes its three keys as one JSON value
+        import json
+        env["OVH_CREDENTIALS"] = json.dumps({"endpoint": env.get("OVH_ENDPOINT", "us"), "app_key": env["OVH_APP_KEY"],
+                                             "app_secret": env["OVH_APP_SECRET"], "consumer_key": env["OVH_CONSUMER_KEY"]})
+    new = {k: v for k, v in env.items() if v and (overwrite or k not in have)}
     if new:
         vault.update(new)
     return sorted(new)

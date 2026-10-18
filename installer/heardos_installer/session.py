@@ -100,11 +100,13 @@ class Installation:
         if not h:
             return "no VPS recorded for this install"
         ctx = _Ctx(self.plan, self.vault, None, self.logs.logger("destroy"), self.state, self.kit_root, self.workdir)
-        provider_for(ctx).destroy(VpsHandle.from_json(h))
+        prov = provider_for(ctx)
+        prov.destroy(VpsHandle.from_json(h))
         self.state.set_handle("vps", None)
         for sid in ("vps.create", "vps.harden", "vps.nebula", "vps.caddy", "vps.crowdsec", "host.nebula", "dns.publish", "verify"):
             self.state.reset_step(sid)
-        return f"destroyed {h['provider']} server {h.get('ip') or h['id']}"
+        note = getattr(prov, "destroy_note", "")
+        return f"destroyed {h['provider']} server {h.get('ip') or h['id']}" + (f". {note}" if note else "")
 
     def log_path(self, step_id: str) -> Path:
         return self.logs.path(step_id)

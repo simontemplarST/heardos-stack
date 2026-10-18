@@ -19,7 +19,8 @@ _TZ_COUNTRIES = {
 }
 # region-name keywords -> country, for APIs that omit a country code
 _NAME_HINTS = {"dallas": "US", "chicago": "US", "new york": "US", "newark": "US", "atlanta": "US", "los angeles": "US", "seattle": "US",
-               "silicon valley": "US", "miami": "US", "fremont": "US", "toronto": "CA", "london": "GB", "frankfurt": "DE", "amsterdam": "NL",
+               "silicon valley": "US", "miami": "US", "fremont": "US", "virginia": "US", "oregon": "US", "denver": "US", "palo alto": "US", "beauharnois": "CA",
+               "gravelines": "FR", "strasbourg": "FR", "roubaix": "FR", "toronto": "CA", "london": "GB", "frankfurt": "DE", "amsterdam": "NL",
                "paris": "FR", "stockholm": "SE", "warsaw": "PL", "madrid": "ES", "milan": "IT", "tokyo": "JP", "osaka": "JP",
                "singapore": "SG", "sydney": "AU", "melbourne": "AU", "mumbai": "IN", "chennai": "IN", "sao paulo": "BR", "mexico": "MX"}
 

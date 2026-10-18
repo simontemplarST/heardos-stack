@@ -9,7 +9,7 @@ from ..engine.step import Ctx, StepResult
 from ..remote.plan import render_plan, SECRET_KEYS_BY_SIDE
 
 KIT_DEST = "/opt/heardos-kit"
-PROVIDER_TOKEN_NAMES = {"cloudzy": "CLOUDZY_API_TOKEN", "linode": "LINODE_TOKEN", "vultr": "VULTR_API_KEY", "byo": ""}
+PROVIDER_TOKEN_NAMES = {"cloudzy": "CLOUDZY_API_TOKEN", "linode": "LINODE_TOKEN", "vultr": "VULTR_API_KEY", "ovh": "OVH_CREDENTIALS", "byo": ""}
 
 
 def lan_domain(ip: str) -> str:
