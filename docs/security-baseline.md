@@ -76,3 +76,15 @@ banned. The package's automatic bouncer registration produced "access forbidden"
 `cscli bouncers add`. Optional: enrol in the free CrowdSec console for shared blocklists. Fresh installs: `generic/33-vps-crowdsec.sh`
 (kit, `CS_ENROLL_KEY` optional) or the installer's *Block known attackers* option; `generic/lib/caddyfile.py` always
 writes the access log.
+
+**Incident 2026-10-18: the home IP got banned, and every site went down.** `crowdsecurity/http-sensitive-files` plus
+`http-crawl-non_statics` banned the home connection (55 events in a few minutes of normal family use). The trigger was
+Actual Budget's web app, which fetches its own SQL migrations (`/data/migrations/*.sql`) on every load. The home
+server's Nebula link to the lighthouse comes from that same IP, so the ban also cut Caddy → home, and every public
+site returned 502 for everyone. Admin SSH to the lighthouse is overlay-only, so recovery meant joining a phone hotspot
+to get a different IP, then running [`security/unban-home.sh`](../security/unban-home.sh). Since then:
+
+- `heardos/app-paths-whitelist`: `budget.<domain>` + `/data/*` is exempt; everything else is still inspected.
+- `heardos/home-whitelist`: the home public IP is never banned. Fresh installs pass `HOME_PUBLIC_IP=` to
+  `generic/33-vps-crowdsec.sh`. If the ISP changes the address, update the file and `systemctl reload crowdsec`.
+- Symptom to recognise: sites 502 from outside, and the lighthouse is silent (no ping) from home only.
