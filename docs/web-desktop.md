@@ -34,25 +34,29 @@ browser tab, e.g. Proxmox on the home network only), and an optional default win
 ## The edge has to allow framing by the desktop
 
 Several apps forbid being framed at all: Authentik (`X-Frame-Options: DENY`), Homebox (`DENY`), and Nextcloud,
-Paperless, Home Assistant and Vaultwarden (`SAMEORIGIN` / `frame-ancestors 'self'`). The lighthouse Caddy needs to rewrite
-that for every proxied host so that **only the desktop and the app itself** may frame it:
+Paperless, Home Assistant and Vaultwarden (`SAMEORIGIN` / `frame-ancestors 'self'`). The lighthouse Caddy rewrites
+that for every proxied host so that **only the family's own sites** (`<domain>` and `*.<domain>`) may frame it. That
+covers the desktop and apps that embed each other, such as Nextcloud opening documents from OnlyOffice. The kit's
+`generic/lib/caddyfile.py` renders it into every install:
 
 ```caddyfile
 reverse_proxy <home-overlay-ip>:80 {
 	# ...
 	header_down -X-Frame-Options
-	header_down Content-Security-Policy "frame-ancestors 'self'" "frame-ancestors 'self' https://dash.example.com"
-	header_down Content-Security-Policy "frame-ancestors 'none'" "frame-ancestors https://dash.example.com"
-	header_down +Content-Security-Policy "frame-ancestors 'self' https://dash.example.com chrome-extension: moz-extension: safari-web-extension:"
+	header_down Content-Security-Policy "frame-ancestors 'self'" "frame-ancestors 'self' https://example.com https://*.example.com"
+	header_down Content-Security-Policy "frame-ancestors 'none'" "frame-ancestors https://example.com https://*.example.com"
+	header_down +Content-Security-Policy "frame-ancestors 'self' https://example.com https://*.example.com chrome-extension: moz-extension: safari-web-extension:"
 }
 ```
 
-Clickjacking protection stays in place: `frame-ancestors` still blocks every other site. It is just widened from
-"nobody" or "only me" to "me and the family desktop". The extension schemes keep browser password-manager extensions
-(e.g. Bitwarden's, already allowed by Vaultwarden) working.
+Clickjacking protection stays in place: `frame-ancestors` still blocks every site outside the family domain. It is
+just widened from "nobody" or "only me" to "the family's sites". The extension schemes keep browser password-manager
+extensions (e.g. Bitwarden's, already allowed by Vaultwarden) working. A list in the response may show the family
+domain twice (the added policy is widened as well); that's harmless.
 
-Without this rule the desktop still works, but those apps show a "refused to connect" page in their window. Every
-window has ↗ (open in a browser tab) as a fallback.
+**Keep the quotes.** `'self'` and `'none'` must keep their single quotes. Unquoted, a browser reads `self` as a host
+called "self", and the app can no longer frame itself. (The first live attempt lost them in shell quoting and broke
+Nextcloud → OnlyOffice until it was fixed.)
 
 ## Using it
 

@@ -25,6 +25,12 @@ PROXY_BLOCK = """\theader {{
 \treverse_proxy {upstream}:80 {{
 \t\theader_up X-Forwarded-Proto https
 \t\theader_up X-Forwarded-Port 443
+\t\t# HeardOS desktop: apps open as windows in dash.<domain>, and some apps embed each other (Nextcloud -> OnlyOffice).
+\t\t# Only the family's own sites may frame them (docs/web-desktop.md).
+\t\theader_down -X-Frame-Options
+\t\theader_down Content-Security-Policy "frame-ancestors 'self'" "frame-ancestors 'self' https://{domain} https://*.{domain}"
+\t\theader_down Content-Security-Policy "frame-ancestors 'none'" "frame-ancestors https://{domain} https://*.{domain}"
+\t\theader_down +Content-Security-Policy "frame-ancestors 'self' https://{domain} https://*.{domain} chrome-extension: moz-extension: safari-web-extension:"
 \t\tlb_try_duration 15s
 \t\tlb_try_interval 500ms
 \t\ttransport http {{
@@ -75,7 +81,7 @@ def render(env: dict) -> str:
     site = ",\n".join(f"{h}.{domain}" for h in hosts)
     parts = [f"# {domain} public edge: TLS here, then over the Nebula overlay to Traefik on the home host ({upstream}:80).",
              "{", f"\temail {email}", "}", "", ACCESSLOG,
-             site + " {", "\timport accesslog", PROXY_BLOCK.format(upstream=upstream).rstrip("\n"), "}"]
+             site + " {", "\timport accesslog", PROXY_BLOCK.format(upstream=upstream, domain=domain).rstrip("\n"), "}"]
     if str(env.get("CADDY_FRONT_DOOR", "")) in ("1", "true", "yes"):
         fd = env.get("FRONT_DOOR_HOST") or "cloud"
         lines = [f"\t\t~^/(?:{alt})(/[^?]*)?(\\?.*)?$ \"https://{target}${{1}}${{2}}\"" for alt, target in front_door_map(domain, hosts)]
