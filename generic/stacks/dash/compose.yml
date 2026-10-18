@@ -1,5 +1,6 @@
-# Family dashboard: one small Node container built on the host from apps/dash. Reads Mealie, Homebox and Actual over their
-# APIs (container names on the proxy network); each source is optional and shows "not configured" without its token.
+# HeardOS desktop (dash.$DOMAIN): a web desktop where every app opens signed in, in a window (see docs/web-desktop.md).
+# One small Node container built on the host from apps/dash; it also reads Mealie, Homebox and Actual for the "This week"
+# app and widgets (each source optional). It trusts the X-authentik-* headers, so it has NO route that skips the gate.
 # 50-app.sh builds the image (docker build apps/dash -> heardos-dash:local) before deploying, so Portainer never needs a build context.
 services:
   dash:
@@ -8,6 +9,7 @@ services:
     restart: unless-stopped
     environment:
       TZ: "${TZ}"
+      DOMAIN: "${DOMAIN}"
       CACHE_SECONDS: "180"
       MEALIE_URL: http://mealie:9000
       MEALIE_PUBLIC_URL: "${MEALIE_PUBLIC_URL}"
@@ -32,9 +34,6 @@ services:
       traefik.http.routers.dash.entrypoints: web
       traefik.http.routers.dash.middlewares: xfp-https@file,authentik-fwd@file
       traefik.http.routers.dash.service: dash
-      traefik.http.routers.dash-lan.rule: Host(`dash.${LAN_DOMAIN}`)
-      traefik.http.routers.dash-lan.entrypoints: web
-      traefik.http.routers.dash-lan.service: dash
       traefik.http.services.dash.loadbalancer.server.port: "8080"
 networks:
   proxy: {external: true}

@@ -1,4 +1,7 @@
-// HeardOS dashboard backend (preliminary, 2026-10-13).
+// HeardOS dashboard backend (preliminary, 2026-10-13; desktop shell 2026-10-18).
+// The page is now a web desktop (public/index.html + desktop.js): apps open signed in, in windows, through the
+// Authentik gate in front of this container. /api/me and /api/apps come from the X-authentik-* headers that gate adds;
+// /api/apps filters apps.json by the person's app-<slug> groups. The old summary page lives on as public/week.html.
 // Pulls: Mealie (meal plan + shopping lists), Actual Budget (month summary, accounts, upcoming schedules),
 // Homebox (inventory totals, locations, recent items). Each source is optional: missing env => section
 // reports "not configured"; a failing source reports its error instead of taking the page down.
@@ -63,7 +66,8 @@ async function actual() {
   const dataDir = env("ACTUAL_DATA_DIR") || "/data/actual";
   fs.mkdirSync(dataDir, { recursive: true });
   if (!actualReady) {
-    await api.init({ dataDir, serverURL, password });
+    // the sync server is OpenID-only: ACTUAL_PASSWORD holds a session token, which init() takes as sessionToken
+    await api.init({ dataDir, serverURL, sessionToken: password });
     actualReady = true;
   }
   // downloadBudget also applies pending sync messages, so the numbers are current.
@@ -134,6 +138,27 @@ async function homebox() {
   };
 }
 
+// ---------- desktop: who is signed in, which apps they get ----------
+const DOMAIN = env("DOMAIN") || "example.com";
+const SHOW_ALL = env("DESKTOP_SHOW_ALL") === "1";   // local testing only: no gate headers -> show everything
+const APPS_FILE = env("APPS_FILE") || path.join(__dirname, "apps.json");
+function me(req) {
+  const h = (k) => String(req.headers[k] || "");
+  const groups = h("x-authentik-groups").split("|").map((g) => g.trim()).filter(Boolean);
+  return { username: h("x-authentik-username"), name: h("x-authentik-name") || h("x-authentik-username"), email: h("x-authentik-email"), groups };
+}
+function appsFor(user) {
+  const cat = JSON.parse(fs.readFileSync(APPS_FILE, "utf8"));
+  const sub = (s) => (typeof s === "string" ? s.replaceAll("{domain}", DOMAIN) : s);
+  const can = (a) => (SHOW_ALL && !user.username) || !a.access || user.groups.includes(`app-${a.access}`);
+  const apps = cat.apps.filter(can).map((a) => {
+    const icon = a.icon.startsWith("builtin:") ? `/icons/${a.icon.slice(8)}.svg` : `/icons/${a.icon}.png`;
+    return { id: a.id, name: a.name, description: a.description, folder: a.folder, icon, url: sub(a.url), embed: a.embed !== false, w: a.w, h: a.h };
+  });
+  return { domain: DOMAIN, folders: cat.folders, apps,
+    links: { account: `https://auth.${DOMAIN}/if/user/`, signOut: "/outpost.goauthentik.io/sign_out", brand: `https://cloud.${DOMAIN}/brand` } };
+}
+
 // ---------- cache + server ----------
 let cache = { at: 0, data: null, inflight: null };
 async function section(fn) {
@@ -155,20 +180,27 @@ async function summary(force = false) {
   return cache.inflight;
 }
 
-const MIME = { ".html": "text/html; charset=utf-8", ".css": "text/css", ".js": "text/javascript", ".svg": "image/svg+xml", ".png": "image/png" };
+const MIME = { ".html": "text/html; charset=utf-8", ".css": "text/css", ".js": "text/javascript", ".svg": "image/svg+xml", ".png": "image/png",
+  ".json": "application/json", ".webmanifest": "application/manifest+json", ".jpg": "image/jpeg", ".ico": "image/x-icon" };
+// the desktop may be framed only by itself (week.html inside a window); everything else is the browser's default
+const BASE_HEADERS = { "X-Content-Type-Options": "nosniff", "Content-Security-Policy": "frame-ancestors 'self'", "Referrer-Policy": "strict-origin-when-cross-origin" };
+const json = (res, data) => res.writeHead(200, { ...BASE_HEADERS, "Content-Type": "application/json", "Cache-Control": "no-store" }).end(JSON.stringify(data));
 http
   .createServer(async (req, res) => {
     const url = new URL(req.url, "http://x");
     try {
       if (url.pathname === "/healthz") return res.writeHead(200, { "Content-Type": "text/plain" }).end("ok");
+      if (url.pathname === "/api/me") return json(res, me(req));
+      if (url.pathname === "/api/apps") return json(res, appsFor(me(req)));
       if (url.pathname === "/api/summary") {
         const data = await summary(url.searchParams.has("refresh"));
-        return res.writeHead(200, { "Content-Type": "application/json", "Cache-Control": "no-store" }).end(JSON.stringify(data));
+        return json(res, data);
       }
       const file = path.join(__dirname, "public", url.pathname === "/" ? "index.html" : path.normalize(url.pathname).replace(/^(\.\.[/\\])+/, ""));
       if (!file.startsWith(path.join(__dirname, "public"))) return res.writeHead(403).end();
       if (!fs.existsSync(file) || fs.statSync(file).isDirectory()) return res.writeHead(404).end("not found");
-      res.writeHead(200, { "Content-Type": MIME[path.extname(file)] || "application/octet-stream", "Cache-Control": "no-cache" });
+      const longCache = file.includes(`${path.sep}icons${path.sep}`);
+      res.writeHead(200, { ...BASE_HEADERS, "Content-Type": MIME[path.extname(file)] || "application/octet-stream", "Cache-Control": longCache ? "public, max-age=86400" : "no-cache" });
       fs.createReadStream(file).pipe(res);
     } catch (e) {
       res.writeHead(500, { "Content-Type": "text/plain" }).end(String(e.message || e));
@@ -178,3 +210,6 @@ http
 
 // warm the cache at start so the first page view is fast
 summary().catch(() => {});
+
+// docker stop: exit at once instead of waiting 10 s for SIGKILL
+for (const sig of ["SIGTERM", "SIGINT"]) process.on(sig, () => process.exit(0));

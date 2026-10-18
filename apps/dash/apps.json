@@ -1,0 +1,36 @@
+{
+  "_about": "HeardOS desktop app catalogue (2026-10-18). {domain} = DOMAIN env. access = Authentik application slug: the app shows for people in group app-<access>; null = everyone signed in. embed=false opens in a new browser tab instead of a window. icon = dashboard-icons name (fetched into public/icons at image build) or builtin:<name>.",
+  "folders": ["Everyday", "House & paperwork", "Family", "Account", "Admin"],
+  "apps": [
+    {"id": "week", "name": "This week", "description": "Meals, shopping list, budget and what we have, at a glance", "folder": "Everyday", "icon": "builtin:week", "url": "/week.html", "access": "dash", "w": 1100, "h": 760},
+    {"id": "photos", "name": "Photos", "description": "Our pictures and videos", "folder": "Everyday", "icon": "immich", "url": "https://photos.{domain}/", "access": "immich"},
+    {"id": "recipes", "name": "Recipes & meal plan", "description": "Recipes, shopping list, dinner plan", "folder": "Everyday", "icon": "mealie", "url": "https://mealie.{domain}/", "access": "mealie"},
+    {"id": "documents", "name": "Documents", "description": "Family files, Word and Excel in the browser", "folder": "Everyday", "icon": "nextcloud", "url": "https://docs.{domain}/", "access": "nextcloud"},
+    {"id": "music", "name": "Music", "description": "Our music library", "folder": "Everyday", "icon": "navidrome", "url": "https://music.{domain}/", "access": "navidrome"},
+    {"id": "books", "name": "Books", "description": "Our ebook library", "folder": "Everyday", "icon": "calibre-web", "url": "https://books.{domain}/", "access": "calibre-web"},
+    {"id": "videos", "name": "Videos", "description": "YouTube without ads or tracking", "folder": "Everyday", "icon": "invidious", "url": "https://tube.{domain}/", "access": "invidious"},
+    {"id": "wikipedia", "name": "Wikipedia", "description": "All of English Wikipedia, stored at home", "folder": "Everyday", "icon": "wikipedia", "url": "https://wiki.{domain}/", "access": "wiki"},
+    {"id": "search", "name": "Search", "description": "Private web search, no tracking or ads", "folder": "Everyday", "icon": "searxng", "url": "https://search.{domain}/", "access": null},
+    {"id": "saved", "name": "Saved pages", "description": "Keep a copy of a web page before it disappears", "folder": "Everyday", "icon": "archivebox", "url": "https://archive.{domain}/", "access": "archivebox"},
+    {"id": "passwords", "name": "Passwords", "description": "Password vault (Bitwarden apps)", "folder": "Everyday", "icon": "vaultwarden", "url": "https://vault.{domain}/", "access": "vaultwarden"},
+    {"id": "browser", "name": "Safe browser", "description": "Open risky links in a throwaway browser", "folder": "Everyday", "icon": "kasm-workspaces", "url": "https://browser.{domain}/", "access": "kasm"},
+
+    {"id": "home", "name": "Home controls", "description": "Lights, TV, house automations", "folder": "House & paperwork", "icon": "home-assistant", "url": "https://home.{domain}/", "access": "home-assistant"},
+    {"id": "paperwork", "name": "Paperwork", "description": "Scanned mail, bills, receipts", "folder": "House & paperwork", "icon": "paperless-ngx", "url": "https://paperless.{domain}/", "access": "paperless"},
+    {"id": "inventory", "name": "Where is it?", "description": "What we own and where it lives", "folder": "House & paperwork", "icon": "homebox", "url": "https://homebox.{domain}/", "access": "homebox"},
+    {"id": "plants", "name": "Plants", "description": "Watering, photos and where each plant lives", "folder": "House & paperwork", "icon": "hortusfox", "url": "https://plants.{domain}/", "access": "hortusfox"},
+    {"id": "budget", "name": "Budget", "description": "Monthly budget and where the money goes", "folder": "House & paperwork", "icon": "actual-budget", "url": "https://budget.{domain}/", "access": "actual-budget"},
+    {"id": "subscriptions", "name": "Subscriptions", "description": "Recurring bills and renewals", "folder": "House & paperwork", "icon": "wallos", "url": "https://wallos.{domain}/", "access": "wallos"},
+
+    {"id": "blog", "name": "Our blog", "description": "Newsletter posts, published", "folder": "Family", "icon": "builtin:blog", "url": "https://{domain}/", "access": null},
+    {"id": "newsletters", "name": "Newsletters", "description": "Write and send the family newsletter", "folder": "Family", "icon": "listmonk", "url": "https://news.{domain}/admin/", "access": "listmonk"},
+    {"id": "speed", "name": "Speed test", "description": "How fast is the connection to home?", "folder": "Family", "icon": "librespeed", "url": "https://speed.{domain}/", "access": null},
+
+    {"id": "account", "name": "My account", "description": "Change password, add a passkey", "folder": "Account", "icon": "authentik", "url": "https://auth.{domain}/if/user/", "access": null, "w": 1000, "h": 720},
+    {"id": "calendars", "name": "Calendar setup", "description": "Calendars sync to your phone; this is only for setup", "folder": "Account", "icon": "baikal", "url": "https://dav.{domain}/admin/", "access": "baikal"},
+
+    {"id": "containers", "name": "Containers", "description": "Portainer: the app stacks", "folder": "Admin", "icon": "portainer", "url": "https://portainer.{domain}/", "access": "portainer-web"},
+    {"id": "jobs", "name": "Scheduled jobs", "description": "CronMaster: feeds, syncs and backups", "folder": "Admin", "icon": "cronmaster", "url": "https://cron.{domain}/", "access": "cronmaster"},
+    {"id": "proxmox", "name": "Proxmox", "description": "The home server itself (home network only)", "folder": "Admin", "icon": "proxmox", "url": "https://cloud.{domain}/proxmox", "access": "proxmox", "embed": false}
+  ]
+}

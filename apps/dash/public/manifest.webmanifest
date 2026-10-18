@@ -1,0 +1,20 @@
+{
+  "name": "HeardOS",
+  "short_name": "HeardOS",
+  "description": "The family's apps, signed in, in one place",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#1f2023",
+  "theme_color": "#1f2023",
+  "icons": [
+    {"src": "https://cloud.example.com/brand/app-icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable"},
+    {"src": "https://cloud.example.com/brand/app-icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable"}
+  ],
+  "shortcuts": [
+    {"name": "This week", "url": "/?open=week"},
+    {"name": "Photos", "url": "/?open=photos"},
+    {"name": "Recipes", "url": "/?open=recipes"},
+    {"name": "Documents", "url": "/?open=documents"}
+  ]
+}

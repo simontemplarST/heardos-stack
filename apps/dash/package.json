@@ -1,8 +1,8 @@
 {
   "name": "heardos-dash",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
-  "description": "HeardOS family dashboard: Mealie + Actual Budget + Homebox summary page",
+  "description": "HeardOS desktop: apps in windows, signed in through Authentik; Mealie + Actual Budget + Homebox widgets",
   "type": "module",
   "dependencies": {
     "@actual-app/api": "26.10.0"

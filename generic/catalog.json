@@ -251,8 +251,8 @@
     {
       "stack": "dash",
       "slug": "dash",
-      "name": "Family dashboard",
-      "blurb": "This week's meals, shopping lists, budget and inventory on one page.",
+      "name": "HeardOS desktop",
+      "blurb": "A desktop in the browser: every app opens signed in, in its own window, with this week's meals, shopping and budget as widgets. Installable as an app.",
       "hosts": [
         "dash"
       ],
@@ -267,8 +267,8 @@
       "hub": {
         "group": "Everyday",
         "icon": "homepage.png",
-        "label": "This week",
-        "description": "Meals, shopping, budget and inventory on one page"
+        "label": "Desktop",
+        "description": "All the apps in windows, plus this week at a glance"
       }
     },
     {
