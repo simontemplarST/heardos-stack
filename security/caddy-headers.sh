@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# caddy-headers.sh — audit finding #11: add nosniff + Referrer-Policy and drop the Server header on the
+# caddy-headers.sh — add nosniff + Referrer-Policy and drop the Server header on the
 # public edge. Stages the file, validates it, backs up, swaps, reloads, and verifies. Idempotent.
 set -euo pipefail
 T=$(mktemp -d); trap 'rm -rf "$T"' EXIT

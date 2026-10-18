@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# close-lan-ports.sh — set openPort=false on Paperless and Homebox (audit finding #10) by resubmitting their
+# close-lan-ports.sh — set openPort=false on Paperless and Homebox by resubmitting their
 # FULL Runtipi form (every store form field, correct types) so app.env is regenerated with nothing blank.
 # Runs the API call on CT 108 so secrets never leave the box. Verify afterwards with security-check.sh.
 #   bash close-lan-ports.sh homebox      (do Homebox first; it has the fewest fields)

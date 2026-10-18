@@ -2,7 +2,7 @@
 # Gives Actual Budget a server password that ONLY API clients use, while the web UI keeps OpenID as its sole login.
 # Why: @actual-app/api can only log in with loginMethod=password, and Actual's /change-password route refuses
 # OpenID sessions, so the row has to be written straight into account.sqlite (auth table, active=0).
-# The auto-mode classifier refused to let Claude do this on 2026-10-13; run it yourself:  bash enable-actual-api-password.sh
+# Actual's web UI can't do this, so run it by hand:  bash enable-actual-api-password.sh
 set -euo pipefail
 set -a; . ~/.config/credentials.env; set +a
 : "${ACTUAL_API_PASSWORD:?ACTUAL_API_PASSWORD missing in ~/.config/credentials.env}"

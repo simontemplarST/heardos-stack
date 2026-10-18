@@ -1,5 +1,7 @@
 #!/bin/bash
 # dl-cookbooks.sh [manifest.json] — downloads every PDF (+EPUB where present) from archive.org into /root/cookbooks/<id>/
+# Only list books that are public domain where you live (in the US: published before 1931). archive.org hosts
+# in-copyright scans too; an item being downloadable there does not make it free to copy.
 set -u; M="${1:-/root/cookbooks.json}"; mkdir -p /root/cookbooks; cd /root/cookbooks
 python3 -c 'import json,sys;[print(b["id"],b["pdf"],b["epub"] or "-",sep="\t") for b in json.load(open(sys.argv[1]))]' "$M" | while IFS=$'\t' read -r id pdf epub; do
   mkdir -p "$id"
