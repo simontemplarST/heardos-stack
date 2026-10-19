@@ -9,7 +9,7 @@
   },
   "scripts": {
     "start": "node server.js",
-    "test": "node --test test/",
+    "test": "node --test \"test/*.test.mjs\"",
     "check": "node --check server.js && node --check fetch-icons.mjs && for f in public/*.js; do node --check $f; done",
     "icons": "node fetch-icons.mjs"
   }
