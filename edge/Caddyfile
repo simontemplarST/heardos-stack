@@ -1,6 +1,7 @@
 # example.com public ingress (2026-10-11): TLS here, then over the Nebula overlay to Traefik on runtipi (10.42.0.11).
 {
 	email admin@example.net
+	admin localhost:2019
 }
 
 # JSON access log for CrowdSec (security/crowdsec-lighthouse.sh)
@@ -10,7 +11,23 @@
 			roll_size 50MiB
 			roll_keep 5
 		}
-		format json
+		# 2026-10-19: query values that carry secrets (OIDC code/state, Subsonic p/t/s, share tokens) are redacted;
+		# CrowdSec keeps what it parses (remote_ip, status, method, host, user agent, uri path)
+		format filter {
+			wrap json
+			fields {
+				request>uri query {
+					replace code REDACTED
+					replace state REDACTED
+					replace p REDACTED
+					replace t REDACTED
+					replace s REDACTED
+					replace token REDACTED
+				}
+				request>headers>Authorization delete
+				request>headers>Cookie delete
+			}
+		}
 	}
 }
 
@@ -41,34 +58,72 @@ browser.example.com,
 dash.example.com {
 	import accesslog
 	header {
-		Strict-Transport-Security "max-age=31536000"
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
 		X-Content-Type-Options nosniff
 		Referrer-Policy strict-origin-when-cross-origin
 		-Server
 	}
 	encode zstd gzip
-	reverse_proxy 10.42.0.11:80 {
-		header_up X-Forwarded-Proto https
-		header_up X-Forwarded-Port 443
-		# 2026-10-18 HeardOS desktop (framing): apps open as windows inside https://dash.example.com, and some apps embed
-		# each other (Nextcloud -> OnlyOffice). Only the family's own sites may frame them: drop X-Frame-Options, widen an
-		# existing frame-ancestors, add one where the app sets none (browser extensions kept, e.g. Bitwarden's).
-		header_down -X-Frame-Options
-		header_down Content-Security-Policy "frame-ancestors 'self'" "frame-ancestors 'self' https://example.com https://*.example.com"
-		header_down Content-Security-Policy "frame-ancestors 'none'" "frame-ancestors https://example.com https://*.example.com"
-		header_down +Content-Security-Policy "frame-ancestors 'self' https://example.com https://*.example.com chrome-extension: moz-extension: safari-web-extension:"
-		# 2026-10-11 reliability tuning: retry briefly on a tunnel hiccup instead of answering 502; keep upstream connections warm
-		lb_try_duration 15s
-		lb_try_interval 500ms
-		transport http {
-			dial_timeout 10s
-			response_header_timeout 120s
-			keepalive 2m
-			keepalive_idle_conns 32
-		}
-	}
 	request_body {
 		max_size 0
+	}
+	# 2026-10-19 HeardOS desktop (framing): apps open as windows inside https://dash.example.com. Only the desktop may
+	# frame them (plus Nextcloud for OnlyOffice); header_down takes no matcher, hence one handle per policy.
+	# Sign-in, vault and the top-level pages (dash, hub) are never framed: they keep the app's own XFO/frame-ancestors.
+	@noframe host auth.example.com vault.example.com dash.example.com hub.example.com
+	handle @noframe {
+		reverse_proxy 10.42.0.11:80 {
+			header_up X-Forwarded-Proto https
+			header_up X-Forwarded-Port 443
+			# 2026-10-11 reliability tuning: retry briefly on a tunnel hiccup instead of answering 502; keep upstream connections warm
+			lb_try_duration 15s
+			lb_try_interval 500ms
+			transport http {
+				dial_timeout 10s
+				response_header_timeout 120s
+				keepalive 2m
+				keepalive_idle_conns 32
+			}
+		}
+	}
+	@frame_office host office.example.com
+	handle @frame_office {
+		reverse_proxy 10.42.0.11:80 {
+			header_up X-Forwarded-Proto https
+			header_up X-Forwarded-Port 443
+			header_down -X-Frame-Options
+			header_down Content-Security-Policy "frame-ancestors 'self'" "frame-ancestors 'self' https://dash.example.com https://docs.example.com"
+			header_down Content-Security-Policy "frame-ancestors 'none'" "frame-ancestors https://dash.example.com https://docs.example.com"
+			header_down +Content-Security-Policy "frame-ancestors 'self' https://dash.example.com https://docs.example.com"
+			# 2026-10-11 reliability tuning: retry briefly on a tunnel hiccup instead of answering 502; keep upstream connections warm
+			lb_try_duration 15s
+			lb_try_interval 500ms
+			transport http {
+				dial_timeout 10s
+				response_header_timeout 120s
+				keepalive 2m
+				keepalive_idle_conns 32
+			}
+		}
+	}
+	handle {
+		reverse_proxy 10.42.0.11:80 {
+			header_up X-Forwarded-Proto https
+			header_up X-Forwarded-Port 443
+			header_down -X-Frame-Options
+			header_down Content-Security-Policy "frame-ancestors 'self'" "frame-ancestors 'self' https://dash.example.com"
+			header_down Content-Security-Policy "frame-ancestors 'none'" "frame-ancestors https://dash.example.com"
+			header_down +Content-Security-Policy "frame-ancestors 'self' https://dash.example.com"
+			# 2026-10-11 reliability tuning: retry briefly on a tunnel hiccup instead of answering 502; keep upstream connections warm
+			lb_try_duration 15s
+			lb_try_interval 500ms
+			transport http {
+				dial_timeout 10s
+				response_header_timeout 120s
+				keepalive 2m
+				keepalive_idle_conns 32
+			}
+		}
 	}
 }
 
@@ -78,7 +133,7 @@ dash.example.com {
 cloud.example.com {
 	import accesslog
 	header {
-		Strict-Transport-Security "max-age=31536000"
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
 		X-Content-Type-Options nosniff
 		Referrer-Policy strict-origin-when-cross-origin
 		-Server
@@ -107,9 +162,8 @@ cloud.example.com {
 		~^/(?:vaultwarden|vault)(/[^?]*)?(\?.*)?$ "https://vault.example.com${1}${2}"
 		~^/wallos(/[^?]*)?(\?.*)?$ "https://wallos.example.com${1}${2}"
 		~^/auth(/[^?]*)?(\?.*)?$ "https://auth.example.com${1}${2}"
-		# LAN-only targets (same as their Authentik launch URLs today)
-		~^/proxmox(/[^?]*)?(\?.*)?$ "https://prox.lan:8006${1}${2}"
-		~^/runtipi(/[^?]*)?(\?.*)?$ "http://192.168.10.20${1}${2}"
+		# 2026-10-19: no LAN-only targets here (Proxmox, Runtipi): this host answers anyone without signing in, so a
+		# redirect would disclose internal names/addresses. Launch those from the LAN / overlay directly.
 		default "https://auth.example.com/if/user/"
 	}
 	# brand assets for emails etc. (2026-10-15): https://cloud.example.com/brand/<file>, served before the redirect map

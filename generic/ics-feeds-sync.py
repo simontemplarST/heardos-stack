@@ -19,7 +19,7 @@ read-only with family members. Stdlib only. Config: ics-feeds.json next to this 
      "sources": [ {"label": "Example County", "url": "https://...catID=14&feed=calendar"},
                   {"label": "Springfield", "type": "ai1ec-agenda", "url": "https://www.city.example.org"} ]}
     {"id": "meal-plan", "label": "Meals", "color": "#FB8C00",
-     "sources": [{"label": "Meals", "type": "mealie-mealplan", "url": "http://192.168.10.20:9925", "public_url": "https://mealie.example.com",
+     "sources": [{"label": "Meals", "type": "mealie-mealplan", "url": "http://127.0.0.1:9925", "public_url": "https://mealie.example.com",
                   "group_slug": "home", "token": "<mealie api token>", "days_back": 7, "days_ahead": 60}]},
     {"id": "work-alice", "label": "Work", "url": "https://outlook.office365.com/owa/calendar/.../reachcalendar.ics",
      "target": {"principal": "principals/alice", "uri": "default"}}   # write INTO an existing user calendar instead of
@@ -48,16 +48,23 @@ UA = "ics-feeds-sync/1.0 (+example.com)"
 
 def log(*a): print(time.strftime("%H:%M:%S"), *a, flush=True)
 
+MAX_BYTES = int(CFG.get("max_feed_mb", 20)) * 1024 * 1024   # a feed/page larger than this is refused, not buffered
+
+def read_capped(r, what):
+    data = r.read(MAX_BYTES + 1)
+    if len(data) > MAX_BYTES: raise SystemExit(f"{what}: response larger than {MAX_BYTES >> 20} MB, refused")
+    return data
+
 def dav(method, url, body=None, headers=None):
     h = {"Authorization": AUTH, "User-Agent": UA}; h.update(headers or {})
     req = urllib.request.Request(url, data=body.encode() if isinstance(body, str) else body, method=method, headers=h)
     try:
-        with urllib.request.urlopen(req, timeout=60) as r: return r.status, r.read().decode(errors="replace")
-    except urllib.error.HTTPError as e: return e.code, e.read().decode(errors="replace")
+        with urllib.request.urlopen(req, timeout=60) as r: return r.status, read_capped(r, url).decode(errors="replace")
+    except urllib.error.HTTPError as e: return e.code, e.read(65536).decode(errors="replace")
 
 def fetch(url):
     req = urllib.request.Request(url, headers={"User-Agent": UA})
-    with urllib.request.urlopen(req, timeout=60) as r: return r.read().decode("utf-8", errors="replace")
+    with urllib.request.urlopen(req, timeout=60) as r: return read_capped(r, url).decode("utf-8", errors="replace")
 
 def unfold(text):
     text = text.replace("\r\n", "\n").replace("\r", "\n")
@@ -126,7 +133,7 @@ def fetch_ai1ec_agenda(base, max_pages=8, tzid="America/Chicago"):
     url = f"{base.rstrip('/')}/calendar/?ai1ec=action~agenda&request_type=json"   # today forward
     for off in range(max_pages):
         req = urllib.request.Request(url, headers={"User-Agent": UA, "Accept": "application/json"})
-        with urllib.request.urlopen(req, timeout=60) as r: page = json.loads(r.read().decode("utf-8", "replace"))
+        with urllib.request.urlopen(req, timeout=60) as r: page = json.loads(read_capped(r, url).decode("utf-8", "replace"))
         h = re.sub(r"\s+", " ", _html.unescape(page.get("html", "")))
         days = re.split(r'<div class="ai1ec-date(?=[ "])', h)[1:]
         for d in days:
@@ -166,7 +173,11 @@ def fetch_ai1ec_agenda(base, max_pages=8, tzid="America/Chicago"):
         nxt = re.search(r'<a[^>]*class="[^"]*ai1ec-next-page(?![^"]*ai1ec-disabled)[^"]*"[^>]*href="([^"]+)"', h) or \
               re.search(r'<a[^>]*href="([^"]+)"[^>]*class="[^"]*ai1ec-next-page(?![^"]*ai1ec-disabled)[^"]*"', h)
         if not nxt or not days: break
-        url = nxt.group(1); url += ("&" if "?" in url else "?") + "request_type=json" if "request_type=json" not in url else ""
+        # follow the next-page link only on the calendar's own site (scheme + host): the page is untrusted HTML
+        nurl = urllib.parse.urljoin(url, nxt.group(1)); a, b = urllib.parse.urlsplit(base), urllib.parse.urlsplit(nurl)
+        if (a.scheme, a.netloc.lower()) != (b.scheme, b.netloc.lower()):
+            log(f"  ai1ec agenda {base}: next-page link to another site ignored ({b.scheme}://{b.netloc})"); break
+        url = nurl; url += ("&" if "?" in url else "?") + "request_type=json" if "request_type=json" not in url else ""
     log(f"  ai1ec agenda {base}: {len(events)} events from {off + 1} page(s)")
     return "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//example.com//ai1ec-agenda//EN\r\n" + "\r\n".join(events) + "\r\nEND:VCALENDAR\r\n"
 
@@ -177,7 +188,7 @@ def fetch_mealie_mealplan(src):
     start = date.today() - timedelta(days=int(src.get("days_back", 7))); end = date.today() + timedelta(days=int(src.get("days_ahead", 60)))
     url = f"{base}/api/households/mealplans?start_date={start:%Y-%m-%d}&end_date={end:%Y-%m-%d}&perPage=-1"
     req = urllib.request.Request(url, headers={"User-Agent": UA, "Authorization": "Bearer " + src["token"], "Accept": "application/json"})
-    with urllib.request.urlopen(req, timeout=60) as r: data = json.loads(r.read().decode())
+    with urllib.request.urlopen(req, timeout=60) as r: data = json.loads(read_capped(r, url).decode())
     items = data.get("items", data if isinstance(data, list) else [])
     gslug = src.get("group_slug", "")
     esc = lambda v: str(v).replace("\\", "\\\\").replace(";", "\\;").replace(",", "\\,").replace("\r", "").replace("\n", "\\n")

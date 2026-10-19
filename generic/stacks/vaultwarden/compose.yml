@@ -2,7 +2,7 @@
 # Accounts are created on first Authentik login; the Authentik group app-vaultwarden decides who may log in.
 services:
   vaultwarden:
-    image: vaultwarden/server:latest
+    image: vaultwarden/server:1.37.4@sha256:efb3cde962015fcc036b2ea625242248611943b27212ebf4392841fb30fad055   # 1.37.4
     container_name: vaultwarden
     restart: unless-stopped
     environment:
@@ -18,10 +18,15 @@ services:
       SSO_CLIENT_ID: "${OIDC_CLIENT_ID}"
       SSO_CLIENT_SECRET: "${OIDC_CLIENT_SECRET}"
       SSO_CLIENT_CACHE_EXPIRATION: "600"
-      ADMIN_TOKEN: "${VAULTWARDEN_ADMIN_TOKEN}"
+      # ADMIN_TOKEN is not set here: 50-app.sh writes its argon2 hash into data/vaultwarden/config.json (no "$" escaping
+      # games in .env); the plaintext token stays in secrets.env as VAULTWARDEN_ADMIN_TOKEN.
+      # Client IP (login rate limit, logs) from X-Forwarded-For. Sound only because Traefik replaces X-Forwarded-For from
+      # every source except the lighthouse; a container on the proxy network talking to vaultwarden:80 directly can still
+      # forge it (Vaultwarden has no trusted-proxy list) — it only affects rate limiting and logs, not authentication.
       IP_HEADER: "X-Forwarded-For"
       LOG_LEVEL: info
     volumes: ["${HEARDOS_ROOT}/data/vaultwarden:/data"]
+    security_opt: ["no-new-privileges:true"]
     networks: [proxy]
     labels:
       traefik.enable: "true"

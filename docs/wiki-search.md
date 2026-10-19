@@ -6,7 +6,7 @@
 | SearXNG | `search.<domain>` (and the LAN name) | **None: public on purpose** | So every family browser, signed in or not, can use it as its search engine. Bot limiter on (Valkey), HTML results only, image proxy on, safe search moderate. |
 
 Install with `50-app.sh kiwix` and `50-app.sh searxng`, then add `wiki` and `search` to `PUBLIC_HOSTS` and re-run
-`30-vps-caddy.sh` and `32-dns.py`.
+`30-vps-caddy.sh` and `32-dns.py --apply` (without `--apply` it only prints the plan).
 
 ## Kiwix: the download
 

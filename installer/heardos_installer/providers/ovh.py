@@ -70,6 +70,10 @@ class Ovh(HttpProvider):
         self._catalog: Optional[dict] = None
         self._stock: dict[str, dict[str, bool]] = {}
         self.destroy_note = ""
+        # paying the order with the account's default payment method is a real charge: off unless the operator opted in
+        # (plan ovh_autopay); without it the order waits as "not paid" and the step says where to pay it
+        self.autopay = False
+        self.confirm: Optional[Callable[[str, str], bool]] = None   # host-key fingerprint confirmation (no cloud-init here)
 
     def headers(self) -> dict[str, str]:
         return {"Accept": "application/json", "User-Agent": "heardos-installer/0.1"}
@@ -212,7 +216,7 @@ class Ovh(HttpProvider):
             self._json("POST", f"/order/cart/{cart}/vps/options", json_body={"itemId": item, "planCode": code, "duration": "P1M",
                                                                              "pricingMode": "default", "quantity": 1})
         self._json("POST", f"/order/cart/{cart}/assign")
-        order = self._json("POST", f"/order/cart/{cart}/checkout", json_body={"autoPayWithPreferredPaymentMethod": True,
+        order = self._json("POST", f"/order/cart/{cart}/checkout", json_body={"autoPayWithPreferredPaymentMethod": bool(self.autopay),
                                                                               "waiveRetractationPeriod": False})
         oid = order.get("orderId")
         total = ((order.get("prices") or {}).get("withTax") or {}).get("text", "")
@@ -270,8 +274,11 @@ class Ovh(HttpProvider):
     def _root_login(self, ip: str, os_label: str, on_line=None) -> None:
         """OVH images put the key on the distro user (ubuntu / debian); the kit logs in as root, so copy it across."""
         from ..keys import DEFAULT_KEY
-        from ..remote.ssh import Session, wait_ssh
+        from ..remote.ssh import Session, ensure_host_key, wait_ssh
         key = self.key_path or DEFAULT_KEY
+        if self.confirm:
+            wait_ssh_port(ip, on_line=on_line)
+            ensure_host_key(ip, 22, self.confirm)
         try:
             Session(ip, "root", key_path=key, connect_timeout=10).connect().run("true", timeout=20, check=True)
             return
@@ -294,3 +301,17 @@ class Ovh(HttpProvider):
     def confirm_destroy(self, service: str, token: str) -> None:
         self._json("POST", f"/vps/{service}/confirmTermination", json_body={"token": token, "reason": "OTHER",
                                                                              "commentary": "replaced by heardos-installer"})
+
+
+def wait_ssh_port(ip: str, timeout: int = 600, on_line=None) -> None:
+    """Wait until the rebuilt server answers on 22/tcp, so its host key can be shown for confirmation."""
+    import socket
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        try:
+            socket.create_connection((ip, 22), timeout=5).close()
+            return
+        except OSError:
+            if on_line:
+                on_line(f"waiting for ssh on {ip}")
+            time.sleep(5)

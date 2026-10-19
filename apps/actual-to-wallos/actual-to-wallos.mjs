@@ -11,7 +11,7 @@
 // Wallos subscriptions are matched by the marker in their notes, so re-runs update instead of duplicating. Subscriptions
 // whose source disappears (schedule deleted, payee no longer charging) are marked inactive — never deleted.
 //
-// Env (see actual-to-wallos.env): ACTUAL_URL, ACTUAL_SYNC_ID (sync id or file id), ACTUAL_DATA_DIR, ACTUAL_SESSION_TOKEN
+// Env (template: actual-to-wallos.env.example): ACTUAL_URL, ACTUAL_SYNC_ID (sync id or file id), ACTUAL_DATA_DIR, ACTUAL_SESSION_TOKEN
 //   or ACTUAL_API_PASSWORD, WALLOS_URL, WALLOS_API_KEY (+ WALLOS_API_KEY_<NAME> for every further Wallos user that
 //   should get the same subscriptions in their own account, e.g. WALLOS_API_KEY_SAM), WALLOS_CURRENCY (default USD), SYNC_CYCLES (default monthly; monthly,quarterly,yearly,weekly,daily),
 //   SUBSCRIPTION_GROUPS (default "Subscriptions"; comma list of Actual category-group names), MIN_CHARGES (2),

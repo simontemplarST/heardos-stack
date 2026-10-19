@@ -29,7 +29,8 @@ heardos                          # the app;  heardos-cli --help  for the headles
 [latest release](https://github.com/simontemplarST/heardos-stack/releases/latest), or build it yourself:
 
 ```bash
-cd installer && pip install -e ".[dev]" && pyinstaller heardos.spec      # -> dist/
+cd installer && pip install --require-hashes -r requirements-dev.lock && pip install --no-deps --no-build-isolation -e . \
+  && pyinstaller heardos.spec      # -> dist/
 ```
 
 macOS builds are not notarised: the first time, right-click the app and choose Open.
@@ -113,7 +114,24 @@ monogram from the family name:
 | `~/.config/heardos/nebula/<id>/` | Private-network CA. Losing it means re-issuing every certificate. |
 | `~/.ssh/heardos_ed25519` | The installer's SSH key for the VPS and home server |
 
-Set `HEARDOS_HOME` to keep all of this somewhere else.
+Set `HEARDOS_HOME` to keep all of this somewhere else. `HEARDOS_KIT` makes the app use another copy of the setup scripts
+(it warns when that is not the copy it shipped with: those scripts run as root on your servers).
+
+On Windows the app cannot restrict these files with Unix permissions (`chmod` does nothing there): the vault stays
+encrypted, but the state, logs and Nebula CA key are protected only by your Windows account, so keep `HEARDOS_HOME` inside
+your own user profile and do not share that account.
+
+### Server identity and headless installs
+
+The home server, a bring-your-own VPS and an OVHcloud VPS were not created by the app through a provider API, so before
+it sends a password or runs anything it shows the server's SSH host key fingerprint and asks you to compare it with
+`ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub` run on that server's console. A changed key later stops the install.
+For `heardos-cli` without a terminal, put the expected values in the plan as `HOST_SSH_FINGERPRINT` and
+`VPS_SSH_FINGERPRINT` (`SHA256:...`). An OVHcloud order is paid automatically only with `"ovh_autopay": true` in the plan
+(or the Review checkbox); otherwise the install stops at the order and shows the payment link.
+
+Store secrets with `heardos-cli secret NAME` (hidden prompt) or `printf %s "$VALUE" | heardos-cli secret NAME --value-stdin`;
+values are never taken as arguments. Passwords are printed only with `--show`.
 
 ## Development
 

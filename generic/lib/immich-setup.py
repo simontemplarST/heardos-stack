@@ -1,8 +1,11 @@
 #!/usr/bin/env python3
 """Immich post-install: admin sign-up (first run only) + OAuth/Authentik + external domain via /api/system-config.
-usage: immich-setup.py <base_url> <admin_email> <admin_password> <client_id> <client_secret> <issuer> <public_url>"""
-import json, sys, urllib.request, urllib.error
-BASE, EMAIL, PW, CID, CSEC, ISSUER, PUB = sys.argv[1:8]
+usage: IMMICH_ADMIN_PASSWORD=... OIDC_CLIENT_SECRET=... immich-setup.py <base_url> <admin_email> <client_id> <issuer> <public_url>
+Secrets come from the environment, never the command line (argv is world-readable in /proc)."""
+import json, os, sys, urllib.request, urllib.error
+if len(sys.argv) != 6: raise SystemExit(__doc__)
+BASE, EMAIL, CID, ISSUER, PUB = sys.argv[1:6]
+PW, CSEC = os.environ["IMMICH_ADMIN_PASSWORD"], os.environ["OIDC_CLIENT_SECRET"]
 def api(method, path, data=None, token=None):
     h = {"Content-Type": "application/json", "Accept": "application/json"}
     if token: h["Authorization"] = "Bearer " + token

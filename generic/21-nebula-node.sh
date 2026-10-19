@@ -31,7 +31,8 @@ if [ "$target" = "--local" ]; then
   msg "installing bundle '$name' locally (sudo)"; sudo bash "$out/install.sh"
 else
   msg "installing bundle '$name' on $target"
-  tar -C "$out" -cf - nebula ca.crt host.crt host.key config.yml nebula.service install.sh | ssh -o BatchMode=yes "$target" 'rm -rf /tmp/nebula-stage && mkdir -p /tmp/nebula-stage && tar -C /tmp/nebula-stage -xf - && bash /tmp/nebula-stage/install.sh && rm -rf /tmp/nebula-stage'
+  tar -C "$out" -cf - nebula ca.crt host.crt host.key config.yml nebula.service install.sh | ssh -o BatchMode=yes "$target" \
+    'd=$(umask 077; mktemp -d /root/nebula-stage.XXXXXX) && tar -C "$d" -xf - && bash "$d/install.sh"; rc=$?; rm -rf "$d"; exit $rc'
 fi
 rm -f "$out/nebula"
 msg "verify: ping $NEBULA_LH_OVERLAY from the node; 'journalctl -u nebula' on the lighthouse shows its handshake"

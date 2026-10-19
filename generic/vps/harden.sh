@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # vps/harden.sh — runs ON THE VPS as root (piped by 22-vps-lighthouse.sh or the HeardOS installer). Idempotent.
 # Key-only SSH, fail2ban, unattended upgrades, network tuning, ufw allowing only ssh + Nebula (Caddy adds 80/443 later).
+# ssh is public only until vps/ssh-overlay-only.sh moves it onto the overlay; a re-run never reopens it.
 set -euo pipefail
 export DEBIAN_FRONTEND=noninteractive
 for i in 1 2 3 4 5 6; do apt-get -qq update && break; sleep 10; done   # first-boot apt locks clear within a minute
@@ -33,6 +34,8 @@ net.core.netdev_max_backlog = 5000
 SYS
 modprobe tcp_bbr 2>/dev/null || true; sysctl -q -p /etc/sysctl.d/91-heardos-net.conf
 ufw default deny incoming >/dev/null; ufw default allow outgoing >/dev/null
-ufw allow 22/tcp >/dev/null; ufw allow 4242/udp >/dev/null; ufw --force enable >/dev/null
+# public ssh only until 22-vps-lighthouse.sh has proven ssh over the overlay and run vps/ssh-overlay-only.sh (marker file)
+if [ -f /etc/ssh/heardos-overlay-only ]; then ufw allow in on nebula1 to any port 22 proto tcp >/dev/null; else ufw allow 22/tcp >/dev/null; fi
+ufw allow 4242/udp >/dev/null; ufw --force enable >/dev/null
 sshd -T | grep -E "^(passwordauthentication|permitrootlogin)"
 echo "HEARDOS_OUTPUT VPS_UPGRADABLE=$(apt list --upgradable 2>/dev/null | grep -c upgradable || true)"

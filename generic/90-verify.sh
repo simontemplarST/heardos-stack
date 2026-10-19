@@ -39,7 +39,12 @@ ping -c 2 -W 2 "$NEBULA_LH_OVERLAY" >/dev/null 2>&1 && ok "lighthouse reachable 
 ping -c 2 -W 2 "$HOST_OVERLAY" >/dev/null 2>&1 && ok "host reachable over Nebula" || bad "host not reachable over Nebula"
 
 msg "vps ssh"
-out="$(ssh -o BatchMode=yes -o ConnectTimeout=8 -o PubkeyAuthentication=no -o PreferredAuthentications=password "root@$NEBULA_LH_IP" true 2>&1 | tail -1)"
+# public 22 must be closed (22-vps-lighthouse.sh --lock-ssh); ssh works over the overlay, keys only
+if python3 -c 'import socket,sys; socket.create_connection((sys.argv[1], 22), 6)' "$NEBULA_LH_IP" 2>/dev/null; then
+  bad "ssh answers on the VPS public IP $NEBULA_LH_IP:22 (run 22-vps-lighthouse.sh --lock-ssh)"
+else ok "ssh closed on the VPS public IP"; fi
+ssh -o BatchMode=yes -o ConnectTimeout=8 $(_sshkey) "root@$NEBULA_LH_OVERLAY" true 2>/dev/null && ok "key ssh to the VPS over the overlay" || bad "no key ssh to root@$NEBULA_LH_OVERLAY"
+out="$(ssh -o BatchMode=yes -o ConnectTimeout=8 -o PubkeyAuthentication=no -o PreferredAuthentications=password "root@$NEBULA_LH_OVERLAY" true 2>&1 | tail -1)"
 echo "$out" | grep -q 'publickey' && ok "password SSH refused on the VPS" || bad "VPS password SSH not refused: $out"
 
 msg "host (over ssh)"

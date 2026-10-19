@@ -10,6 +10,8 @@ services:
     command: ["--address=all", "--threads=8", "--searchLimit=8", "/data/${KIWIX_ZIM}"]
     volumes:
       - ${HEARDOS_ROOT}/data/kiwix:/data:ro
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
     networks: [proxy]
     labels:
       traefik.enable: "true"

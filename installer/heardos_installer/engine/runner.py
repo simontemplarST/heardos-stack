@@ -12,6 +12,7 @@ import traceback
 from concurrent.futures import ThreadPoolExecutor, Future
 from typing import Callable, Iterable, Optional
 
+from ..vault.redact import redact_text
 from .dag import topo_layers, validate_dag
 from .step import Ctx, Step, StepResult, StepStatus
 
@@ -34,7 +35,14 @@ class Runner:
     def cancel(self) -> None:
         self._cancel.set()
 
-    def _notify(self, sid: str, status: StepStatus, msg: str = "") -> None:
+    def _notify(self, sid: str, status: StepStatus, msg: str = "", extra_secrets: Iterable[str] = ()) -> None:
+        # the message lands in the state file (which never holds secrets) and the UI: mask vault values, the failing
+        # step's own not-yet-stored secrets, and HEARDOS_OUTPUT values
+        try:
+            vals = list(self.vault.values()) if self.vault is not None else []
+        except Exception:  # a locked vault must not stop status updates
+            vals = []
+        msg = redact_text(msg or "", [*vals, *extra_secrets])
         self.state.set_status(sid, status, msg)
         for fn in self.listeners:
             try:
@@ -95,7 +103,7 @@ class Runner:
                 if attempt < step.retries and not self._cancel.is_set():
                     time.sleep(min(30, 5 * attempt))
             self.failed.add(step.id)
-            self._notify(step.id, StepStatus.failed, res.message)
+            self._notify(step.id, StepStatus.failed, res.message, (res.secrets or {}).values())
         finally:
             if lock:
                 lock.release()

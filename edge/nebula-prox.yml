@@ -38,4 +38,5 @@ firewall:
     - {port: any, proto: icmp, host: any}
     - {port: any, proto: any, groups: [admins]}
     - {port: any, proto: any, group: admins, local_cidr: 192.168.10.0/24}   # LAN behind prox (unsafe_routes), 2026-10-14
-    - {port: any, proto: any, groups: [servers]}
+    # 2026-10-19: no "servers: any" rule any more: the internet-facing lighthouse and the app host have no business
+    # opening connections to the hypervisor or, through it, the LAN. Only admins (laptops) get in.

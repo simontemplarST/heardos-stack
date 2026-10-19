@@ -1,7 +1,7 @@
 """Entry points: `heardos` opens the desktop app; `heardos-cli` runs the same engine headless.
 
   heardos-cli init                         create the encrypted vault (asks for a passphrase)
-  heardos-cli secret NAME [VALUE]          store a secret (prompts if VALUE omitted); `secret --import` reads credentials.env
+  heardos-cli secret NAME [--value-stdin]  store a secret (hidden prompt, or read from stdin); `secret --import` reads credentials.env
   heardos-cli install --plan plan.json [--id ID] [--dry-run] [--yes]
   heardos-cli status [ID]                  step table for an install
   heardos-cli retry ID STEP                forget a step's result and run the install again from there
@@ -42,12 +42,40 @@ def _vault(create_ok: bool = False):
 
 
 def _prompt(title: str, instructions: str, poll) -> bool:
-    print(f"\n=== {title} ===\n{instructions}\n(checking every 15 s; press Ctrl+C to abort)")
+    """Checklist hook for the CLI. On a terminal the operator can answer (Enter = done/matches, "no" = cancel) while
+    poll() keeps checking; without a terminal it only polls, and a question only a person can answer is refused."""
+    import threading
+    manual = bool(getattr(poll, "manual_only", False))
+    print(f"\n=== {title} ===\n{instructions}")
+    if not sys.stdin.isatty():
+        if manual:
+            print("no terminal to confirm on: refusing")
+            return False
+        print("(checking every 15 s; press Ctrl+C to abort)")
+        while True:
+            if poll():
+                print("done.")
+                return True
+            time.sleep(15)
+    answer: list[str] = []
+    ev = threading.Event()
+
+    def ask():
+        try:
+            answer.append(input("type yes if it matches, anything else cancels: " if manual else
+                                "press Enter when done (type no to cancel); checking every 15 s meanwhile: ").strip().lower())
+        except EOFError:
+            answer.append("no")
+        ev.set()
+    threading.Thread(target=ask, daemon=True).start()
     while True:
-        if poll():
+        if not manual and poll():
             print("done.")
             return True
-        time.sleep(15)
+        if ev.wait(15):
+            ok = answer[0] in ("y", "yes") if manual else answer[0] not in ("n", "no")
+            print("confirmed." if ok else "cancelled.")
+            return ok
 
 
 def cmd_init(a) -> None:
@@ -72,7 +100,16 @@ def cmd_secret(a) -> None:
         names = import_credentials_env(v, Path(a.value) if a.value else None)
         print(f"imported {len(names)} value(s): {', '.join(names) or 'none'}")
         return
-    v.set(a.name, a.value if a.value is not None else getpass.getpass(f"{a.name}: "))
+    if a.value is not None:
+        # a value on the command line ends up in shell history and the process list: refuse it
+        sys.exit("pass the value on stdin (--value-stdin) or at the hidden prompt, not as an argument")
+    if a.value_stdin:
+        val = sys.stdin.read().rstrip("\r\n")
+    else:
+        val = getpass.getpass(f"{a.name}: ")
+    if not val:
+        sys.exit("empty value; nothing stored")
+    v.set(a.name, val)
     print(f"stored {a.name}")
 
 
@@ -126,7 +163,8 @@ def cmd_install(a) -> None:
     ok = inst.run(dry_run=a.dry_run)
     print(f"\ninstall {iid}: {'complete' if ok else 'stopped with errors'}; logs in {inst.logs.dir}")
     if ok and not a.dry_run and v.get("ADMIN_PASSWORD"):
-        print(f"admin sign-in: https://auth.{inst.plan['DOMAIN']}  user {inst.plan['ADMIN_USER']}  password: {v.get('ADMIN_PASSWORD')}")
+        pw = v.get("ADMIN_PASSWORD") if a.show else "(in the vault as ADMIN_PASSWORD; rerun with --show to print it)"
+        print(f"admin sign-in: https://auth.{inst.plan['DOMAIN']}  user {inst.plan['ADMIN_USER']}  password: {pw}")
     sys.exit(0 if ok else 1)
 
 
@@ -189,7 +227,7 @@ def cmd_people(a) -> None:
         user, name, email = a.add
         apps = a.apps.split(",") if a.apps else [x for x in inst.plan.get("apps", [])]
         pw = ops.add_person(inst, user, name, email, apps, ["flow-recovery-allowed", "flow-self-service"], a.welcome)
-        print(f"{user} created; first password: {pw}")
+        print(f"{user} created; first password: " + (pw if a.show else f"in the vault as PERSON_{user.upper()}_FIRST_PASSWORD (--show prints it)"))
         return
     for u in ops.people(inst):
         print(f"{u['username']:16} {u['name']:24} {'active' if u['active'] else 'SUSPENDED':10} apps: {', '.join(u['apps'])}")
@@ -199,16 +237,19 @@ def cli(argv=None) -> None:
     ap = argparse.ArgumentParser(prog="heardos-cli", description="HeardOS installer (headless)")
     sub = ap.add_subparsers(dest="cmd", required=True)
     sub.add_parser("init").set_defaults(fn=cmd_init)
-    s = sub.add_parser("secret"); s.add_argument("name"); s.add_argument("value", nargs="?"); s.set_defaults(fn=cmd_secret)
+    s = sub.add_parser("secret"); s.add_argument("name"); s.add_argument("value", nargs="?", help=argparse.SUPPRESS)
+    s.add_argument("--value-stdin", action="store_true", help="read the value from stdin instead of a hidden prompt"); s.set_defaults(fn=cmd_secret)
     s = sub.add_parser("install"); s.add_argument("--plan"); s.add_argument("--id"); s.add_argument("--dry-run", action="store_true")
-    s.add_argument("--yes", action="store_true"); s.set_defaults(fn=cmd_install)
+    s.add_argument("--yes", action="store_true"); s.add_argument("--show", action="store_true", help="print the admin password at the end")
+    s.set_defaults(fn=cmd_install)
     s = sub.add_parser("status"); s.add_argument("id", nargs="?"); s.set_defaults(fn=cmd_status)
     s = sub.add_parser("retry"); s.add_argument("id"); s.add_argument("step"); s.set_defaults(fn=cmd_retry)
     s = sub.add_parser("destroy"); s.add_argument("id"); s.add_argument("--yes", action="store_true"); s.set_defaults(fn=cmd_destroy)
     s = sub.add_parser("ovh-confirm", help="confirm an OVH VPS termination with the emailed token"); s.add_argument("service"); s.add_argument("token"); s.set_defaults(fn=cmd_ovh_confirm)
     s = sub.add_parser("health", help="posture check of an install (read-only)"); s.add_argument("id"); s.add_argument("--scan", action="store_true", help="also scan all TCP ports of the VPS"); s.set_defaults(fn=cmd_health)
     s = sub.add_parser("people", help="list family accounts, or --add USER NAME EMAIL"); s.add_argument("id"); s.add_argument("--add", nargs=3, metavar=("USER", "NAME", "EMAIL"))
-    s.add_argument("--apps", help="comma-separated app stacks (default: all installed)"); s.add_argument("--welcome", action="store_true", help="email a set-password link"); s.set_defaults(fn=cmd_people)
+    s.add_argument("--apps", help="comma-separated app stacks (default: all installed)"); s.add_argument("--welcome", action="store_true", help="email a set-password link")
+    s.add_argument("--show", action="store_true", help="print the new person's first password"); s.set_defaults(fn=cmd_people)
     sub.add_parser("list").set_defaults(fn=lambda a: [print(i) for i in __import__("heardos_installer.engine", fromlist=["InstallState"]).InstallState.list_installs()])
     a = ap.parse_args(argv)
     a.fn(a)

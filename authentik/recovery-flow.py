@@ -2,15 +2,20 @@
 """Build Authentik's password-recovery flow ("Forgot password?") and wire it in. Idempotent.
   flow  default-recovery-flow (designation recovery)
     10  default-recovery-identification   Identification stage (email + username, no password stage)
-    20  default-recovery-email            Email stage: sends a one-time link, token valid 30 min, uses the global SMTP config
-    30  default-recovery-user-write       (no-op for recovery; keeps the pending user)   -- skipped, see below
+    20  default-recovery-email            Email stage: sends a one-time link, token valid 30 min, uses the global SMTP config;
+                                          does NOT re-activate deactivated accounts (activate_user_on_success false)
     30  default-recovery-password-prompt  Prompt stage: password + password_repeat
+    35  heardos-recovery-mfa              Authenticator validation (TOTP / passkey / recovery code) for everyone NOT in
+                                          'authentik Admins': asked if they have a device, skipped if not
+    36  heardos-recovery-mfa-admin        'authentik Admins': a passkey, DENIED without one
+    37  heardos-recovery-totp-admin       'authentik Admins': then an authenticator-app code, DENIED without one
+                                          (the mailbox alone must never be enough to take over an admin account)
     40  default-recovery-user-write       User Write stage (saves the new password)
-    50  default-recovery-user-login       logs the user in afterwards
+    50  default-recovery-user-login       logs the user in afterwards and ends every other session of that user
   brand authentik-default: flow_recovery = this flow
   default-authentication-identification: recovery_flow = this flow (adds the "Forgot password?" link)
 Requires AUTHENTIK_TOKEN in env."""
-import os, json, urllib.request
+import os, json, urllib.request, urllib.parse
 A = (os.environ.get("AUTHENTIK_URL", "http://192.168.10.20:9000").rstrip("/") + "/api/v3"); H = {"Authorization": "Bearer " + os.environ["AUTHENTIK_TOKEN"], "Content-Type": "application/json"}
 def call(m, p, d=None):
     r = urllib.request.Request(A + p, method=m, data=json.dumps(d).encode() if d is not None else None, headers=H)
@@ -18,7 +23,7 @@ def call(m, p, d=None):
         with urllib.request.urlopen(r, timeout=60) as x: return json.loads(x.read() or b"null")
     except urllib.error.HTTPError as e: raise SystemExit("%s %s -> %s: %s" % (m, p, e.code, e.read().decode()[:400]))
 def one(path, **q):
-    res = call("GET", path + "?" + "&".join("%s=%s" % kv for kv in q.items()))["results"]
+    res = call("GET", path + "?" + urllib.parse.urlencode(q))["results"]
     return res[0] if res else None
 
 flow = one("/flows/instances/", slug="default-recovery-flow") or call("POST", "/flows/instances/", {
@@ -31,7 +36,9 @@ ident = one("/stages/identification/", name="default-recovery-identification") o
     "pretend_user_exists": True, "password_stage": None, "sources": []})
 email = one("/stages/email/", name="default-recovery-email") or call("POST", "/stages/email/", {
     "name": "default-recovery-email", "use_global_settings": True, "token_expiry": "minutes=30", "subject": "Reset your HeardOS password",
-    "template": "email/password_reset.html", "activate_user_on_success": True})
+    "template": "email/password_reset.html", "activate_user_on_success": False})
+if email.get("activate_user_on_success"):   # a deactivated (offboarded) account must not come back through a reset link
+    email = call("PATCH", "/stages/email/%s/" % email["pk"], {"activate_user_on_success": False}); print("email stage: no longer re-activates users")
 # password prompts
 def prompt(field_key, label, order, placeholder=""):
     p = one("/stages/prompt/prompts/", field_key=field_key, name="default-recovery-" + field_key)
@@ -43,13 +50,43 @@ pstage = one("/stages/prompt/stages/", name="default-recovery-password-prompt") 
     "name": "default-recovery-password-prompt", "fields": [p1["pk"], p2["pk"]], "validation_policies": [pwpolicy["pk"]] if pwpolicy else []})
 uwrite = one("/stages/user_write/", name="default-recovery-user-write") or call("POST", "/stages/user_write/", {
     "name": "default-recovery-user-write", "user_creation_mode": "never_create", "create_users_as_inactive": False})
-login = one("/stages/user_login/", name="default-recovery-user-login") or call("POST", "/stages/user_login/", {"name": "default-recovery-user-login", "session_duration": "seconds=0"})
+login = one("/stages/user_login/", name="default-recovery-user-login") or call("POST", "/stages/user_login/", {"name": "default-recovery-user-login", "session_duration": "seconds=0", "terminate_other_sessions": True})
+if not login.get("terminate_other_sessions"):   # a reset should throw out whoever else is signed in as that user
+    login = call("PATCH", "/stages/user_login/%s/" % login["pk"], {"terminate_other_sessions": True}); print("recovery login: ends other sessions")
+# MFA during recovery: no email codes (the email link is already the first factor)
+MFA = {"device_classes": ["totp", "webauthn", "static"], "configuration_stages": [], "last_auth_threshold": "seconds=0"}
+def validate_stage(name, action, classes=None):
+    st = one("/stages/authenticator/validate/", name=name)
+    want = dict(MFA, not_configured_action=action, **({"device_classes": classes} if classes else {}))
+    if not st: return call("POST", "/stages/authenticator/validate/", dict(want, name=name))
+    if any(st.get(k) != v for k, v in want.items()): st = call("PATCH", "/stages/authenticator/validate/%s/" % st["pk"], want)
+    return st
+mfa_user = validate_stage("heardos-recovery-mfa", "skip")
+# admins prove TWO factors, one after the other: a passkey (36), then an authenticator-app code (37). Each is denied
+# when the admin has no device of that kind, so an admin recovers only after enrolling both (2026-10-19, Alice).
+mfa_admin = validate_stage("heardos-recovery-mfa-admin", "deny", ["webauthn"])
+mfa_admin_totp = validate_stage("heardos-recovery-totp-admin", "deny", ["totp"])
+admins = one("/core/groups/", name="authentik Admins")
+if not admins: raise SystemExit("group 'authentik Admins' not found")
 
 bound = {b["stage"]: b for b in call("GET", "/flows/bindings/?page_size=200")["results"] if b["target"] == flow["pk"]}
 for order, st in ((10, ident), (20, email), (30, pstage), (40, uwrite), (50, login)):
     if st["pk"] not in bound:
         call("POST", "/flows/bindings/", {"target": flow["pk"], "stage": st["pk"], "order": order, "evaluate_on_plan": True, "re_evaluate_policies": False, "policy_engine_mode": "any"}); print("bound", st["name"], "@", order)
     else: print("already bound", st["name"])
+# the MFA stages depend on WHO is recovering, which is only known after identification: evaluated when reached
+for order, st, negate in ((35, mfa_user, True), (36, mfa_admin, False), (37, mfa_admin_totp, False)):
+    body = {"target": flow["pk"], "stage": st["pk"], "order": order, "evaluate_on_plan": False, "re_evaluate_policies": True, "policy_engine_mode": "all"}
+    b = bound.get(st["pk"])
+    if not b: b = call("POST", "/flows/bindings/", body); print("bound", st["name"], "@", order)
+    elif any(b.get(k) != v for k, v in body.items()): b = call("PATCH", "/flows/bindings/%s/" % b["pk"], body); print("updated binding", st["name"])
+    # list and match client-side: the API's ?target= filter wants the policy-binding-model id, not the stage binding's pk
+    pbs = [pb for pb in call("GET", "/policies/bindings/?page_size=1000")["results"]
+           if pb.get("target") == b["pk"] and pb.get("group") == admins["pk"]]
+    if not pbs:
+        call("POST", "/policies/bindings/", {"target": b["pk"], "group": admins["pk"], "order": 0, "negate": negate, "enabled": True, "failure_result": False, "timeout": 30})
+        print("  group 'authentik Admins'%s on %s" % (" (negated)" if negate else "", st["name"]))
+    elif pbs[0].get("negate") != negate: call("PATCH", "/policies/bindings/%s/" % pbs[0]["pk"], {"negate": negate})
 
 brand = [b for b in call("GET", "/core/brands/")["results"] if b["domain"] == "authentik-default"][0]
 if brand.get("flow_recovery") != flow["pk"]: call("PATCH", "/core/brands/%s/" % brand["brand_uuid"], {"flow_recovery": flow["pk"]}); print("brand flow_recovery set")

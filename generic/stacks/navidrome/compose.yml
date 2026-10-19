@@ -1,8 +1,8 @@
-# Navidrome. Header login: Authentik forward auth passes X-authentik-username, trusted only from the proxy subnet.
+# Navidrome. Header login: Authentik forward auth passes X-authentik-username, trusted only from Traefik's fixed address.
 # Both LAN routers strip the header (strip-authentik) so nobody on the LAN can impersonate a user. No host port.
 services:
   navidrome:
-    image: deluan/navidrome:latest
+    image: deluan/navidrome:0.64.2@sha256:38dc2727bfcfd5ede290f8ada114fc90368146f265ae4701ddddbcbe2a44ee52   # 0.64.2
     container_name: navidrome
     restart: unless-stopped
     user: "1000:1000"
@@ -13,10 +13,12 @@ services:
       ND_SESSIONTIMEOUT: 24h
       ND_ENABLESHARING: "true"
       ND_EXTAUTH_USERHEADER: X-authentik-username
-      ND_EXTAUTH_TRUSTEDSOURCES: "${PROXY_SUBNET}"
+      ND_EXTAUTH_TRUSTEDSOURCES: "${TRAEFIK_PROXY_IP:?set TRAEFIK_PROXY_IP}/32"
     volumes:
       - ${HEARDOS_ROOT}/data/navidrome:/data
       - ${HEARDOS_ROOT}/media/music:/music:ro
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
     networks: [proxy]
     labels:
       traefik.enable: "true"

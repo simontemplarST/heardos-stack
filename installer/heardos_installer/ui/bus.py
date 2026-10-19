@@ -69,12 +69,14 @@ class PendingPrompt:
     instructions: str
     poll: Callable[[], bool]
     confirmed: threading.Event = field(default_factory=threading.Event)
+    rejected: bool = False          # the operator pressed Cancel (e.g. a host key fingerprint did not match)
+    manual_only: bool = False       # poll() can never succeed; only the operator can answer
     last_check: float = 0.0
     last_result: bool = False
 
 
 class PromptBridge:
-    """Called from engine threads; blocks until poll() succeeds or the operator confirms in the UI."""
+    """Called from engine threads; blocks until poll() succeeds or the operator confirms (True) or cancels (False) in the UI."""
 
     def __init__(self, interval: int = 15):
         self.interval = interval
@@ -82,7 +84,7 @@ class PromptBridge:
         self._lock = threading.Lock()
 
     def __call__(self, title: str, instructions: str, poll: Callable[[], bool]) -> bool:
-        p = PendingPrompt(title, instructions, poll)
+        p = PendingPrompt(title, instructions, poll, manual_only=bool(getattr(poll, "manual_only", False)))
         with self._lock:
             self.pending = p
         try:
@@ -95,7 +97,7 @@ class PromptBridge:
                 if p.last_result:
                     return True
                 p.confirmed.wait(self.interval)
-            return True
+            return not p.rejected
         finally:
             with self._lock:
                 self.pending = None

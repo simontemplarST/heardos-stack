@@ -2,7 +2,7 @@
 # The LAN name measures the home network; the public name measures client -> VPS -> overlay -> home.
 services:
   librespeed:
-    image: lscr.io/linuxserver/librespeed:latest
+    image: lscr.io/linuxserver/librespeed:v6.3.0-ls295@sha256:05c1ca8215f958b674e8fa1c2ea43483efa54dae8f1dbe40c907af66821fdcae   # v6.3.0-ls295
     container_name: librespeed
     restart: unless-stopped
     environment:

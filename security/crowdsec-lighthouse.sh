@@ -35,7 +35,14 @@ fi
 grep -c "import accesslog" $F
 # 2) CrowdSec + nftables bouncer
 if ! command -v cscli >/dev/null; then
-  curl -fsSL https://install.crowdsec.net | sh >/dev/null
+  # 2026-10-19: CrowdSec's packagecloud apt repo directly (no curl | sh), signing key pinned by fingerprint
+  K=/etc/apt/keyrings/crowdsec_crowdsec-archive-keyring.gpg; T=$(mktemp); install -d -m 755 /etc/apt/keyrings
+  curl -fsSL https://packagecloud.io/crowdsec/crowdsec/gpgkey -o "$T"
+  gpg --show-keys --with-colons "$T" 2>/dev/null | awk -F: '$1=="fpr"{print $10}' | grep -qx 6A89E3C2303A901A889971D3376ED5326E93CD0C \
+    || { echo "unexpected CrowdSec signing key; refusing it" >&2; rm -f "$T"; exit 1; }
+  gpg --dearmor --yes -o "$K" < "$T"; chmod 644 "$K"; rm -f "$T"
+  echo "deb [signed-by=$K] https://packagecloud.io/crowdsec/crowdsec/any/ any main" > /etc/apt/sources.list.d/crowdsec_crowdsec.list
+  apt-get -qq update >/dev/null
   DEBIAN_FRONTEND=noninteractive apt-get -yq install crowdsec crowdsec-firewall-bouncer-nftables >/dev/null
 fi
 cscli collections install crowdsecurity/caddy crowdsecurity/linux crowdsecurity/sshd crowdsecurity/http-cve crowdsecurity/base-http-scenarios >/dev/null 2>&1 || true

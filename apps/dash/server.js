@@ -4,14 +4,21 @@
 // /api/apps filters apps.json by the person's app-<slug> groups. The old summary page lives on as public/week.html.
 // Pulls: Mealie (meal plan + shopping lists), Actual Budget (month summary, accounts, upcoming schedules),
 // Homebox (inventory totals, locations, recent items). Each source is optional: missing env => section
-// reports "not configured"; a failing source reports its error instead of taking the page down.
+// reports "not configured"; a failing source reports "unavailable" (details only in the container log) instead of
+// taking the page down. Sections are filtered per person: Actual needs app-actual-budget, Mealie app-mealie,
+// Homebox app-homebox; otherwise the section is {error: "no access"}.
+// Gate: every path but /healthz needs X-Dash-Gate == DASH_GATE_SECRET (Traefik adds it on the dash router, after the
+// Authentik forward auth), so other containers on the proxy network can't call the desktop directly with forged
+// X-authentik-* headers. /api/* also needs a non-empty X-authentik-username.
 import http from "node:http";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import crypto from "node:crypto";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT || 8080);
+const HOST = process.env.LISTEN_HOST || "0.0.0.0";   // inside the container; Traefik reaches it over the proxy network
 const CACHE_MS = Number(process.env.CACHE_SECONDS || 180) * 1000;
 const env = (k) => (process.env[k] || "").trim();
 
@@ -21,7 +28,7 @@ async function getJSON(url, headers = {}, timeoutMs = 15000) {
   const t = setTimeout(() => ac.abort(), timeoutMs);
   try {
     const r = await fetch(url, { headers, signal: ac.signal });
-    if (!r.ok) throw new Error(`${r.status} ${r.statusText} for ${url.replace(/\/\/.*@/, "//")}`);
+    if (!r.ok) throw new Error(`${r.status} ${r.statusText} for ${url.replace(/\/\/.*@/, "//")}`);   // logged, never sent to the browser
     return await r.json();
   } finally {
     clearTimeout(t);
@@ -35,7 +42,7 @@ const cents = (n) => Math.round(n || 0) / 100;
 async function mealie() {
   const base = env("MEALIE_URL").replace(/\/$/, "");
   const token = env("MEALIE_TOKEN");
-  if (!base || !token) return { error: "not configured (MEALIE_URL / MEALIE_TOKEN)" };
+  if (!base || !token) return { error: "not configured" };
   const h = { Authorization: `Bearer ${token}` };
   const today = new Date();
   const plan = await getJSON(`${base}/api/households/mealplans?start_date=${isoDate(today)}&end_date=${isoDate(addDays(today, 6))}&perPage=-1`, h);
@@ -60,7 +67,7 @@ async function actual() {
   const serverURL = env("ACTUAL_URL");
   const password = env("ACTUAL_PASSWORD");
   const syncId = env("ACTUAL_SYNC_ID");
-  if (!serverURL || !password || !syncId) return { error: "not configured (ACTUAL_URL / ACTUAL_PASSWORD / ACTUAL_SYNC_ID)" };
+  if (!serverURL || !password || !syncId) return { error: "not configured" };
   if (!actualApi) actualApi = await import("@actual-app/api");
   const api = actualApi;
   const dataDir = env("ACTUAL_DATA_DIR") || "/data/actual";
@@ -111,7 +118,7 @@ async function actual() {
 async function homebox() {
   const base = env("HOMEBOX_URL").replace(/\/$/, "");
   const key = env("HOMEBOX_API_KEY");
-  if (!base || !key) return { error: "not configured (HOMEBOX_URL / HOMEBOX_API_KEY)" };
+  if (!base || !key) return { error: "not configured" };
   const h = { Authorization: `Bearer ${key}` };
   // /groups/statistics/locations returns null on Homebox 0.26, so item counts per location come from the entity tree
   const [stats, tree, recent] = await Promise.all([
@@ -140,20 +147,22 @@ async function homebox() {
 
 // ---------- desktop: who is signed in, which apps they get ----------
 const DOMAIN = env("DOMAIN") || "example.com";
-const SHOW_ALL = env("DESKTOP_SHOW_ALL") === "1";   // local testing only: no gate headers -> show everything
 const APPS_FILE = env("APPS_FILE") || path.join(__dirname, "apps.json");
 function me(req) {
   const h = (k) => String(req.headers[k] || "");
   const groups = h("x-authentik-groups").split("|").map((g) => g.trim()).filter(Boolean);
   return { username: h("x-authentik-username"), name: h("x-authentik-name") || h("x-authentik-username"), email: h("x-authentik-email"), groups };
 }
+const DEFAULT_ALLOW = "fullscreen; clipboard-write; publickey-credentials-get";
 function appsFor(user) {
   const cat = JSON.parse(fs.readFileSync(APPS_FILE, "utf8"));
   const sub = (s) => (typeof s === "string" ? s.replaceAll("{domain}", DOMAIN) : s);
-  const can = (a) => (SHOW_ALL && !user.username) || !a.access || user.groups.includes(`app-${a.access}`);
+  const can = (a) => !a.access || user.groups.includes(`app-${a.access}`);
   const apps = cat.apps.filter(can).map((a) => {
     const icon = a.icon.startsWith("builtin:") ? `/icons/${a.icon.slice(8)}.svg` : `/icons/${a.icon}.png`;
-    return { id: a.id, name: a.name, description: a.description, folder: a.folder, icon, url: sub(a.url), embed: a.embed !== false, w: a.w, h: a.h };
+    // iframe permissions per app (apps.json `allow`); most apps get only the safe default
+    return { id: a.id, name: a.name, description: a.description, folder: a.folder, icon, url: sub(a.url), embed: a.embed !== false,
+      allow: typeof a.allow === "string" ? a.allow : DEFAULT_ALLOW, w: a.w, h: a.h };
   });
   return { domain: DOMAIN, folders: cat.folders, apps,
     links: { account: `https://auth.${DOMAIN}/if/user/`, signOut: "/outpost.goauthentik.io/sign_out", brand: `https://cloud.${DOMAIN}/brand` } };
@@ -165,10 +174,15 @@ async function section(fn) {
   try {
     return await fn();
   } catch (e) {
-    return { error: String(e.message || e) };
+    console.error(`summary ${fn.name}: ${e?.stack || e}`);   // upstream errors and hostnames stay in the log
+    return { error: "unavailable" };
   }
 }
+const REFRESH_MIN_MS = 60 * 1000;   // ?refresh bypasses the cache at most once a minute, for everyone together
+let lastForced = 0;
 async function summary(force = false) {
+  if (force && Date.now() - lastForced < REFRESH_MIN_MS) force = false;
+  if (force) lastForced = Date.now();
   if (!force && cache.data && Date.now() - cache.at < CACHE_MS) return cache.data;
   if (cache.inflight) return cache.inflight;
   cache.inflight = (async () => {
@@ -182,31 +196,65 @@ async function summary(force = false) {
 
 const MIME = { ".html": "text/html; charset=utf-8", ".css": "text/css", ".js": "text/javascript", ".svg": "image/svg+xml", ".png": "image/png",
   ".json": "application/json", ".webmanifest": "application/manifest+json", ".jpg": "image/jpeg", ".ico": "image/x-icon" };
-// the desktop may be framed only by itself (week.html inside a window); everything else is the browser's default
-const BASE_HEADERS = { "X-Content-Type-Options": "nosniff", "Content-Security-Policy": "frame-ancestors 'self'", "Referrer-Policy": "strict-origin-when-cross-origin" };
-const json = (res, data) => res.writeHead(200, { ...BASE_HEADERS, "Content-Type": "application/json", "Cache-Control": "no-store" }).end(JSON.stringify(data));
+// per-person view of the shared summary cache: a section the person's groups don't cover becomes {error: "no access"}
+const SECTION_ACCESS = { actual: "actual-budget", mealie: "mealie", homebox: "homebox" };
+function summaryFor(data, user) {
+  const out = { ...data };
+  for (const [k, slug] of Object.entries(SECTION_ACCESS)) if (!user.groups.includes(`app-${slug}`)) out[k] = { error: "no access" };
+  return out;
+}
+
+// the desktop may be framed only by itself (week.html inside a window); scripts only from this origin
+const CSP = [
+  "default-src 'self'", "script-src 'self'", "style-src 'self' 'unsafe-inline'", `img-src 'self' https://cloud.${DOMAIN} data:`,
+  "frame-src 'self' https:", "connect-src 'self'", "frame-ancestors 'self'", "base-uri 'none'", "form-action 'self'",
+].join("; ");
+const BASE_HEADERS = { "X-Content-Type-Options": "nosniff", "Content-Security-Policy": CSP, "Referrer-Policy": "strict-origin-when-cross-origin" };
+const json = (res, data, code = 200) => res.writeHead(code, { ...BASE_HEADERS, "Content-Type": "application/json", "Cache-Control": "no-store" }).end(JSON.stringify(data));
+const deny = (res) => json(res, { error: "forbidden" }, 403);
+
+// ---------- gate ----------
+const GATE = env("DASH_GATE_SECRET");
+const GATE_BUF = Buffer.from(GATE);
+if (!GATE) console.warn("WARNING: DASH_GATE_SECRET is not set: any container on the proxy network can load the desktop; /api/* still needs X-authentik-username");
+function gateOk(req) {
+  if (!GATE) return true;
+  const got = Buffer.from(String(req.headers["x-dash-gate"] || ""));
+  // timingSafeEqual needs equal lengths; compare against itself on a mismatch so the timing doesn't depend on the length
+  return crypto.timingSafeEqual(got.length === GATE_BUF.length ? got : GATE_BUF, GATE_BUF) && got.length === GATE_BUF.length;
+}
+
+// the page's brand images (favicon, Start button) come from https://cloud.<domain>/brand; files say {domain}
+const TEMPLATED = new Set([".html", ".webmanifest", ".css"]);   // desktop.css: wallpaper from cloud.{domain}
 http
   .createServer(async (req, res) => {
     const url = new URL(req.url, "http://x");
     try {
       if (url.pathname === "/healthz") return res.writeHead(200, { "Content-Type": "text/plain" }).end("ok");
-      if (url.pathname === "/api/me") return json(res, me(req));
-      if (url.pathname === "/api/apps") return json(res, appsFor(me(req)));
-      if (url.pathname === "/api/summary") {
-        const data = await summary(url.searchParams.has("refresh"));
-        return json(res, data);
+      if (!gateOk(req)) return deny(res);
+      if (url.pathname.startsWith("/api/")) {
+        const user = me(req);
+        if (!user.username) return deny(res);
+        if (url.pathname === "/api/me") return json(res, user);
+        if (url.pathname === "/api/apps") return json(res, appsFor(user));
+        if (url.pathname === "/api/summary") return json(res, summaryFor(await summary(url.searchParams.has("refresh")), user));
+        return json(res, { error: "not found" }, 404);
       }
       const file = path.join(__dirname, "public", url.pathname === "/" ? "index.html" : path.normalize(url.pathname).replace(/^(\.\.[/\\])+/, ""));
       if (!file.startsWith(path.join(__dirname, "public"))) return res.writeHead(403).end();
       if (!fs.existsSync(file) || fs.statSync(file).isDirectory()) return res.writeHead(404).end("not found");
       const longCache = file.includes(`${path.sep}icons${path.sep}`);
-      res.writeHead(200, { ...BASE_HEADERS, "Content-Type": MIME[path.extname(file)] || "application/octet-stream", "Cache-Control": longCache ? "public, max-age=86400" : "no-cache" });
+      const ext = path.extname(file);
+      res.writeHead(200, { ...BASE_HEADERS, "Content-Type": MIME[ext] || "application/octet-stream", "Cache-Control": longCache ? "public, max-age=86400" : "no-cache" });
+      if (TEMPLATED.has(ext)) return res.end(fs.readFileSync(file, "utf8").replaceAll("{domain}", DOMAIN));
       fs.createReadStream(file).pipe(res);
     } catch (e) {
-      res.writeHead(500, { "Content-Type": "text/plain" }).end(String(e.message || e));
+      console.error(`${req.method} ${url.pathname}: ${e?.stack || e}`);
+      if (!res.headersSent) res.writeHead(500, { "Content-Type": "text/plain" });
+      res.end("internal error");
     }
   })
-  .listen(PORT, () => console.log(`heardos-dash listening on :${PORT}, cache ${CACHE_MS / 1000}s`));
+  .listen(PORT, HOST, () => console.log(`heardos-dash listening on ${HOST}:${PORT}, cache ${CACHE_MS / 1000}s, gate ${GATE ? "on" : "OFF"}`));
 
 // warm the cache at start so the first page view is fast
 summary().catch(() => {});

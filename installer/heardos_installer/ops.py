@@ -16,7 +16,7 @@ from typing import Iterable, Optional
 
 from .engine.step import Ctx, StepResult
 from .kit import catalog
-from .steps.common import apply_defaults, run_kit
+from .steps.common import apply_defaults, overlay_ip, run_kit
 
 HOST_STEPS_FOR_NEW_APP = ("dns.publish", "vps.caddy", "verify")
 
@@ -67,7 +67,7 @@ def health(inst) -> list[Check]:
     try:
         h = inst.sessions.host()
         r = h.run("docker ps -a --format '{{.Names}}\\t{{.Status}}'; echo ---; df -P " + shlex.quote(p.get("HEARDOS_ROOT", "/opt/heardos")) +
-                  " | awk 'NR==2{print $5}'; ping -c 2 -W 3 " + p["NEBULA_LH_OVERLAY"] + " >/dev/null && echo tunnel-ok || echo tunnel-down; "
+                  " | awk 'NR==2{print $5}'; ping -c 2 -W 3 " + overlay_ip(p, "NEBULA_LH_OVERLAY") + " >/dev/null && echo tunnel-ok || echo tunnel-down; "
                   "systemctl show heardos-backup.service -p Result -p ExecMainExitTimestamp --value 2>/dev/null | tr '\\n' ' '; echo; "
                   "test -f /var/run/reboot-required && echo reboot || echo noreboot", sudo=True, timeout=90)
         rows, rest = r.stdout.split("---", 1) if "---" in r.stdout else (r.stdout, "")
@@ -140,7 +140,15 @@ def add_person(inst, username: str, name: str, email: str, apps: list[str], grou
     """Create the account, give app access and rule groups; returns the first password (shown once by the UI)."""
     pw = _gen_password()
     inst.vault.set(f"PERSON_{username.upper()}_FIRST_PASSWORD", pw)   # in the vault => redacted from every log
-    r = _kit(inst, "people", "42-ak-app.py", ["user", "add", username, "--email", email, "--name", name, "--password", pw])
+    # the password goes to 42-ak-app.py in a 0600 file it reads and deletes (HEARDOS_PASSWORD_FILE), never on argv
+    h = inst.sessions.host()
+    d = h.tempdir()
+    h.put_text(pw, f"{d}/password", 0o600)
+    try:
+        r = _kit(inst, "people", "42-ak-app.py", ["user", "add", username, "--email", email, "--name", name],
+                 env={"HEARDOS_PASSWORD_FILE": f"{d}/password"})
+    finally:
+        h.run(f"rm -rf {shlex.quote(d)}", sudo=True, timeout=30)
     if not r.ok:
         raise RuntimeError(r.message)
     slugs = [catalog.apps()[a].slug for a in apps if catalog.apps()[a].slug]
@@ -241,7 +249,11 @@ def backup(inst, action: str, repo: str = "") -> str:
         raise RuntimeError(r.message)
     if action == "install":
         inst.state.set_plan(backups_installed=True)
-    return r.stdout[-4000:]
+    pw = (r.outputs or {}).pop("RESTIC_PASSWORD", None)
+    if pw:   # the only copy must not live solely inside the backups it encrypts: keep it in the laptop's vault too
+        inst.vault.set("RESTIC_PASSWORD", pw)
+    from .remote.ssh import mask_output_line
+    return "\n".join(mask_output_line(l) for l in r.stdout[-4000:].splitlines())
 
 
 # ------------------------------------------------------------------ settings

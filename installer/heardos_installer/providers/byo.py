@@ -10,15 +10,18 @@ from .base import Account, Plan, ProviderError, Region, VpsHandle, VpsSpec
 class BringYourOwn:
     name = "byo"
 
-    def __init__(self, ip: str = "", key_path: Optional[Path] = None, **_):
+    def __init__(self, ip: str = "", key_path: Optional[Path] = None, confirm: Optional[Callable[[str, str], bool]] = None, **_):
         self.ip = ip
         self.key_path = key_path
+        self.confirm = confirm   # host-key fingerprint confirmation: we did not create this server, so no blind trust
 
     def validate_token(self) -> Account:
-        from ..remote.ssh import Session, SshError
+        from ..remote.ssh import Session, SshError, ensure_host_key
         if not self.ip:
             raise ProviderError("enter the VPS address first")
         try:
+            if self.confirm:
+                ensure_host_key(self.ip, 22, self.confirm)
             s = Session(self.ip, "root", key_path=self.key_path, connect_timeout=10).connect()
             r = s.run("lsb_release -ds 2>/dev/null || cat /etc/os-release | head -1", timeout=20)
             s.close()

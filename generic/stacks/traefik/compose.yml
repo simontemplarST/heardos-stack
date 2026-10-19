@@ -1,34 +1,67 @@
-# Traefik v3: the host's reverse proxy. Listens on :80 (LAN + overlay); Caddy on the VPS forwards public traffic here.
+# Traefik v3: the host's reverse proxy. Listens on :80 of the LAN address and the overlay address only (Docker-published
+# ports bypass ufw, so "80:80" on every interface would expose it on any other interface too); Caddy on the VPS forwards
+# public traffic over the overlay. Traefik has a fixed address on the proxy network (TRAEFIK_PROXY_IP): apps that trust
+# identity or X-Forwarded headers trust only that /32. It reads Docker through a filtered socket proxy, not docker.sock.
 services:
   traefik:
-    image: traefik:v3.3
+    image: traefik:v3.3.7@sha256:2cd5cc75530c8d07ae0587c743d23eb30cae2436d07017a5ff78498b1a43d09f   # v3.3.7 (3.3 is end of life: move to v3.7 after a test)
     container_name: traefik
     restart: unless-stopped
     command:
       - --providers.docker=true
+      - --providers.docker.endpoint=tcp://socket-proxy:2375
       - --providers.docker.exposedbydefault=false
       - --providers.docker.network=proxy
       - --providers.file.directory=/dynamic
       - --providers.file.watch=true
       - --entrypoints.web.address=:80
-      # trust X-Forwarded-* from the Nebula lighthouse (Caddy) and local docker networks so apps see real client IPs
-      - --entrypoints.web.forwardedheaders.trustedips=${NEBULA_LH_OVERLAY}/32,${PROXY_SUBNET},127.0.0.1/32
+      # trust X-Forwarded-* only from the Nebula lighthouse (Caddy); everyone else's are replaced with the real peer address
+      - --entrypoints.web.forwardedheaders.trustedips=${NEBULA_LH_OVERLAY:?set NEBULA_LH_OVERLAY}/32
+      # strip every X-authentik-* header a client sends, before any router runs (authentik-fwd then sets the real ones)
+      - --entrypoints.web.http.middlewares=strip-authentik@file
       - --api.dashboard=true
       - --log.level=INFO
       - --accesslog=false
     ports:
-      - "80:80"                      # all interfaces: LAN clients and the overlay hop both land here; ufw limits the sources
+      - "${HOST_LAN_IP:?set HOST_LAN_IP}:80:80"        # LAN clients
+      - "${HOST_OVERLAY:?set HOST_OVERLAY}:80:80"      # the lighthouse's Caddy over Nebula (needs nebula1 up, or net.ipv4.ip_nonlocal_bind=1)
     volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro
       - ${HEARDOS_ROOT}/dynamic:/dynamic:ro
-    networks: [proxy]
+    depends_on: [socket-proxy]
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+    cap_add: [NET_BIND_SERVICE]
+    networks:
+      proxy:
+        ipv4_address: ${TRAEFIK_PROXY_IP:?set TRAEFIK_PROXY_IP (inside PROXY_SUBNET, outside PROXY_IP_RANGE)}
+      socket: {}
     labels:
       # dashboard only on the LAN name, behind Authentik forward auth once it exists
       traefik.enable: "true"
+      traefik.docker.network: proxy
       traefik.http.routers.traefik.rule: Host(`traefik.${LAN_DOMAIN}`)
       traefik.http.routers.traefik.entrypoints: web
       traefik.http.routers.traefik.service: api@internal
       traefik.http.routers.traefik.middlewares: authentik-fwd@file
+  # Read-only Docker API for Traefik: container + network listing and events only (no exec, no create, no secrets).
+  socket-proxy:
+    image: tecnativa/docker-socket-proxy:v0.5.0@sha256:1f5038b54f06c3e18422902cf00ba21803d1c97805aae032e5e6673d532d3459   # v0.5.0
+    container_name: traefik-socket-proxy
+    restart: unless-stopped
+    environment:
+      CONTAINERS: "1"
+      NETWORKS: "1"
+      EVENTS: "1"
+      VERSION: "1"
+      PING: "1"
+      POST: "0"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    security_opt: ["no-new-privileges:true"]
+    networks: [socket]
 networks:
   proxy:
     external: true
+  socket:
+    name: traefik_socket
+    internal: true             # no route out; only Traefik can reach the socket proxy

@@ -17,6 +17,14 @@ require_root() { [ "$(id -u)" = 0 ] || die "run as root"; }
 
 load_env() {
   [ -f "$ENV_FILE" ] || die "plan file not found: $ENV_FILE (copy heardos.env.example to heardos.env and fill it in)"
+  # the plan file holds API tokens: it must not be readable by anyone else (and is sourced as shell, so not writable)
+  local m; m="$(stat -c %a "$ENV_FILE" 2>/dev/null || stat -f %Lp "$ENV_FILE")"
+  case "$m" in
+    600|400) ;;
+    *) chmod 600 "$ENV_FILE" 2>/dev/null || die "plan file $ENV_FILE is mode $m; chmod 600 it (it holds tokens)"
+       warn "plan file $ENV_FILE was mode $m; set it to 600 (it holds tokens)" ;;
+  esac
+  [ -O "$ENV_FILE" ] || [ "$(id -u)" = 0 ] || die "plan file $ENV_FILE is owned by someone else; refusing to source it"
   set -a; . "$ENV_FILE"; set +a
   : "${DOMAIN:?set DOMAIN in $ENV_FILE}" "${HOST_LAN_IP:?set HOST_LAN_IP}" "${HEARDOS_ROOT:=/opt/heardos}"
 }
@@ -35,12 +43,20 @@ secret() {
 # render SRC DST — substitute ${VAR} placeholders from the environment (only the variables we export).
 render() { envsubst < "$1" > "$2"; }
 
-# ssh helpers for the VPS (SSH_KEY lets the installer's dedicated key be used from the laptop scripts too)
+# ssh helpers for the VPS (SSH_KEY lets the installer's dedicated key be used from the laptop scripts too).
+# Once 22-vps-lighthouse.sh has closed public ssh it records NEBULA_LH_SSH=<overlay IP> in the plan file.
 _sshkey() { [ -n "${SSH_KEY:-}" ] && printf -- '-i %s -o IdentitiesOnly=yes' "$SSH_KEY"; }
-lh() { ssh -o BatchMode=yes -o ConnectTimeout=10 $(_sshkey) "root@${NEBULA_LH_IP:?set NEBULA_LH_IP}" "$@"; }
+_lhaddr() { printf '%s' "${NEBULA_LH_SSH:-${NEBULA_LH_IP:?set NEBULA_LH_IP}}"; }
+lh() { ssh -o BatchMode=yes -o ConnectTimeout=10 $(_sshkey) "root@$(_lhaddr)" "$@"; }
 # wait_ssh SECONDS — until the VPS accepts our key (fresh VPSes take a minute or two); fails instead of looping forever
 wait_ssh() { local t="${1:-600}" i=0; until lh true 2>/dev/null; do sleep 5; i=$((i+5)); [ "$i" -ge "$t" ] && return 1; done; }
-lh_put() { scp -q -o BatchMode=yes $(_sshkey) "$1" "root@${NEBULA_LH_IP:?}:$2"; }
+lh_put() { scp -q -o BatchMode=yes $(_sshkey) "$1" "root@$(_lhaddr):$2"; }
+# lh_stage — a fresh private (0700) staging directory under /root on the VPS; prints its path
+lh_stage() { lh 'umask 077; mktemp -d /root/heardos-stage.XXXXXX'; }
+# set_plan KEY VALUE — add or replace KEY=VALUE in the plan file
+set_plan() {
+  if grep -q "^$1=" "$ENV_FILE"; then sed -i.bak "s|^$1=.*|$1=$2|" "$ENV_FILE" && rm -f "$ENV_FILE.bak"; else printf '%s=%s\n' "$1" "$2" >> "$ENV_FILE"; fi
+}
 
 # deploy_stack NAME — bring up $HEARDOS_ROOT/stacks/NAME/compose.yml, via Portainer when a token is set, else docker compose.
 deploy_stack() {

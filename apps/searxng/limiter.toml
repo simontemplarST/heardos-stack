@@ -1,9 +1,10 @@
-# Requests arrive client -> Caddy (lighthouse, ${NEBULA_LH_OVERLAY}) -> Traefik (docker proxy network) -> searxng.
+# Requests arrive client -> Caddy (lighthouse, ${NEBULA_LH_OVERLAY}) -> Traefik (${TRAEFIK_PROXY_IP} on the proxy network) -> searxng.
+# Only those two hops may set X-Forwarded-For; any other container on the proxy network is treated as the client itself.
 # Rendered by 50-app.sh searxng with envsubst.
 [botdetection]
 ipv4_prefix = 32
 ipv6_prefix = 48
-trusted_proxies = ["127.0.0.0/8", "::1", "${PROXY_SUBNET}", "${OVERLAY_CIDR}"]
+trusted_proxies = ["${TRAEFIK_PROXY_IP}/32", "${NEBULA_LH_OVERLAY}/32"]
 
 [botdetection.ip_limit]
 filter_link_local = true

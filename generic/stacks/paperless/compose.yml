@@ -3,17 +3,19 @@ services:
   broker:
     image: redis:7-alpine
     restart: unless-stopped
+    security_opt: ["no-new-privileges:true"]
     volumes: ["${HEARDOS_ROOT}/data/paperless/redis:/data"]
     networks: [internal]
   db:
     image: postgres:16-alpine
     restart: unless-stopped
+    security_opt: ["no-new-privileges:true"]
     environment: {POSTGRES_DB: paperless, POSTGRES_USER: paperless, POSTGRES_PASSWORD: "${PAPERLESS_DB_PASSWORD}"}
     volumes: ["${HEARDOS_ROOT}/data/paperless/postgres:/var/lib/postgresql/data"]
     healthcheck: {test: ["CMD-SHELL", "pg_isready -U paperless -d paperless"], interval: 10s, timeout: 5s, retries: 10}
     networks: [internal]
   webserver:
-    image: ghcr.io/paperless-ngx/paperless-ngx:latest
+    image: ghcr.io/paperless-ngx/paperless-ngx:3.3.2@sha256:d232cba37cc0bab0d6c6581ecd320383b7a6f49f33e0fd16adda4d009eb600dd   # 3.3.2
     restart: unless-stopped
     depends_on: {db: {condition: service_healthy}, broker: {condition: service_started}}
     environment:
@@ -23,10 +25,11 @@ services:
       PAPERLESS_SECRET_KEY: "${PAPERLESS_SECRET_KEY}"
       PAPERLESS_TIME_ZONE: "${TZ}"
       PAPERLESS_URL: "https://paperless.${DOMAIN}"
-      PAPERLESS_CSRF_TRUSTED_ORIGINS: "https://paperless.${DOMAIN},http://paperless.${LAN_DOMAIN}"
+      PAPERLESS_CSRF_TRUSTED_ORIGINS: "https://paperless.${DOMAIN}${PAPERLESS_CSRF_LAN:-}"   # 50-app.sh adds the http:// LAN origin only with LAN_HTTP=1
       PAPERLESS_ALLOWED_HOSTS: "paperless.${DOMAIN},paperless.${LAN_DOMAIN}"
       PAPERLESS_USE_X_FORWARD_HOST: "true"
       PAPERLESS_PROXY_SSL_HEADER: '["HTTP_X_FORWARDED_PROTO", "https"]'
+      USERMAP_GID: "${MEDIA_GID:-1500}"   # shared media group: Paperless can delete what Nextcloud drops into consume/
       PAPERLESS_ADMIN_USER: "${ADMIN_USER}"
       PAPERLESS_ADMIN_PASSWORD: "${PAPERLESS_ADMIN_PASSWORD}"
       PAPERLESS_ADMIN_MAIL: "${ADMIN_EMAIL}"

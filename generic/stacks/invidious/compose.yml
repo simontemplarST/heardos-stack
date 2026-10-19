@@ -1,7 +1,7 @@
 # Invidious (YouTube front end) + its companion + Postgres. No login of its own: Authentik forward auth gates the whole site.
 services:
   invidious:
-    image: quay.io/invidious/invidious:latest
+    image: quay.io/invidious/invidious:2.20260804.1   # bump when YouTube breaks playback
     container_name: invidious
     restart: unless-stopped
     environment:
@@ -26,6 +26,7 @@ services:
         default_user_preferences:
           dark_mode: dark
     depends_on: [invidious-db]
+    security_opt: ["no-new-privileges:true"]
     networks: [proxy, invidious]
     labels:
       traefik.enable: "true"
@@ -44,7 +45,7 @@ services:
       traefik.http.routers.tube-lan.service: tube
       traefik.http.services.tube.loadbalancer.server.port: "3000"
   invidious-companion:
-    image: quay.io/invidious/invidious-companion:latest
+    image: quay.io/invidious/invidious-companion:latest   # left floating on purpose: tracks YouTube changes; quay expires its master-<sha> tags after 12 weeks
     container_name: invidious-companion
     restart: unless-stopped
     environment:
@@ -66,6 +67,7 @@ services:
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U kemal -d invidious"]
       interval: 30s
+    security_opt: ["no-new-privileges:true"]
     networks: [invidious]
 networks:
   proxy: {external: true}

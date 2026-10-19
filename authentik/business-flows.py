@@ -6,10 +6,13 @@ creates what is missing and re-asserts settings. Needs AUTHENTIK_TOKEN (admin) i
 
   group                   what membership means
   flow-login-blocked      cannot sign in at all (soft suspension; account stays active, message shown)
-  flow-mfa-required       must pass MFA at every login and is forced to enrol one (TOTP / passkey / email code) if none
-                          (everyone else: MFA is asked only if they have a device)
+  flow-mfa-required       must pass MFA at every login and is forced to enrol one (TOTP / passkey) if none; email codes
+                          do not count. Members of 'authentik Admins' get the same treatment through the
+                          mfa-required-for-admins policy even when they are not in this group.
+                          (everyone else: MFA is asked only if they have a device; email codes count for them)
   flow-session-8h         session ends after 8 h, no "remember me" (shared devices / contractors)
-  flow-recovery-allowed   may use "Forgot password" (email reset); others are denied at that step
+  flow-recovery-allowed   may use "Forgot password" (email reset); others are denied at that step. Pre-filled once,
+                          when the group is created, with every internal user EXCEPT admins/superusers
   flow-self-service       may change their own password and profile in the user portal
   flow-invited            group new accounts land in when created through the invitation sign-up flow
   flow-explicit-consent   must approve each application's access (consent screen, re-asked every 4 weeks)
@@ -76,6 +79,7 @@ if old and not find("/core/groups/", name="flow-mfa-required"):
     print("  ~ renaming group mfa-required -> flow-mfa-required (members kept)")
     if not DRY: call("PATCH", f"/core/groups/{old['pk']}/", {"name": "flow-mfa-required"})
 G = {}
+existed = {name for name in GROUPS if find("/core/groups/", name=name)}
 for name, doc in GROUPS.items():
     G[name] = ensure("/core/groups/", {"name": name}, {"name": name, "is_superuser": False, "attributes": {"heardos.flow": doc}}, ["attributes"])
 users = {u["username"]: u for u in results("/core/users/?page_size=100") if u["type"] == "internal"}
@@ -86,7 +90,17 @@ def add_members(group, names):
     for n in names:
         if n in users and n not in have and not DRY:
             call("POST", f"/core/groups/{g['pk']}/add_user/", {"pk": users[n]["pk"]}); print(f"  + {n} -> {group}")
-add_members("flow-recovery-allowed", list(users))     # everyone can reset today; remove people to revoke
+admin_grp = find("/core/groups/", name="authentik Admins")
+admin_pks = set((admin_grp or {}).get("users") or [])
+def is_admin(u): return u.get("is_superuser") or u["pk"] in admin_pks
+# password reset by email is an account-takeover path for whoever controls the mailbox: never pre-fill admins, and only
+# pre-fill when the group is new, so re-running this script does not undo a revocation
+if "flow-recovery-allowed" not in existed:
+    add_members("flow-recovery-allowed", [n for n, u in users.items() if not is_admin(u)])
+else:
+    rg = find("/core/groups/", name="flow-recovery-allowed") or {}
+    adm = sorted(x["username"] for x in (rg.get("users_obj") or []) if x["username"] in users and is_admin(users[x["username"]]))
+    if adm: print(f"  ! admins in flow-recovery-allowed (consider removing; they must pass MFA in recovery anyway): {', '.join(adm)}")
 add_members("flow-self-service", list(users))
 
 # ---------- stages ----------
@@ -102,9 +116,15 @@ email_setup = S("/stages/authenticator/email/", "heardos-authenticator-email-set
 mfa_optional = S("/stages/authenticator/validate/", "default-authentication-mfa-validation",
                  {"not_configured_action": "skip", "device_classes": ["totp", "webauthn", "static", "email"],
                   "configuration_stages": [totp["pk"], webauthn["pk"], email_setup["pk"]], "last_auth_threshold": "seconds=0"})
+# required MFA (flow-mfa-required members and every admin): email codes do not count -- the mailbox is also the
+# password-reset channel. Same settings as generic/41-authentik-bootstrap.py.
 mfa_required = S("/stages/authenticator/validate/", "heardos-mfa-required",
-                 {"not_configured_action": "configure", "device_classes": ["totp", "webauthn", "static", "email"],
-                  "configuration_stages": [webauthn["pk"], totp["pk"], email_setup["pk"]], "last_auth_threshold": "seconds=0"})
+                 {"not_configured_action": "configure", "device_classes": ["totp", "webauthn", "static"],
+                  "configuration_stages": [webauthn["pk"], totp["pk"]], "last_auth_threshold": "seconds=0"})
+ADMIN_POLICY_EXPR = ("user = request.context.get(\"pending_user\") or request.user\n"
+                     "if not getattr(user, \"is_authenticated\", False) and not request.context.get(\"pending_user\"):\n    return False\n"
+                     "return ak_is_group_member(user, name=\"authentik Admins\")\n")
+admin_policy = ensure("/policies/expression/", {"name": "mfa-required-for-admins"}, {"name": "mfa-required-for-admins", "expression": ADMIN_POLICY_EXPR}, ["expression"])
 login_default = find("/stages/user_login/", name="default-authentication-login")
 login_8h = S("/stages/user_login/", "heardos-login-8h", {"session_duration": "hours=8", "remember_me_offset": "seconds=0", "terminate_other_sessions": False})
 consent = S("/stages/consent/", "heardos-consent-expiring", {"mode": "expiring", "consent_expire_in": "weeks=4"})
@@ -144,9 +164,9 @@ if not DRY:
 
 # ---------- bindings ----------
 print("== stage bindings + group policies")
-def bind(flow, stage, order, plan, reeval):
+def bind(flow, stage, order, plan, reeval, mode="all"):
     b = find("/flows/bindings/", target=flow["pk"], stage=stage["pk"])
-    body = {"target": flow["pk"], "stage": stage["pk"], "order": order, "evaluate_on_plan": plan, "re_evaluate_policies": reeval, "policy_engine_mode": "all"}   # "all": every bound policy/group must pass (default "any" let the passkey-skip policy bypass the group)
+    body = {"target": flow["pk"], "stage": stage["pk"], "order": order, "evaluate_on_plan": plan, "re_evaluate_policies": reeval, "policy_engine_mode": mode}   # "all": every bound policy/group must pass (default "any" let the passkey-skip policy bypass the group)
     if b:
         upd = {k: v for k, v in body.items() if b.get(k) != v}
         if upd and not DRY: call("PATCH", f"/flows/bindings/{b['pk']}/", upd)
@@ -172,6 +192,16 @@ def group_policy(binding, group, negate):
     if DRY: return None
     r = call("POST", "/policies/bindings/", {"target": binding["pk"], "group": group["pk"], "order": 0, "negate": negate, "enabled": True, "failure_result": False, "timeout": 30}); all_pbs(True); return r
 
+def policy_on(binding, policy, negate, order=0):
+    """bind an expression policy to a stage binding; negate = applies when the policy is False"""
+    if DRY or str(policy["pk"]).startswith("dry:"): print(f"  (dry) policy {policy['name']}{' (negated)' if negate else ''}"); return None
+    for pb in pbs_for(binding):
+        if pb.get("policy") == policy["pk"]:
+            if pb.get("negate") != negate: call("PATCH", f"/policies/bindings/{pb['pk']}/", {"negate": negate})
+            return pb
+    print(f"  + policy {policy['name']}{' (negated)' if negate else ''} on {binding.get('stage_obj', {}).get('name', '?')}")
+    r = call("POST", "/policies/bindings/", {"target": binding["pk"], "policy": policy["pk"], "order": order, "negate": negate, "enabled": True, "failure_result": False, "timeout": 30}); all_pbs(True); return r
+
 def drop_policy_binding(binding, policy_name):
     for pb in pbs_for(binding):
         if (pb.get("policy_obj") or {}).get("name") == policy_name and not DRY:
@@ -179,11 +209,13 @@ def drop_policy_binding(binding, policy_name):
 
 # login flow
 b = bind(auth_flow, deny_blocked, 15, False, True);      group_policy(b, G["flow-login-blocked"], False)
+# MFA: order 30 optional (mode all: NOT flow-mfa-required AND NOT admin AND passkey-skip policy),
+#      order 31 required (mode any: flow-mfa-required OR admin). The passkey-skip policy must NOT be on 31: in "any"
+#      mode it is True for everyone and would force the required stage on every user.
 b = bind(auth_flow, mfa_optional, 30, False, True);      drop_policy_binding(b, "mfa-required-only"); group_policy(b, G["flow-mfa-required"], True)
-b = bind(auth_flow, mfa_required, 31, False, True);      group_policy(b, G["flow-mfa-required"], False)
-skip_pwl = find("/policies/expression/", name="default-authentication-flow-authenticator-validate-stage")
-if skip_pwl and not DRY and not any((pb.get("policy") == skip_pwl["pk"]) for pb in pbs_for(b)):
-    call("POST", "/policies/bindings/", {"target": b["pk"], "policy": skip_pwl["pk"], "order": 1, "enabled": True, "negate": False, "failure_result": False, "timeout": 30})
+policy_on(b, admin_policy, True)
+b = bind(auth_flow, mfa_required, 31, False, True, "any"); group_policy(b, G["flow-mfa-required"], False)
+policy_on(b, admin_policy, False, order=1); drop_policy_binding(b, "default-authentication-flow-authenticator-validate-stage")
 b = bind(auth_flow, login_8h, 99, False, True);          group_policy(b, G["flow-session-8h"], False)
 b = bind(auth_flow, login_default, 100, False, True);    group_policy(b, G["flow-session-8h"], True)
 # recovery
@@ -209,7 +241,7 @@ for kind in ("oauth2", "proxy"):
             if not DRY: call("PATCH", f"/providers/{kind}/{p['pk']}/", {"authorization_flow": authz_flow["pk"]})
 
 # ---------- retire the old expression policies ----------
-for name in ("mfa-required-only", "mfa-required-for-admins"):
+for name in ("mfa-required-only",):   # mfa-required-for-admins stays: it is bound at orders 30 and 31
     pol = find("/policies/expression/", name=name)
     if pol and pol.get("bound_to", 0) == 0 and not DRY:
         call("DELETE", f"/policies/expression/{pol['pk']}/"); print(f"  - deleted unused policy {name}")

@@ -21,6 +21,7 @@ services:
     volumes: ["${HEARDOS_ROOT}/data/listmonk/uploads:/listmonk/uploads"]
     depends_on:
       listmonk-db: {condition: service_healthy}
+    security_opt: ["no-new-privileges:true"]
     networks: [proxy, internal]
     labels:
       traefik.enable: "true"
@@ -37,6 +38,7 @@ services:
       traefik.http.routers.news-admin.service: news
       traefik.http.routers.news.rule: Host(`news.${DOMAIN}`)
       traefik.http.routers.news.entrypoints: web
+      traefik.http.routers.news.priority: "1"   # catch-all: always below news-admin, whatever the rule lengths
       traefik.http.routers.news.middlewares: xfp-https@file
       traefik.http.routers.news.service: news
       traefik.http.services.news.loadbalancer.server.port: "9000"
@@ -49,6 +51,7 @@ services:
       POSTGRES_PASSWORD: "${LISTMONK_DB_PASSWORD}"
       POSTGRES_DB: listmonk
     healthcheck: {test: ["CMD-SHELL", "pg_isready -U listmonk"], interval: 10s, timeout: 5s, retries: 6}
+    security_opt: ["no-new-privileges:true"]
     volumes: ["${HEARDOS_ROOT}/data/listmonk/db:/var/lib/postgresql/data"]
     networks: [internal]
 networks:

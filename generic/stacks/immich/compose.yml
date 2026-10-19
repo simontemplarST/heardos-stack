@@ -17,7 +17,9 @@ services:
     volumes:
       - ${HEARDOS_ROOT}/media/photos:/data
       - /etc/localtime:/etc/localtime:ro
-    ports: ["${HOST_LAN_IP}:2283:2283"]       # LAN uploads bypass the edge entirely
+    # host-only: 50-app.sh / lib/immich-setup.py talk to it here. LAN phones use http(s)://photos.<LAN_DOMAIN|DOMAIN> via
+    # Traefik (same host, no edge hop); a LAN-wide port would skip Traefik's header handling and the Authentik-only story.
+    ports: ["127.0.0.1:2283:2283"]
     depends_on: [redis, database]
     networks: [internal, proxy]
     healthcheck: {disable: false}
@@ -35,11 +37,13 @@ services:
     restart: unless-stopped
     cpus: ${IMMICH_ML_CPUS:-1.0}
     volumes: ["${HEARDOS_ROOT}/data/immich/model-cache:/cache"]
+    mem_limit: ${IMMICH_ML_MEM:-4g}
     networks: [internal]
   redis:
     image: docker.io/valkey/valkey:8-bookworm
     restart: unless-stopped
     healthcheck: {test: redis-cli ping || exit 1}
+    security_opt: ["no-new-privileges:true"]
     networks: [internal]
   database:
     image: ghcr.io/immich-app/postgres:14-vectorchord0.4.3-pgvectors0.2.0
@@ -51,6 +55,7 @@ services:
       POSTGRES_INITDB_ARGS: '--data-checksums'
     volumes: ["${HEARDOS_ROOT}/data/immich/postgres:/var/lib/postgresql/data"]
     shm_size: 128mb
+    security_opt: ["no-new-privileges:true"]
     networks: [internal]
 networks:
   internal: {}

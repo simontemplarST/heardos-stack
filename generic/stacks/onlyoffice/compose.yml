@@ -1,19 +1,28 @@
 # ONLYOFFICE Document Server. No users of its own: every API call is signed with the JWT secret shared with the docs stack.
-# The editor's static assets must be reachable by browsers, so the public router carries no forward auth. Needs ~2 GB RAM.
+# office.$DOMAIN sits behind the Authentik gate; the proxy provider (50-app.sh onlyoffice) skips only what a browser
+# editing a Nextcloud document must load without a login hop: editor assets (/web-apps, /sdkjs, /sdkjs-plugins, /fonts,
+# /dictionaries, versioned /<x.y.z-n>/...), the co-editing socket (/doc/...), signed download links (/cache/files/...)
+# and /healthcheck. Nextcloud's server-to-server calls (/coauthoring/CommandService.ashx, /ConvertService.ashx, document
+# fetches back from http://nextcloud/) use the container names on the proxy network and never pass Traefik.
+# The LAN name only answers /healthcheck. Needs ~2 GB RAM.
 services:
   onlyoffice:
     image: onlyoffice/documentserver:${ONLYOFFICE_VERSION:-9.3}
     container_name: onlyoffice
     restart: unless-stopped
     stop_grace_period: 60s
+    mem_limit: ${ONLYOFFICE_MEM:-3g}
     environment:
       TZ: "${TZ}"
       JWT_ENABLED: "true"
       JWT_SECRET: "${ONLYOFFICE_JWT_SECRET}"
       JWT_HEADER: Authorization
       JWT_IN_BODY: "true"
-      ALLOW_PRIVATE_IP_ADDRESS: "true"      # docs is reached on a private address
-      ALLOW_META_IP_ADDRESS: "true"
+      # true is required: the document storage is http://nextcloud/ (StorageUrl in lib/nc-configure.sh), a private
+      # address on the proxy network, and Document Server refuses to download from private IPs otherwise. Requests must
+      # still carry a valid JWT, so only Nextcloud can make it fetch anything.
+      ALLOW_PRIVATE_IP_ADDRESS: "true"
+      ALLOW_META_IP_ADDRESS: "false"        # 0.0.0.0 / :: / link-local metadata addresses: never needed
       ONLYOFFICE_HTTPS_HSTS_ENABLED: "false"
     volumes:
       - ${HEARDOS_ROOT}/data/onlyoffice/data:/var/www/onlyoffice/Data
@@ -23,11 +32,18 @@ services:
     networks: [proxy]
     labels:
       traefik.enable: "true"
+      traefik.http.routers.office-outpost.rule: Host(`office.${DOMAIN}`) && PathPrefix(`/outpost.goauthentik.io/`)
+      traefik.http.routers.office-outpost.entrypoints: web
+      traefik.http.routers.office-outpost.priority: "100"
+      traefik.http.routers.office-outpost.service: authentik-outpost@file
+      traefik.http.routers.office-outpost.middlewares: xfp-https@file
       traefik.http.routers.office.rule: Host(`office.${DOMAIN}`)
       traefik.http.routers.office.entrypoints: web
-      traefik.http.routers.office.middlewares: xfp-https@file
-      traefik.http.routers.office-lan.rule: Host(`office.${LAN_DOMAIN}`)
+      traefik.http.routers.office.middlewares: xfp-https@file,authentik-fwd@file
+      traefik.http.routers.office.service: office
+      traefik.http.routers.office-lan.rule: Host(`office.${LAN_DOMAIN}`) && Path(`/healthcheck`)
       traefik.http.routers.office-lan.entrypoints: web
+      traefik.http.routers.office-lan.service: office
       traefik.http.services.office.loadbalancer.server.port: "80"
 networks:
   proxy: {external: true}

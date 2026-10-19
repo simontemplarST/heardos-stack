@@ -3,10 +3,12 @@
 # Tags and document types stay with Paperless's own matching rules (a 3B model over-tags). No OCR here. No route at all.
 services:
   ollama:
-    image: ollama/ollama:latest
+    image: ollama/ollama:0.40.6@sha256:265409e1d931028a8f7d5a32bcbafddd7bffbc6cc629d77efe9560adf692a5e7   # 0.40.6
     container_name: ollama
     restart: unless-stopped
     cpus: ${OLLAMA_CPUS:-6}
+    mem_limit: ${OLLAMA_MEM:-6g}   # llama3.2:3b needs ~3-4 GB; raise for bigger models
+    security_opt: ["no-new-privileges:true"]
     environment:
       OLLAMA_NUM_PARALLEL: "1"
       OLLAMA_MAX_LOADED_MODELS: "1"
@@ -41,6 +43,7 @@ services:
       PRESERVE_EXISTING_METADATA: "true"
     volumes: ["${HEARDOS_ROOT}/data/paperless-gpt/prompts:/app/prompts"]
     depends_on: [ollama]
+    security_opt: ["no-new-privileges:true"]
     networks: [proxy, internal]
 networks:
   proxy: {external: true}

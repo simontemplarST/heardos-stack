@@ -1,7 +1,7 @@
 # Wallos (subscriptions). Authentik OIDC through Wallos' OIDC_* env; password login disabled, users auto-created.
 services:
   wallos:
-    image: bellamy/wallos:latest
+    image: bellamy/wallos:5.10.0@sha256:6d67b6e21dbb978dff113d01860311221adccc53151c033120f113e11a63d1e7   # 5.10.0
     container_name: wallos
     restart: unless-stopped
     environment:

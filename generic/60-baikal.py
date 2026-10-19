@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 """60-baikal.py — manage Baïkal users, calendars and shares straight in its sqlite DB (its UI cannot share). Run ON THE HOST.
-  user NAME EMAIL DISPLAYNAME [PASSWORD]          create/update a Baïkal user (password printed if generated)
+  user NAME EMAIL DISPLAYNAME [-|PASSWORD]        create/update a Baïkal user. Password from $HEARDOS_PASSWORD_FILE, or
+                                                  `-` = one line on stdin (PASSWORD on argv still works but is visible
+                                                  in ps; avoid it). None given: generated and handed back via
+                                                  $HEARDOS_PASSWORD_FILE or a HEARDOS_OUTPUT line, never printed
   calendar OWNER URI NAME [--color #RRGGBB] [--todo] [--coowner USER]   create a calendar (VEVENT, or VTODO list with --todo)
   share OWNER URI WITH_USER {ro|rw|owner} [--name N] [--color #RRGGBB]  share an existing calendar
   ls                                              show every principal's calendars as sabre sees them
@@ -20,7 +23,14 @@ def flagged(flag):
 ACCESS = {"owner": 1, "ro": 2, "rw": 3}
 
 if a[:1] == ["user"]:
-    _, name, email, disp = a[:4]; pw = a[4] if len(a) > 4 else secrets.token_urlsafe(14)
+    _, name, email, disp = a[:4]; arg = a[4] if len(a) > 4 else None
+    f = os.environ.get("HEARDOS_PASSWORD_FILE")
+    if arg == "-": pw = sys.stdin.readline().rstrip("\n") or sys.exit("empty password on stdin")
+    elif arg: pw = arg; print("warning: password given on the command line; prefer HEARDOS_PASSWORD_FILE or '-'", file=sys.stderr)
+    elif f and os.path.exists(f) and os.path.getsize(f): pw = open(f).read().strip()
+    else: pw = None
+    generated = pw is None
+    if generated: pw = secrets.token_urlsafe(14)
     dig = hashlib.md5(f"{name}:{REALM}:{pw}".encode()).hexdigest()
     if c.execute("select 1 from users where username=?", (name,)).fetchone():
         c.execute("update users set digesta1=? where username=?", (dig, name)); print(f"user {name}: password set")
@@ -30,7 +40,10 @@ if a[:1] == ["user"]:
         cid = c.execute("insert into calendars(synctoken,components) values(1,'VEVENT,VTODO')").lastrowid
         c.execute("insert into calendarinstances(calendarid,principaluri,access,displayname,uri,calendarorder,transparent,share_invitestatus) values(?,?,1,?,'default',0,0,2)", (cid, f"principals/{name}", disp))
         print(f"user {name} created with calendar 'default'")
-    print(f"  password: {pw}" if len(a) <= 4 else "")
+    if generated:   # hand it back without a clear-text print (the installer masks HEARDOS_OUTPUT lines)
+        if f:
+            fd = os.open(f, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600); os.write(fd, pw.encode()); os.close(fd); print(f"  password written to {f}")
+        else: print(f"HEARDOS_OUTPUT BAIKAL_{name.upper().replace('-', '_')}_PASSWORD={pw}")
 elif a[:1] == ["calendar"]:
     color = opt("--color", "#2E7D32") + "FF"; todo = flagged("--todo"); co = opt("--coowner")
     _, owner, uri, name = a[:4]

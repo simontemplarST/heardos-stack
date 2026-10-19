@@ -14,7 +14,7 @@ services:
       NEXTCLOUD_ADMIN_USER: "${NEXTCLOUD_ADMIN_USER}"
       NEXTCLOUD_ADMIN_PASSWORD: "${NEXTCLOUD_ADMIN_PASSWORD}"
       NEXTCLOUD_TRUSTED_DOMAINS: "docs.${DOMAIN} docs.${LAN_DOMAIN} nextcloud"
-      TRUSTED_PROXIES: "${PROXY_SUBNET} ${NEBULA_LH_OVERLAY}"
+      TRUSTED_PROXIES: "${TRAEFIK_PROXY_IP:?set TRAEFIK_PROXY_IP} ${NEBULA_LH_OVERLAY}"
       OVERWRITEPROTOCOL: https
       OVERWRITECLIURL: "https://docs.${DOMAIN}"
       PHP_UPLOAD_LIMIT: 16G
@@ -27,6 +27,7 @@ services:
       - ${HEARDOS_ROOT}/data/paperless/consume:/mnt/paperless-inbox
       - ${HEARDOS_ROOT}/data/paperless/media/documents/originals:/mnt/paperless-archive:ro
     depends_on: {db: {condition: service_healthy}, redis: {condition: service_started}}
+    mem_limit: ${NEXTCLOUD_MEM:-3g}
     networks: [internal, proxy]
     labels:
       traefik.enable: "true"
@@ -50,10 +51,12 @@ services:
     environment: {POSTGRES_DB: nextcloud, POSTGRES_USER: nextcloud, POSTGRES_PASSWORD: "${NEXTCLOUD_DB_PASSWORD}"}
     volumes: ["${HEARDOS_ROOT}/data/nextcloud/postgres:/var/lib/postgresql/data"]
     healthcheck: {test: ["CMD-SHELL", "pg_isready -U nextcloud -d nextcloud"], interval: 10s, timeout: 5s, retries: 10}
+    security_opt: ["no-new-privileges:true"]
     networks: [internal]
   redis:
     image: redis:7-alpine
     restart: unless-stopped
+    security_opt: ["no-new-privileges:true"]
     networks: [internal]
 networks:
   internal: {}

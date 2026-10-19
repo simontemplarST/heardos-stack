@@ -1,7 +1,7 @@
 # Actual Budget server. OpenID via Authentik, enforced; the first person to sign in becomes the owner.
 services:
   actual:
-    image: actualbudget/actual-server:latest
+    image: actualbudget/actual-server:26.10.0@sha256:24645e971da6bb1a1f953d6859e307a0b29be1e8b4130a35b3220c209b5b860c   # 26.10.0
     container_name: actual
     restart: unless-stopped
     environment:
@@ -12,8 +12,9 @@ services:
       ACTUAL_OPENID_ENFORCE: "true"
       ACTUAL_LOGIN_METHOD: openid
       ACTUAL_USER_CREATION_MODE: login
-      ACTUAL_TRUSTED_PROXIES: "${PROXY_SUBNET},${NEBULA_LH_OVERLAY}"
+      ACTUAL_TRUSTED_PROXIES: "${TRAEFIK_PROXY_IP:?set TRAEFIK_PROXY_IP}/32,${NEBULA_LH_OVERLAY}/32"
     volumes: ["${HEARDOS_ROOT}/data/actual:/data"]
+    security_opt: ["no-new-privileges:true"]
     networks: [proxy]
     labels:
       traefik.enable: "true"

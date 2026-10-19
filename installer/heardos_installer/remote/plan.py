@@ -15,6 +15,9 @@ PLAN_KEYS = [
     "NEBULA_LH_IP", "NEBULA_LH_OVERLAY", "OVERLAY_CIDR", "LAPTOP_OVERLAY",
     "CF_ZONE_ID", "PORTAINER_URL", "AUTHENTIK_URL", "IMMICH_SERVER_CPUS", "IMMICH_ML_CPUS", "OCR_LANGS", "OCR_CPUS",
     "PROXY_SUBNET", "CADDY_FRONT_DOOR", "BRAND_PRIMARY", "BRAND_COLOR",
+    # 2026-10-19 security review: fixed Traefik address (header trust), shared media group, opt-in LAN http redirects,
+    # CrowdSec home allowlist, pinned Nebula, SSH over the overlay once the lighthouse is locked
+    "PROXY_IP_RANGE", "TRAEFIK_PROXY_IP", "MEDIA_GID", "LAN_HTTP", "HOME_PUBLIC_IP", "NEBULA_VERSION", "NEBULA_LH_SSH",
 ]
 SECRET_KEYS_BY_SIDE = {
     "local": ["CF_API_TOKEN", "AUTHENTIK_TOKEN", "PORTAINER_TOKEN"],

@@ -6,15 +6,23 @@ on:
   pull_request:
   workflow_dispatch:
 
+# least privilege by default; jobs that need more ask for it themselves
+permissions:
+  contents: read
+
 jobs:
   test:
     runs-on: ubuntu-24.04
     defaults: {run: {working-directory: installer}}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@<CALENDAR_ID> # v4
+        with: {persist-credentials: false}
+      - uses: actions/setup-python@<CALENDAR_ID> # v5
         with: {python-version: "3.12"}
-      - run: pip install -e ".[dev]"
+      # every dependency (and the build backend) pinned by hash; regenerate with:
+      #   uv pip compile pyproject.toml build-requirements.in --extra dev --universal --python-version 3.12 --generate-hashes -o requirements-dev.lock
+      - run: python -m pip install --require-hashes -r requirements-dev.lock
+      - run: python -m pip install --no-deps --no-build-isolation -e .
       - run: pytest -q tests/unit
 
   build:
@@ -24,12 +32,20 @@ jobs:
       matrix:
         os: [windows-latest, macos-14, ubuntu-24.04]
     runs-on: ${{ matrix.os }}
+    permissions:
+      contents: read
+      id-token: write        # build provenance (tags only)
+      attestations: write
     defaults: {run: {working-directory: installer}}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@<CALENDAR_ID> # v4
+        with: {persist-credentials: false}
+      - uses: actions/setup-python@<CALENDAR_ID> # v5
         with: {python-version: "3.12"}
-      - run: pip install -e ".[dev]"
+      # every dependency (and the build backend) pinned by hash; regenerate with:
+      #   uv pip compile pyproject.toml build-requirements.in --extra dev --universal --python-version 3.12 --generate-hashes -o requirements-dev.lock
+      - run: python -m pip install --require-hashes -r requirements-dev.lock
+      - run: python -m pip install --no-deps --no-build-isolation -e .
       - run: pyinstaller --noconfirm heardos.spec
       - name: smoke test (headless commands work from the bundle)
         shell: bash
@@ -45,7 +61,12 @@ jobs:
             Windows) cp dist/HeardOS.exe release/HeardOS-Windows-x64.exe ;;
             Linux)   chmod +x dist/HeardOS && tar -C dist -czf release/HeardOS-Linux-x86_64.tar.gz HeardOS ;;
           esac
-      - uses: actions/upload-artifact@v4
+      - name: build provenance (signed by GitHub; verify with `gh attestation verify FILE -R OWNER/REPO`)
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: actions/attest-build-provenance@<CALENDAR_ID> # v2
+        with:
+          subject-path: installer/release/*
+      - uses: actions/upload-artifact@<CALENDAR_ID> # v4
         with:
           name: HeardOS-${{ runner.os }}
           path: installer/release/*
@@ -56,7 +77,7 @@ jobs:
     runs-on: ubuntu-24.04
     permissions: {contents: write}
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@<CALENDAR_ID> # v4
         with: {path: release, merge-multiple: true}
       - name: publish the release
         env: {GH_TOKEN: "${{ github.token }}"}
@@ -70,6 +91,8 @@ jobs:
           | HeardOS-Windows-x64.exe | Windows 10/11 |
           | HeardOS-macOS-arm64.zip | macOS 12+ on Apple silicon. Not notarised: right-click the app and choose Open the first time. |
           | HeardOS-Linux-x86_64.tar.gz | Linux x86-64 (or `pipx install ./installer` from a checkout) |
+
+          Check a download: `sha256sum -c SHA256SUMS --ignore-missing`, and that it was built by this repository's workflow: `gh attestation verify FILE -R ${{ github.repository }}`.
 
           Status: the install has been verified end to end in dry-run mode only. A real install against a VPS and home server has not been run yet.
           EOF

@@ -10,6 +10,10 @@ class Vultr(HttpProvider):
     name = "vultr"
     base_url = "https://api.vultr.com/v2"
 
+    def __init__(self, token: str, client=None):
+        super().__init__(token, client)
+        self.root_pass: Optional[str] = None   # Vultr's generated root password; the caller stores it in the vault
+
     def _all(self, path: str, key: str):
         cursor, out = "", []
         while True:
@@ -64,7 +68,9 @@ class Vultr(HttpProvider):
                                                    "sshkey_id": [spec.ssh_key_id], "label": spec.label, "hostname": spec.hostname,
                                                    "tags": spec.tags, "enable_ipv6": False, "backups": "disabled"})
         inst = d.get("instance") or {}
-        return VpsHandle(self.name, inst["id"], extra={"default_password": inst.get("default_password")})
+        # never in the handle: handles are written to the plain state file
+        self.root_pass = inst.get("default_password") or None
+        return VpsHandle(self.name, inst["id"], extra={"label": inst.get("label")})
 
     def wait_ip(self, handle: VpsHandle, timeout: int = 600, on_line: Optional[Callable[[str], None]] = None) -> str:
         def probe():

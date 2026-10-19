@@ -1,8 +1,9 @@
 # HortusFox (plants). plants.$DOMAIN behind the Authentik gate; the app logs people in from X-authentik-email/-username
-# (proxy auth, auto-signup). No LAN route on purpose: only gated routers may reach an app that trusts identity headers.
+# (proxy auth, auto-signup), and only from Traefik's fixed address. No LAN route on purpose: only gated routers may reach
+# an app that trusts identity headers.
 services:
   hortusfox:
-    image: ghcr.io/danielbrendel/hortusfox-web:latest
+    image: ghcr.io/danielbrendel/hortusfox-web:v6.3@sha256:a26d2333a4c0c0786c9d384c176d45c3f15bb748d327c1340a64ce636555a51e   # v6.3
     container_name: hortusfox
     restart: unless-stopped
     environment:
@@ -19,7 +20,7 @@ services:
       PROXY_HEADER_EMAIL: X-authentik-email
       PROXY_HEADER_USERNAME: X-authentik-username
       PROXY_AUTO_SIGNUP: "true"
-      PROXY_WHITELIST: ""
+      PROXY_WHITELIST: "${TRAEFIK_PROXY_IP:?set TRAEFIK_PROXY_IP}"   # never empty: empty = headers trusted from anyone
       PROXY_HIDE_LOGOUT: "true"
       PROXY_OVERWRITE_VALUES: "true"
     volumes:
@@ -30,6 +31,7 @@ services:
       - ${HEARDOS_ROOT}/data/hortusfox/themes:/var/www/html/public/themes
       - ${HEARDOS_ROOT}/data/hortusfox/migrate:/var/www/html/app/migrations
     depends_on: [hortusfox-db]
+    security_opt: ["no-new-privileges:true"]
     networks: [proxy, internal]
     labels:
       traefik.enable: "true"
@@ -54,6 +56,7 @@ services:
       MARIADB_USER: hortusfox
       MARIADB_PASSWORD: "${HORTUS_DB_PASSWORD}"
     volumes: ["${HEARDOS_ROOT}/data/hortusfox/db:/var/lib/mysql"]
+    security_opt: ["no-new-privileges:true"]
     networks: [internal]
 networks:
   proxy: {external: true}

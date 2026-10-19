@@ -30,8 +30,12 @@ open(p,"w").write(s)
 P
 # step CLI for renewals (renew authenticates with the current cert itself; no provisioner secret on this host)
 if ! command -v step >/dev/null; then
-  curl -fsSL https://packages.smallstep.com/keys/apt/repo-signing-key.gpg -o /etc/apt/trusted.gpg.d/smallstep.asc
-  echo "deb [signed-by=/etc/apt/trusted.gpg.d/smallstep.asc] https://packages.smallstep.com/stable/debian debs main" > /etc/apt/sources.list.d/smallstep.list
+  # 2026-10-19: key pinned by fingerprint and kept out of trusted.gpg.d (that would trust it for every repo)
+  install -d -m 755 /etc/apt/keyrings; rm -f /etc/apt/trusted.gpg.d/smallstep.asc
+  curl -fsSL https://packages.smallstep.com/keys/apt/repo-signing-key.gpg -o /etc/apt/keyrings/smallstep.asc
+  gpg --show-keys --with-colons /etc/apt/keyrings/smallstep.asc 2>/dev/null | awk -F: '$1=="fpr"{print $10}' | grep -qx 35BAA0B33E9EB396F59CA838C0BA5CE6DC6315A3 \
+    || { echo "unexpected smallstep apt signing key; refusing it" >&2; rm -f /etc/apt/keyrings/smallstep.asc; exit 1; }
+  echo "deb [signed-by=/etc/apt/keyrings/smallstep.asc] https://packages.smallstep.com/stable/debian debs main" > /etc/apt/sources.list.d/smallstep.list
   apt-get update -q >/dev/null && DEBIAN_FRONTEND=noninteractive apt-get -yq install step-cli >/dev/null
 fi
 cat > /etc/systemd/system/step-renew-lan.service <<'X'

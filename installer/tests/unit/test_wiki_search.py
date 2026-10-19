@@ -30,6 +30,8 @@ def test_searxng_public_and_config_templates():
     compose = (r / "generic" / "stacks" / "searxng" / "compose.yml").read_text()
     assert "authentik-fwd" not in compose and "SEARXNG_SECRET" in compose
     lim = (r / "apps" / "searxng" / "limiter.toml").read_text()
-    assert "${PROXY_SUBNET}" in lim and "${OVERLAY_CIDR}" in lim and "${LAN_SUBNET}" in lim
+    # forwarded headers are trusted from Traefik and the lighthouse only, never the whole docker subnet (M-12)
+    assert "${TRAEFIK_PROXY_IP}/32" in lim and "${PROXY_SUBNET}" not in lim
+    assert "${OVERLAY_CIDR}" in lim and "${LAN_SUBNET}" in lim
     app = (r / "generic" / "50-app.sh").read_text()
     assert "  kiwix)" in app and "  searxng)" in app and "chmod 644" in app

@@ -5,7 +5,10 @@ and we can stream stdout line by line into the step log while the command runs.
 """
 from __future__ import annotations
 
+import base64
+import hashlib
 import io
+import re
 import shlex
 import socket
 import threading
@@ -21,6 +24,43 @@ from ..engine.state import config_dir
 
 class SshError(RuntimeError):
     pass
+
+
+class HostKeyError(SshError):
+    """The server's host key changed, or the operator refused it. Never retried."""
+
+
+ENV_NAME = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+OUTPUT_PREFIX = "HEARDOS_OUTPUT "
+
+
+def mask_output_line(line: str) -> str:
+    """`HEARDOS_OUTPUT KEY=VALUE` lines carry tokens the vault has not seen yet: keep the key, hide the value."""
+    if line.startswith(OUTPUT_PREFIX):
+        return OUTPUT_PREFIX + line[len(OUTPUT_PREFIX):].split("=", 1)[0] + "=***"
+    return line
+
+
+def redacted_tail(text: str, hide: tuple[str, ...] = (), lines: int = 3, limit: int = 300) -> str:
+    """Last few lines of command output for an error message, with HEARDOS_OUTPUT values and `hide` values masked."""
+    tail = [mask_output_line(l) for l in (text or "").strip().splitlines()[-lines:]]
+    out = " / ".join(tail)
+    for v in sorted((v for v in hide if v and len(v) >= 6), key=len, reverse=True):
+        out = out.replace(v, "***")
+    return out[:limit]
+
+
+def env_file(env: dict[str, str]) -> str:
+    """A file `set -a; . FILE` turns back into environment variables (values single-quoted by shlex)."""
+    for k in env:
+        if not ENV_NAME.match(k):
+            raise ValueError(f"bad environment variable name: {k!r}")
+    return "".join(f"{k}={shlex.quote(str(v))}\n" for k, v in env.items())
+
+
+def fingerprint(key: paramiko.PKey) -> str:
+    """OpenSSH-style SHA256 fingerprint, as `ssh-keygen -lf` prints it."""
+    return "SHA256:" + base64.b64encode(hashlib.sha256(key.asbytes()).digest()).decode().rstrip("=")
 
 
 @dataclass
@@ -51,8 +91,13 @@ def known_hosts_file() -> Path:
     return p
 
 
+def _kh_name(host: str, port: int) -> str:
+    return host if port == 22 else f"[{host}]:{port}"
+
+
 class _Pin(paramiko.MissingHostKeyPolicy):
-    """Trust on first use, pinned in our own known_hosts; a changed key is refused."""
+    """Trust on first use, pinned in our own known_hosts; a changed key is refused. Used for VPSes the installer just
+    created through a provider API; machines it did not create go through ensure_host_key() first."""
 
     def __init__(self, client: paramiko.SSHClient):
         self.client = client
@@ -60,6 +105,43 @@ class _Pin(paramiko.MissingHostKeyPolicy):
     def missing_host_key(self, client, hostname, key):
         client.get_host_keys().add(hostname, key.get_name(), key)
         client.save_host_keys(str(known_hosts_file()))
+
+
+def fetch_host_key(host: str, port: int = 22, timeout: int = 10) -> paramiko.PKey:
+    """The server's host key, read from the key exchange alone (no authentication, nothing sent)."""
+    try:
+        sock = socket.create_connection((host, port), timeout=timeout)
+    except OSError as e:
+        raise SshError(f"cannot reach {host}:{port}: {e}") from e
+    t = paramiko.Transport(sock)
+    try:
+        t.start_client(timeout=timeout)
+        return t.get_remote_server_key()
+    except paramiko.SSHException as e:
+        raise SshError(f"no SSH server answering on {host}:{port}: {e}") from e
+    finally:
+        t.close()
+
+
+def pinned_host_key(host: str, port: int = 22) -> Optional[paramiko.PKey]:
+    keys = paramiko.HostKeys(str(known_hosts_file())).lookup(_kh_name(host, port)) or {}
+    return next(iter(keys.values()), None)
+
+
+def ensure_host_key(host: str, port: int, confirm: Callable[[str, str], bool]) -> None:
+    """Pin the host key of a machine the installer did not create, but only once the operator (or a fingerprint in the
+    plan) has confirmed it: confirm(host, "SHA256:...") -> bool. Already pinned keys are left alone; a changed key
+    then fails in Session.connect()."""
+    if pinned_host_key(host, port) is not None:
+        return
+    key = fetch_host_key(host, port)
+    if not confirm(host, fingerprint(key)):
+        raise HostKeyError(f"host key of {host} ({fingerprint(key)}) was not confirmed; nothing was sent to it")
+    kh = paramiko.HostKeys()
+    path = known_hosts_file()
+    kh.load(str(path))
+    kh.add(_kh_name(host, port), key.get_name(), key)
+    kh.save(str(path))
 
 
 class Session:
@@ -86,7 +168,7 @@ class Session:
         try:
             c.connect(**kw)
         except paramiko.BadHostKeyException as e:
-            raise SshError(f"host key for {self.host} changed; remove it from {known_hosts_file()} if this is expected") from e
+            raise HostKeyError(f"host key for {self.host} changed; remove it from {known_hosts_file()} if this is expected") from e
         except (paramiko.AuthenticationException,) as e:
             raise SshError(f"authentication to {self.user}@{self.host} failed") from e
         except (paramiko.SSHException, socket.error, OSError) as e:
@@ -108,13 +190,19 @@ class Session:
     # --- commands ---
     def run(self, cmd: str, *, sudo: bool = False, env: Optional[dict[str, str]] = None, timeout: int = 900,
             on_line: Optional[Callable[[str], None]] = None, cwd: Optional[str] = None, check: bool = False) -> Result:
-        """Run a shell command. env values are shell-quoted on the command line, never written to the remote disk."""
+        """Run a shell command. env values never appear on a command line (visible in /proc/*/cmdline and sudo logs): they
+        go into a 0600 file in a fresh private directory, which the command sources and deletes before doing anything else.
+        Output lines are streamed to on_line with HEARDOS_OUTPUT values masked; Result keeps them for outputs()."""
         parts = []
         if cwd:
             parts.append(f"cd {shlex.quote(cwd)} &&")
+        pre = ""
         if env:
-            parts.append("env " + " ".join(f"{k}={shlex.quote(v)}" for k, v in env.items()))
-        inner = f"bash -lc {shlex.quote(cmd)}"
+            d = self.tempdir()
+            f = f"{d}/env"
+            self.put_text(env_file(env), f, 0o600)
+            pre = f"set -a; . {shlex.quote(f)}; set +a; rm -rf {shlex.quote(d)}; "
+        inner = f"bash -lc {shlex.quote(pre + cmd)}"
         full = " ".join(parts + [inner])
         if sudo and self.user != "root":
             full = "sudo -n -H " + full
@@ -133,13 +221,13 @@ class Session:
                         buf += chunk
                         while "\n" in buf:
                             line, buf = buf.split("\n", 1)
-                            on_line(line)
+                            on_line(mask_output_line(line))
                 if chan.recv_stderr_ready():
                     chunk = chan.recv_stderr(65536).decode("utf-8", "replace")
                     err.write(chunk)
                     if on_line:
                         for line in chunk.splitlines():
-                            on_line(line)
+                            on_line(mask_output_line(line))
                 if chan.exit_status_ready() and not chan.recv_ready() and not chan.recv_stderr_ready():
                     break
                 if time.time() > deadline:
@@ -147,13 +235,23 @@ class Session:
                     raise SshError(f"command timed out after {timeout}s: {cmd[:80]}")
                 time.sleep(0.05)
             if on_line and buf:
-                on_line(buf)
+                on_line(mask_output_line(buf))
             rc = chan.recv_exit_status()
             chan.close()
         res = Result(rc, out.getvalue(), err.getvalue())
         if check and not res.ok:
-            raise SshError(f"command failed ({rc}): {cmd[:120]}\n{res.stderr[-800:]}")
+            # never raw stderr: it lands in the state file and the UI (redacted tail, env values masked)
+            raise SshError(f"command failed ({rc}): {cmd[:120]}\n{redacted_tail(res.stderr or res.stdout, tuple((env or {}).values()))}")
         return res
+
+    def tempdir(self) -> str:
+        """A fresh 0700 directory for staging files: under /root for root, else mktemp's default (owned by the login
+        user, who must write into it over sftp). Replaces fixed /tmp names another local user could pre-create."""
+        cmd = "mktemp -d /root/.heardos-XXXXXXXX" if self.user == "root" else "mktemp -d"
+        d = self.run(cmd, timeout=30, check=True).stdout.strip()
+        if not d.startswith("/"):
+            raise SshError(f"mktemp gave an unexpected path: {d[:80]!r}")
+        return d
 
     def put(self, local: Path, remote: str, mode: int = 0o600) -> None:
         with self._lock:
@@ -209,6 +307,8 @@ def wait_ssh(host: str, user: str = "root", key_path: Optional[Path] = None, pas
             s = Session(host, user, key_path=key_path, password=password, connect_timeout=10).connect()
             s.run("true", timeout=20, check=True)
             return s
+        except HostKeyError:
+            raise   # a changed key is an answer, not a boot delay: retrying for the whole timeout only hides it
         except Exception as e:  # noqa: BLE001
             last = str(e)
             if on_line:
@@ -241,7 +341,8 @@ class SessionPool:
 
     def vps(self) -> Session:
         if self._vps is None:
-            self._vps = Session(self.plan["NEBULA_LH_IP"], "root", key_path=self.key_path).connect()
+            # after vps.ssh_lock, sshd only listens on the overlay address (plan NEBULA_LH_SSH)
+            self._vps = Session(self.plan.get("NEBULA_LH_SSH") or self.plan["NEBULA_LH_IP"], "root", key_path=self.key_path).connect()
         return self._vps
 
     def host(self) -> Session:

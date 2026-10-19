@@ -3,7 +3,7 @@
   --ink: #1f2023; --charcoal: #26272b; --raised: #2f3034; --line: #3a3b40; --text: #ececec; --muted: #a6a6ab;
   --accent: #f2a35e; --accent-hover: #f5b984; --accent-deep: #ed8325; --danger: #ef6b5f;
   --taskbar-h: 52px; --icon: 56px; --radius: 10px;
-  --wallpaper: url("https://cloud.example.com/brand/flow-background.jpg");
+  --wallpaper: url("https://cloud.{domain}/brand/flow-background.jpg");
   color-scheme: dark;
 }
 * { box-sizing: border-box; }

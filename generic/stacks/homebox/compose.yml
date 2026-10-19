@@ -1,7 +1,7 @@
 # Homebox. Registration off; OIDC via Authentik.
 services:
   homebox:
-    image: ghcr.io/sysadminsmedia/homebox:latest
+    image: ghcr.io/sysadminsmedia/homebox:0.27.0@sha256:d49f12caf25ce3fa7f44102bb74953f3dff2dfdad38d87bd9057f3f611e797bb   # 0.27.0
     container_name: homebox
     restart: unless-stopped
     environment:
@@ -16,6 +16,7 @@ services:
       HBOX_OIDC_BUTTON_TEXT: "Sign in with HeardOS"
       HBOX_OIDC_SCOPE: "openid profile email"
     volumes: ["${HEARDOS_ROOT}/data/homebox:/data"]
+    security_opt: ["no-new-privileges:true"]
     networks: [proxy]
     labels:
       traefik.enable: "true"

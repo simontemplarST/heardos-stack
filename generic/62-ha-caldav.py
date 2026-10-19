@@ -2,12 +2,15 @@
 """62-ha-caldav.py — add Home Assistant's CalDAV integration pointing at Baïkal as the read-only 'homeassistant' user.
 Needs HA_TOKEN (a long-lived access token from an HA admin profile) in the plan file, and the Baïkal user to exist:
    host# 60-baikal.py user homeassistant ha@DOMAIN "Home Assistant" <password>   (then share every calendar to it as ro)
-usage: 62-ha-caldav.py <baikal password for user homeassistant>"""
-import json, os, sys, urllib.request, urllib.error
+usage: 62-ha-caldav.py < file-with-the-password      (or: HA_BAIKAL_PASSWORD=... 62-ha-caldav.py; prompts on a terminal)
+The password is never taken from the command line (argv is world-readable in /proc and lands in shell history)."""
+import getpass, json, os, sys, urllib.request, urllib.error
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "lib"))
 from ak import load_env
-env = load_env(); HA = f"http://{env['HOST_LAN_IP']}:8209"; TOK = env.get("HA_TOKEN") or sys.exit("set HA_TOKEN in the plan file")
-pw = sys.argv[1]
+env = load_env(); HA = "http://127.0.0.1:8209"; TOK = env.get("HA_TOKEN") or sys.exit("set HA_TOKEN in the plan file")   # HA's host-only port
+if len(sys.argv) > 1: sys.exit(__doc__)
+pw = os.environ.get("HA_BAIKAL_PASSWORD") or (getpass.getpass("Baikal password for homeassistant: ") if sys.stdin.isatty() else sys.stdin.readline().strip())
+if not pw: sys.exit("no password given")
 def api(method, path, data=None):
     r = urllib.request.Request(HA + path, method=method, data=json.dumps(data).encode() if data is not None else None,
                                headers={"Authorization": "Bearer " + TOK, "Content-Type": "application/json"})

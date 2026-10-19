@@ -4,7 +4,10 @@
 # (LAN or the Nebula LAN route) and AUTHENTIK_TOKEN in ~/.config/credentials.env. Changes nothing.
 # Each remote block prints exactly one line per check (in order); lines are read back positionally.
 set -uo pipefail
-set -a; . ~/.config/credentials.env 2>/dev/null; set +a
+# only the keys this check uses are read from credentials.env (not exported wholesale)
+cred() { local k v; for k; do v="$(grep -E "^(export )?$k=" ~/.config/credentials.env 2>/dev/null | tail -1 | cut -d= -f2-)" || true
+  v="${v%\"}"; v="${v#\"}"; v="${v%\'}"; v="${v#\'}"; printf -v "$k" '%s' "$v"; done; }
+cred AUTHENTIK_TOKEN; export AUTHENTIK_TOKEN
 LH=nebula-lh; PROX=root@192.168.10.2; CT=root@192.168.10.20
 S="ssh -o BatchMode=yes -o ConnectTimeout=8"
 pass(){ printf "PASS  %s\n" "$*"; } ; warn(){ printf "WARN  %s\n" "$*"; } ; info(){ printf "INFO  %s\n" "$*"; }
@@ -110,16 +113,15 @@ else warn "AUTHENTIK_TOKEN not set"; fi
 
 echo "== DNS =="
 for n in example.com _dmarc.example.com; do t=$(dig +short TXT "$n" @1.1.1.1 | tr -d '"' | tr "\n" " "); case "$t" in *spf1*|*DMARC1*) pass "$n TXT: $t";; *) warn "$n TXT missing: '$t'";; esac; done
-$S $CT 'python3 - <<PY
-import base64,json,re,urllib.request
-pem=open("/root/.cloudflared/cert.pem").read()
-tok=json.loads(base64.b64decode("".join(re.search(r"-----BEGIN ARGO TUNNEL TOKEN-----\s*(.*?)\s*-----END",pem,re.S).group(1).split())))
-r=urllib.request.Request("https://api.cloudflare.com/client/v4/zones/%s/dns_records?per_page=200"%tok["zoneID"],headers={"Authorization":"Bearer "+tok["apiToken"]})
-recs=json.load(urllib.request.urlopen(r,timeout=30))["result"]
+# zone listing with the zone-scoped CF_API_TOKEN (edge/dns/cfapi.py reads it from credentials.env); read-only
+python3 - "$(dirname "$0")/../edge/dns" <<'PY' 2>/dev/null || warn "could not list the DNS zone (CF_API_TOKEN in credentials.env?)"
+import sys; sys.path.insert(0, sys.argv[1]); sys.argv[1:] = []
+from cfapi import records
+recs = records()
 known={"example.com":"github pages","dco.example.com":"vps-provider dco","forge.example.com":"vps-provider forge"}
 odd=[(x["name"],x["content"]) for x in recs if x["type"]=="A" and x["content"]!="203.0.113.10" and x["name"] not in known]
 print(("WARN  A records at unknown targets (dangling?): %s" % odd) if odd else "PASS  every A record is the lighthouse or a known host (%s)" % ", ".join(known))
-PY' 2>/dev/null || warn "could not list the DNS zone from CT 108"
+PY
 
 echo "== laptop =="
 for f in ~/.config/credentials.env ~/.config/nebula-ca/ca.key; do m=$(stat -c %a "$f" 2>/dev/null); chk "mode $f" "^600$" "${m:-missing}"; done

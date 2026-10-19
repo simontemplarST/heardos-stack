@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import io
+import shlex
 import tarfile
 from pathlib import Path
 
@@ -29,14 +30,17 @@ def push_kit(session: Session, kit_root: Path, dest: str = "/opt/heardos-kit", s
     """Replace <dest> with the selected kit directories. Idempotent; the host's plan file lives outside dest."""
     subdirs = subdirs or ["generic", "authentik", "security", "mail", "apps", "edge", "brand"]
     data = _tar_bytes(kit_root, subdirs)
-    session.put_text("", "/tmp/.heardos-kit-marker")  # ensures sftp works before the larger upload
+    stage = session.tempdir()   # fresh 0700 dir (also proves sftp works before the larger upload)
+    tgz = f"{stage}/heardos-kit.tgz"
     with session._c().open_sftp() as sftp:  # noqa: SLF001 — same client, binary upload
-        with sftp.file("/tmp/heardos-kit.tgz", "wb") as f:
+        with sftp.file(tgz, "wb") as f:
             f.write(data)
+    q = shlex.quote(dest)
+    wipe = " ".join(f"{q}/{d}" for d in ("generic", "authentik", "security", "mail", "apps", "edge", "brand"))
     session.run(
-        f"mkdir -p {dest} && rm -rf {dest}/generic {dest}/authentik {dest}/security {dest}/mail {dest}/apps {dest}/edge {dest}/brand && "
-        f"tar -xzf /tmp/heardos-kit.tgz -C {dest} && rm -f /tmp/heardos-kit.tgz /tmp/.heardos-kit-marker && "
-        f"chmod +x {dest}/generic/*.sh {dest}/generic/*.py {dest}/generic/lib/*.py 2>/dev/null; true",
+        f"mkdir -p {q} && rm -rf {wipe} && "
+        f"tar -xzf {shlex.quote(tgz)} -C {q} && rm -rf {shlex.quote(stage)} && "
+        f"chmod +x {q}/generic/*.sh {q}/generic/*.py {q}/generic/lib/*.py 2>/dev/null; true",
         sudo=sudo, check=True, timeout=300,
     )
 
@@ -47,10 +51,13 @@ def put_dir(session: Session, local: Path, remote: str, *, sudo: bool = False, o
     with tarfile.open(fileobj=buf, mode="w:gz") as tar:
         for p in sorted(Path(local).rglob("*")):
             tar.add(p, arcname=str(p.relative_to(local)), recursive=False)
-    tmp = f"/tmp/heardos-dir-{abs(hash(remote))}.tgz"
+    stage = session.tempdir()
+    tmp = f"{stage}/dir.tgz"
     with session._c().open_sftp() as sftp:  # noqa: SLF001
         with sftp.file(tmp, "wb") as f:
             f.write(buf.getvalue())
-    cmd = (f"mkdir -p {remote} && " + (f"find {remote} -mindepth 1 -delete && " if clean else "") +
-           f"tar -xzf {tmp} -C {remote} --no-same-owner && rm -f {tmp}" + (f" && chown -R {owner} {remote}" if owner else ""))
+    r = shlex.quote(remote)
+    cmd = (f"mkdir -p {r} && " + (f"find {r} -mindepth 1 -delete && " if clean else "") +
+           f"tar -xzf {shlex.quote(tmp)} -C {r} --no-same-owner && rm -rf {shlex.quote(stage)}" +
+           (f" && chown -R {shlex.quote(owner)} {r}" if owner else ""))
     session.run(cmd, sudo=sudo, check=True, timeout=300)

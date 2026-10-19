@@ -1,7 +1,7 @@
 # Mealie (sqlite). OIDC login via Authentik; signup closed; the built-in admin stays as break-glass.
 services:
   mealie:
-    image: ghcr.io/mealie-recipes/mealie:latest
+    image: ghcr.io/mealie-recipes/mealie:v3.29.0@sha256:78eb28b8776d0bad40c5e605c72b3f4f5976793e491558c7dcbdfc04c835d4bc   # v3.29.0
     container_name: mealie
     restart: unless-stopped
     environment:
@@ -26,7 +26,7 @@ services:
       DEFAULT_EMAIL: "${ADMIN_EMAIL}"
       DEFAULT_PASSWORD: "${MEALIE_ADMIN_PASSWORD}"
     volumes: ["${HEARDOS_ROOT}/data/mealie:/app/data"]
-    ports: ["${HOST_LAN_IP}:9925:9000"]       # LAN API for the meal-plan calendar importer
+    ports: ["127.0.0.1:9925:9000"]       # host-only API for the meal-plan calendar importer (ics-feeds-sync.py on this host)
     networks: [proxy]
     labels:
       traefik.enable: "true"

@@ -1,7 +1,7 @@
 # Baïkal CalDAV/CardDAV. Web UI gated by Authentik forward auth; DAV paths bypass it (clients use Basic auth over TLS).
 services:
   baikal:
-    image: ckulka/baikal:nginx
+    image: ckulka/baikal:nginx@sha256:1a901125d121a3e414cda87c617bd322c57ae86b9d2aedbff7b3a7ac84bb23aa   # 0.10.1 (nginx)
     container_name: baikal
     restart: unless-stopped
     environment: {TZ: "${TZ}"}

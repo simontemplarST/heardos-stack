@@ -1,5 +1,5 @@
 # ArchiveBox (saved web pages). archive.$DOMAIN behind the Authentik gate; ArchiveBox trusts X-authentik-username from the
-# proxy network only. Nothing public; archived JavaScript is not replayed (single-domain safe mode). No LAN route on purpose.
+# Traefik's fixed address only. Nothing public; archived JavaScript is not replayed (single-domain safe mode). No LAN route on purpose.
 services:
   archivebox:
     image: archivebox/archivebox:0.9.73
@@ -17,13 +17,14 @@ services:
       ADMIN_USERNAME: "${ADMIN_USER}"
       ADMIN_PASSWORD: "${ARCHIVEBOX_ADMIN_PASSWORD}"
       REVERSE_PROXY_USER_HEADER: X-authentik-username
-      REVERSE_PROXY_WHITELIST: "${PROXY_SUBNET}"
+      REVERSE_PROXY_WHITELIST: "${TRAEFIK_PROXY_IP:?set TRAEFIK_PROXY_IP}/32"
       TZ: "${TZ}"
     volumes:
       - ${HEARDOS_ROOT}/data/archivebox:/data
       - archivebox-tmp:/tmp/archivebox
     shm_size: 1gb
     pids_limit: 2048
+    mem_limit: ${ARCHIVEBOX_MEM:-3g}   # headless Chromium per snapshot
     networks: [proxy]
     labels:
       traefik.enable: "true"

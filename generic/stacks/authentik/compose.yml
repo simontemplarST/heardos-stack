@@ -1,8 +1,12 @@
 # Authentik (server + worker + PostgreSQL + Redis). Secrets come from .env (written by 40-authentik-stack.sh).
-# Bootstrap env vars create akadmin's password and an API token on first start, so no UI step is needed.
+# Bootstrap env vars create akadmin's password and an API token on first start, so no UI step is needed. They are in .env
+# only until 40-authentik-stack.sh has handed over to the `heardos-automation` service account; afterwards .env no longer
+# has them (empty = Authentik's bootstrap blueprint skips the token) and the bootstrap token is deleted.
+# Images are pinned by digest (multi-arch index). To upgrade: set AUTHENTIK_IMAGE in .env, or update the pins here:
+#   skopeo inspect --raw docker://ghcr.io/goauthentik/server:<tag> | sha256sum
 services:
   postgresql:
-    image: postgres:16-alpine
+    image: postgres:16-alpine@sha256:721873c34ceb9f8d8fc265984940dc982404c105f19ad51be9fdc5970a6080ea
     restart: unless-stopped
     environment:
       POSTGRES_PASSWORD: ${PG_PASS}
@@ -12,17 +16,18 @@ services:
     healthcheck: {test: ["CMD-SHELL", "pg_isready -d authentik -U authentik"], interval: 10s, timeout: 5s, retries: 10, start_period: 20s}
     networks: [internal]
   redis:
-    image: redis:7-alpine
+    image: redis:7-alpine@sha256:858f009f9709ce576febc734aa78b8f6d624b82571f9ddb6bda4377c833b3499
     restart: unless-stopped
     command: --save 60 1 --loglevel warning
     volumes: ["${HEARDOS_ROOT}/data/authentik/redis:/data"]
     healthcheck: {test: ["CMD-SHELL", "redis-cli ping | grep PONG"], interval: 10s, timeout: 3s, retries: 5}
     networks: [internal]
   server:
-    image: ghcr.io/goauthentik/server:${AUTHENTIK_TAG:-2026.8}
+    image: ${AUTHENTIK_IMAGE:-ghcr.io/goauthentik/server:2026.8.4@sha256:e7226ae116dac5aa0a5643803e735b010038f492c401e08e16b3bf1ac54c090c}
     container_name: authentik-server          # the dynamic config and other stacks reach it by this name
     restart: unless-stopped
     command: server
+    security_opt: ["no-new-privileges:true"]
     environment: &ak_env
       AUTHENTIK_SECRET_KEY: ${AUTHENTIK_SECRET_KEY}
       AUTHENTIK_REDIS__HOST: redis
@@ -30,8 +35,8 @@ services:
       AUTHENTIK_POSTGRESQL__USER: authentik
       AUTHENTIK_POSTGRESQL__NAME: authentik
       AUTHENTIK_POSTGRESQL__PASSWORD: ${PG_PASS}
-      AUTHENTIK_BOOTSTRAP_PASSWORD: ${AUTHENTIK_BOOTSTRAP_PASSWORD}
-      AUTHENTIK_BOOTSTRAP_TOKEN: ${AUTHENTIK_BOOTSTRAP_TOKEN}
+      AUTHENTIK_BOOTSTRAP_PASSWORD: ${AUTHENTIK_BOOTSTRAP_PASSWORD:-}   # first start only (see header)
+      AUTHENTIK_BOOTSTRAP_TOKEN: ${AUTHENTIK_BOOTSTRAP_TOKEN:-}
       AUTHENTIK_BOOTSTRAP_EMAIL: ${ADMIN_EMAIL}
       AUTHENTIK_ERROR_REPORTING__ENABLED: "false"
       # outgoing mail (password resets, invitations); written by 43-authentik-mail.sh, empty = mail off
@@ -61,11 +66,13 @@ services:
       traefik.http.routers.authentik-lan.entrypoints: web
       traefik.http.services.authentik.loadbalancer.server.port: "9000"
   worker:
-    image: ghcr.io/goauthentik/server:${AUTHENTIK_TAG:-2026.8}
+    image: ${AUTHENTIK_IMAGE:-ghcr.io/goauthentik/server:2026.8.4@sha256:e7226ae116dac5aa0a5643803e735b010038f492c401e08e16b3bf1ac54c090c}
     restart: unless-stopped
     command: worker
     environment: *ak_env
-    user: root
+    # no `user: root`: that is only needed for the Docker-socket outpost integration, which this kit does not use
+    # (outposts are embedded). Runs as the image's uid 1000; 40-authentik-stack.sh chowns media/templates/certs to it.
+    security_opt: ["no-new-privileges:true"]
     volumes:
       - ${HEARDOS_ROOT}/data/authentik/media:/media
       - ${HEARDOS_ROOT}/data/authentik/templates:/templates

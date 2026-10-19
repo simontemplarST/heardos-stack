@@ -1,5 +1,5 @@
 {% extends "email/base.html" %}{% load i18n %}{% load humanize %}
-{% block preheader %}Your HeardOS sign-in code: {{ token }}{% endblock %}
+{% block preheader %}Your HeardOS sign-in code is inside. It expires in {{ expires|timeuntil }}.{% endblock %}
 {% block eyebrow %}Sign-in code{% endblock %}
 {% block content %}
 <tr><td><h1 class="ff">Here is your code</h1></td></tr>

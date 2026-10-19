@@ -36,9 +36,10 @@ firewall:
   conntrack: {tcp_timeout: 12m, udp_timeout: 3m, default_timeout: 10m}
   outbound:
     - {port: any, proto: any, host: any}
+  # by role: ICMP from anyone; nothing else unless INGRESS_RULE adds it. 20-nebula-ca.sh sets it for the compute host to
+  # "admins: any" + "lighthouse: tcp/80" (the public ingress hop). Laptops/phones take no inbound connections, so the
+  # internet-facing lighthouse or a compromised server can't reach them. pki.blocklist is appended by 20-nebula-ca.sh revoke.
   inbound:
     - {port: any, proto: icmp, host: any}
-    - {port: any, proto: any, groups: [admins]}
-    - {port: any, proto: any, groups: [servers]}
 ${INGRESS_RULE}
 routines: ${NEBULA_ROUTINES}

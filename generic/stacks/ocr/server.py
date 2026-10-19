@@ -14,6 +14,7 @@ so documents never leave the host. Standard library only; runs on the jbarlow83/
 Auth: header Ocp-Apim-Subscription-Key (or Authorization: Bearer) must equal OCR_API_KEY.
 """
 import base64
+import hmac
 import json
 import logging
 import os
@@ -43,6 +44,11 @@ WORKDIR = Path(os.environ.get("OCR_WORKDIR", "/data/jobs"))
 TTL = int(os.environ.get("OCR_TTL_SECONDS", "3600"))       # keep finished jobs this long
 TIMEOUT = int(os.environ.get("OCR_TIMEOUT", "1800"))       # per-document OCR timeout
 MAX_BODY = int(os.environ.get("OCR_MAX_BODY_MB", "512")) * 1024 * 1024
+MAX_QUEUE = int(os.environ.get("OCR_MAX_QUEUE", "32"))     # jobs notStarted+running; more -> 503 + Retry-After
+# Operation-Location is built from OCR_PUBLIC_BASE, never from client-supplied X-Forwarded-Host. Without it the
+# request's own Host is used, but only when it is in OCR_ALLOWED_HOSTS.
+PUBLIC_BASE = os.environ.get("OCR_PUBLIC_BASE", "").rstrip("/")
+ALLOWED_HOSTS = {h.strip().lower() for h in os.environ.get("OCR_ALLOWED_HOSTS", f"heardos-ocr:{PORT},heardos-ocr,localhost:{PORT},127.0.0.1:{PORT}").split(",") if h.strip()}
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s", stream=sys.stdout)
 log = logging.getLogger("heardos-ocr")
@@ -167,12 +173,13 @@ class Handler(BaseHTTPRequestHandler):
         auth = self.headers.get("Authorization", "")
         if auth.lower().startswith("bearer "):
             key = key or auth[7:].strip()
-        return key == API_KEY
+        return hmac.compare_digest((key or "").encode(), API_KEY.encode())
 
     def _base_url(self):
-        proto = self.headers.get("X-Forwarded-Proto", "http")
-        host = self.headers.get("X-Forwarded-Host") or self.headers.get("Host") or f"localhost:{PORT}"
-        return f"{proto}://{host}"
+        if PUBLIC_BASE:
+            return PUBLIC_BASE
+        host = (self.headers.get("Host") or "").strip().lower()
+        return f"http://{host if host in ALLOWED_HOSTS else f'heardos-ocr:{PORT}'}"
 
     def do_GET(self):
         path = urlsplit(self.path).path
@@ -213,7 +220,15 @@ class Handler(BaseHTTPRequestHandler):
         if not m:
             return self._error(404, "Resource not found.", "NotFound")
         model = m.group(1)
-        length = int(self.headers.get("Content-Length") or 0)
+        with JOBS_LOCK:
+            pending = sum(1 for j in JOB_STATE.values() if j["status"] in ("notStarted", "running"))
+        if pending >= MAX_QUEUE:
+            return self._send(503, {"error": {"code": "TooManyRequests", "message": "OCR queue is full; retry later."}},
+                              extra={"Retry-After": "30"})
+        try:
+            length = int(self.headers.get("Content-Length") or 0)
+        except ValueError:
+            return self._error(400, "Bad Content-Length.")
         if length <= 0 or length > MAX_BODY:
             return self._error(400, f"Body required and must be <= {MAX_BODY} bytes.")
         raw = self.rfile.read(length)

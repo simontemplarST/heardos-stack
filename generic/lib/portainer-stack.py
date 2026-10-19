@@ -2,20 +2,40 @@
 """Create or update a Portainer standalone stack from a compose file.
 usage: portainer-stack.py NAME COMPOSE_FILE [ENV_FILE]
 env:   PORTAINER_URL, PORTAINER_TOKEN (access token from Portainer: My account -> Access tokens)
+       PORTAINER_PIN (default $HEARDOS_ROOT/secrets/portainer.pem): Portainer's self-signed certificate, pinned on first
+       use and required to match afterwards. If Portainer's certificate changes on purpose, check it and delete the file.
 Stacks created this way are fully managed in the Portainer UI (editor, redeploy, logs)."""
-import json, os, ssl, sys, urllib.request, urllib.error
+import hashlib, http.client, json, os, ssl, sys, urllib.parse
 
 name, compose = sys.argv[1], sys.argv[2]
 envfile = sys.argv[3] if len(sys.argv) > 3 else None
 URL = os.environ["PORTAINER_URL"].rstrip("/"); TOK = os.environ["PORTAINER_TOKEN"]
-ctx = ssl.create_default_context(); ctx.check_hostname = False; ctx.verify_mode = ssl.CERT_NONE  # self-signed Portainer cert on the LAN
+PIN = os.environ.get("PORTAINER_PIN") or os.path.join(os.environ.get("HEARDOS_ROOT", "/opt/heardos"), "secrets", "portainer.pem")
+u = urllib.parse.urlsplit(URL); HOST, PORT = u.hostname, u.port or 443
+
+# The LAN Portainer has a self-signed certificate, so the CA chain can't vouch for it: instead its exact certificate is
+# trusted on first use (the host talking to its own LAN address) and every later connection must present the same one.
+ctx = ssl.create_default_context(); ctx.check_hostname = False; ctx.verify_mode = ssl.CERT_NONE   # checked by fingerprint below
+if not os.path.exists(PIN):
+    pem = ssl.get_server_certificate((HOST, PORT))
+    os.makedirs(os.path.dirname(PIN), mode=0o700, exist_ok=True)
+    fd = os.open(PIN, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    with os.fdopen(fd, "w") as f: f.write(pem)
+    print(f"portainer: pinned its certificate {hashlib.sha256(ssl.PEM_cert_to_DER_cert(pem)).hexdigest()[:16]}... in {PIN}")
+WANT = hashlib.sha256(ssl.PEM_cert_to_DER_cert(open(PIN).read())).hexdigest()
+
 
 def api(method, path, data=None):
-    r = urllib.request.Request(URL + path, method=method, data=json.dumps(data).encode() if data is not None else None,
-                               headers={"X-API-Key": TOK, "Content-Type": "application/json"})
-    try:
-        with urllib.request.urlopen(r, context=ctx, timeout=120) as x: b = x.read(); return json.loads(b) if b else {}
-    except urllib.error.HTTPError as e: raise SystemExit(f"portainer {method} {path} -> {e.code}: {e.read().decode()[:300]}")
+    c = http.client.HTTPSConnection(HOST, PORT, context=ctx, timeout=120)
+    c.connect()
+    got = hashlib.sha256(c.sock.getpeercert(binary_form=True)).hexdigest()
+    if got != WANT:
+        c.close(); raise SystemExit(f"portainer: certificate {got[:16]}... at {HOST}:{PORT} is not the pinned one ({PIN}); refusing to send the token")
+    c.request(method, (u.path.rstrip("/") or "") + path, body=json.dumps(data).encode() if data is not None else None,
+              headers={"X-API-Key": TOK, "Content-Type": "application/json"})
+    r = c.getresponse(); b = r.read(); c.close()
+    if r.status >= 400: raise SystemExit(f"portainer {method} {path} -> {r.status}: {b.decode()[:300]}")
+    return json.loads(b) if b else {}
 
 env = []
 if envfile and os.path.exists(envfile):

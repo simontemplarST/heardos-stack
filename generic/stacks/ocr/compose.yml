@@ -12,8 +12,11 @@ services:
       OCR_WORKERS: "2"                    # documents processed concurrently
       OCR_JOBS: "2"                       # tesseract threads per document
       OCR_TTL_SECONDS: "3600"
+      OCR_MAX_QUEUE: "32"                 # jobs waiting or running; more -> 503 (Paperless retries)
+      OCR_PUBLIC_BASE: "http://heardos-ocr:8000"   # Operation-Location base; never taken from client headers
       TZ: "${TZ}"
     cpus: ${OCR_CPUS:-2.0}
+    security_opt: ["no-new-privileges:true"]
     volumes:
       - ${HEARDOS_ROOT}/stacks/ocr/server.py:/srv/app/server.py:ro
       - ${HEARDOS_ROOT}/data/ocr/jobs:/data/jobs

@@ -2,14 +2,58 @@
 from __future__ import annotations
 
 import ipaddress
+import re
 import shlex
-from typing import Iterable, Optional
+from typing import Callable, Iterable, Optional
 
 from ..engine.step import Ctx, StepResult
 from ..remote.plan import render_plan, SECRET_KEYS_BY_SIDE
+from ..remote.ssh import redacted_tail
 
 KIT_DEST = "/opt/heardos-kit"
 PROVIDER_TOKEN_NAMES = {"cloudzy": "CLOUDZY_API_TOKEN", "linode": "LINODE_TOKEN", "vultr": "VULTR_API_KEY", "ovh": "OVH_CREDENTIALS", "byo": ""}
+
+
+SSH_USER = re.compile(r"^[a-z_][a-z0-9_-]{0,31}$")   # what useradd accepts by default; nothing a shell would expand
+
+
+def ssh_user(plan: dict) -> str:
+    u = str(plan.get("HOST_SSH_USER") or "root")
+    if not SSH_USER.match(u):
+        raise ValueError(f"login name {u!r} is not a plain Linux user name")
+    return u
+
+
+def overlay_ip(plan: dict, key: str) -> str:
+    """An overlay address from the plan, checked to be a bare IP inside OVERLAY_CIDR before it goes near a shell."""
+    ip = ipaddress.ip_address(str(plan[key]))
+    if ip not in ipaddress.ip_network(plan.get("OVERLAY_CIDR", "10.42.0.0/24"), strict=False):
+        raise ValueError(f"{key}={ip} is outside the private network {plan.get('OVERLAY_CIDR')}")
+    return str(ip)
+
+
+def host_key_confirm(ctx: Ctx, what: str, plan_key: str) -> Callable[[str, str], bool]:
+    """Confirmation for the SSH host key of a machine the installer did not create (home server, your own VPS, OVH).
+    A fingerprint in the plan (plan_key, e.g. HOST_SSH_FINGERPRINT) is compared silently; otherwise the operator is
+    shown the fingerprint and must confirm it, before any password or command is sent."""
+    def confirm(host: str, fp: str) -> bool:
+        want = str(ctx.plan.get(plan_key) or "").strip()
+        if want:
+            if want != fp:
+                ctx.log(f"host key of {host} is {fp}, but the plan expects {want}")
+            return want == fp
+        ctx.log(f"{what} {host} presents SSH host key {fp}")
+        never = lambda: False   # noqa: E731 — only the operator can answer this one
+        never.manual_only = True   # type: ignore[attr-defined]  (headless CLI: refuse instead of waiting forever)
+        return ctx.checklist(
+            f"Check the {what}'s identity",
+            f"The {what} at {host} identifies itself with this SSH host key fingerprint:\n\n    {fp}\n\n"
+            f"On the {what} itself (its console, or a session you already trust) run:\n\n"
+            f"    ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub\n\n"
+            f"Continue only if the SHA256 value matches exactly; otherwise cancel: something between you and the server "
+            f"may be impersonating it. (Headless installs: put the value in the plan as {plan_key}.)",
+            never)
+    return confirm
 
 
 def lan_domain(ip: str) -> str:
@@ -40,6 +84,11 @@ def apply_defaults(plan: dict) -> dict:
         p["BRAND_PRIMARY"], p["BRAND_COLOR"] = "#f2a35e", "orange"
     p.setdefault("CADDY_FRONT_DOOR", True)
     p.setdefault("CROWDSEC", True)
+    p.setdefault("PROXY_SUBNET", "172.30.0.0/24")      # user-defined subnet: Traefik gets a fixed address on it
+    p.setdefault("PROXY_IP_RANGE", "172.30.0.128/25")
+    p.setdefault("TRAEFIK_PROXY_IP", "172.30.0.2")     # the only source apps trust identity / forwarded headers from
+    p.setdefault("MEDIA_GID", "1500")
+    p.setdefault("LAN_HTTP", "0")                      # plain-http OIDC redirects on LAN names: off (no LAN TLS in the kit)
     p.setdefault("HOST_SSH_USER", "root")
     p.setdefault("HOST_SSH_PORT", 22)
     p.setdefault("dns_mode", "cloudflare")
@@ -86,9 +135,10 @@ def run_kit(ctx: Ctx, script: str, args: Iterable[str] = (), *, env: Optional[di
     s = ctx.sessions.host()
     plan_path = f"{KIT_DEST}/generic/heardos.env"
     s.run(f"install -d -m 755 {KIT_DEST}/generic", sudo=True, check=True)
-    tmp = f"/tmp/heardos-plan-{ctx.state.install_id}.env"
+    d = s.tempdir()
+    tmp = f"{d}/heardos.env"
     s.put_text(host_plan_text(ctx), tmp, 0o600)
-    s.run(f"install -m 600 {tmp} {plan_path} && rm -f {tmp}", sudo=True, check=True)
+    s.run(f"install -m 600 {shlex.quote(tmp)} {plan_path} && rm -rf {shlex.quote(d)}", sudo=True, check=True)
     interp = "python3" if script.endswith(".py") else "bash"
     cmd = f"cd {KIT_DEST}/{cwd_dir} && HEARDOS_ENV={plan_path} {interp} ./{script} " + " ".join(shlex.quote(a) for a in args)
     full_env = {"HEARDOS_ENV": plan_path, **(env or {})}
@@ -96,8 +146,9 @@ def run_kit(ctx: Ctx, script: str, args: Iterable[str] = (), *, env: Optional[di
         full_env["HEARDOS_DRY_RUN"] = "1"
     r = s.run(cmd, sudo=True, env=full_env, timeout=timeout, on_line=ctx.log)
     if not r.ok:
-        tail = (r.stderr or r.stdout).strip().splitlines()[-3:]
-        return StepResult(False, message=f"{script} failed: " + " / ".join(tail)[:300], stdout=r.stdout)
+        # HEARDOS_OUTPUT values (tokens the vault has not seen yet) and env values masked; the runner redacts the rest
+        tail = redacted_tail(r.stderr or r.stdout, tuple((env or {}).values()))
+        return StepResult(False, message=f"{script} failed: {tail}", stdout=r.stdout)
     return StepResult(True, outputs=r.outputs(), message=f"{script} ok", stdout=r.stdout)
 
 
@@ -106,8 +157,13 @@ def provider_for(ctx: Ctx):
     from ..keys import DEFAULT_KEY
     name = ctx.plan["provider"]
     if name == "byo":
-        return providers.make("byo", ip=ctx.plan.get("byo_ip", ""), key_path=DEFAULT_KEY)
-    return providers.make(name, ctx.vault.get(PROVIDER_TOKEN_NAMES[name]) or "")
+        return providers.make("byo", ip=ctx.plan.get("byo_ip", ""), key_path=DEFAULT_KEY,
+                              confirm=host_key_confirm(ctx, "server", "VPS_SSH_FINGERPRINT"))
+    prov = providers.make(name, ctx.vault.get(PROVIDER_TOKEN_NAMES[name]) or "")
+    if name == "ovh":
+        prov.autopay = bool(ctx.plan.get("ovh_autopay"))   # a real charge: only when the operator opted in
+        prov.confirm = host_key_confirm(ctx, "new server", "VPS_SSH_FINGERPRINT")
+    return prov
 
 
 def dns_for(ctx: Ctx):

@@ -8,18 +8,20 @@ import threading
 from pathlib import Path
 from typing import Callable, Iterable
 
+from ..vault.redact import secret_values
 from .state import config_dir
 
 
 class RedactingFilter(logging.Filter):
-    """Replaces every known secret value (8+ chars) with *** in log records. Install on every handler."""
+    """Replaces every known secret value (8+ chars) with *** in log records. Install on every handler. JSON-object
+    secrets (OVH_CREDENTIALS) are also masked field by field."""
 
     def __init__(self, secrets: Callable[[], Iterable[str]]):
         super().__init__()
         self._secrets = secrets
 
     def _pattern(self):
-        vals = sorted({v for v in self._secrets() if v and len(v) >= 8}, key=len, reverse=True)
+        vals = secret_values(self._secrets())
         return re.compile("|".join(re.escape(v) for v in vals)) if vals else None
 
     def filter(self, record: logging.LogRecord) -> bool:

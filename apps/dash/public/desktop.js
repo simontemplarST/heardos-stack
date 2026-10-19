@@ -9,7 +9,8 @@ const store = {   // localStorage can throw (private mode, blocked storage): the
   get(k, d) { try { const v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch { return d; } },
   set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} },
 };
-const IFRAME_ALLOW = "fullscreen; clipboard-read; clipboard-write; publickey-credentials-get; publickey-credentials-create; camera; microphone; geolocation; autoplay; picture-in-picture; display-capture; web-share";
+// iframe permissions come per app from apps.json (`allow`); this default grants nothing sensitive
+const IFRAME_ALLOW = "fullscreen; clipboard-write; publickey-credentials-get";
 const isPhone = () => matchMedia("(max-width: 760px)").matches;
 
 const S = { me: null, apps: [], folders: [], links: {}, wins: new Map(), z: 10, active: null, seq: 0, prefs: {} };
@@ -105,7 +106,7 @@ function createWindow({ app, url, rect, max, min, native }) {
     body.append(native);
   } else {
     const f = document.createElement("iframe");
-    f.title = app.name; f.allow = IFRAME_ALLOW; f.referrerPolicy = "strict-origin-when-cross-origin";
+    f.title = app.name; f.allow = typeof app.allow === "string" ? app.allow : IFRAME_ALLOW; f.referrerPolicy = "strict-origin-when-cross-origin";
     f.src = url; w.iframe = f; body.append(f);
     const ld = $(".loading", el), slow = $(".slow", el);
     $("a", slow).href = url;
@@ -275,10 +276,13 @@ document.addEventListener("keydown", (e) => {
   else if (e.key === "Escape") closeMenus();
 });
 // week.html (and any same-origin page in a window) can ask to open another app
+// only https: addresses (or this desktop's own pages) are opened; javascript:, data:, blob: etc. are dropped
 addEventListener("message", (e) => {
-  if (e.origin !== location.origin || e.data?.type !== "heardos:open-url") return;
-  const a = appForUrl(e.data.url);
-  if (a) openApp(a.id, e.data.url); else window.open(e.data.url, "_blank", "noopener");
+  if (e.origin !== location.origin || e.data?.type !== "heardos:open-url" || typeof e.data.url !== "string") return;
+  let u; try { u = new URL(e.data.url, location.href); } catch { return; }
+  if (u.protocol !== "https:" && u.origin !== location.origin) return;
+  const a = appForUrl(u.href);
+  if (a) openApp(a.id, u.href); else window.open(u.href, "_blank", "noopener");
 });
 
 // ---------------------------------------------------------------- widgets (from /api/summary, same data as This week)
@@ -290,7 +294,9 @@ async function widgets() {
   const d = new Date();
   let html = `<div class="widget" data-open="week"><h3>${esc(d.toLocaleDateString(undefined, { weekday: "long" }))}</h3><div class="big">${esc(d.toLocaleDateString(undefined, { month: "long", day: "numeric" }))}</div><div class="muted small">Hello, ${esc((S.me.name || "").split(" ")[0] || "there")}</div></div>`;
   try {
-    const s = await (await fetch("/api/summary", { cache: "no-store" })).json();
+    const r = await fetch("/api/summary", { cache: "no-store" });
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    const s = await r.json();   // sections the person can't see are {error: "no access"} and simply get no widget
     const today = d.toISOString().slice(0, 10), m = s.mealie || {}, a = s.actual || {}, h = s.homebox || {};
     if (!m.error) {
       const meals = (m.meals || []).filter((x) => x.date >= today).slice(0, 4);

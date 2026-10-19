@@ -4,12 +4,12 @@
 Run ON THE HOST after the container's first start (50-app.sh calibre-web does this). Idempotent:
   * creates the Calibre library in /books (calibredb inside the container; needs the universal-calibre mod to finish)
   * library path, uploads on, converter binaries in /usr/bin
-  * header login: X-authentik-username from Authentik forward auth, trusted only from the proxy subnet (also in its
-    IPv4-mapped IPv6 form; the server is dual-stack and sees Traefik as ::ffff:172.x)
+  * header login: X-authentik-username from Authentik forward auth, trusted only from Traefik's fixed address
+    TRAEFIK_PROXY_IP (/32, also in its IPv4-mapped IPv6 form; the server is dual-stack and sees Traefik as ::ffff:172.x)
   * the local break-glass 'admin' gets the password CALIBREWEB_ADMIN_PASSWORD (default admin/admin123 is removed)
   * a Calibre-Web user for ADMIN_USER with every role (users must pre-exist for header login; family members are added
     day-two with the same 'add' subcommand:  calibre-web-setup.py add USER EMAIL [--admin])
-Env: HEARDOS_ROOT, PROXY_SUBNET, ADMIN_USER, ADMIN_EMAIL, CALIBREWEB_ADMIN_PASSWORD.
+Env: HEARDOS_ROOT, TRAEFIK_PROXY_IP, ADMIN_USER, ADMIN_EMAIL, CALIBREWEB_ADMIN_PASSWORD.
 """
 import hashlib, ipaddress, os, secrets, sqlite3, subprocess, sys, time
 from pathlib import Path
@@ -59,7 +59,7 @@ def setup():
     db = sqlite3.connect(DB)
     db.execute("""update settings set config_calibre_dir='/books', config_uploading=1, config_binariesdir='/usr/bin', config_kepubifypath='',
                   config_allow_reverse_proxy_header_login=1, config_reverse_proxy_login_header_name='X-authentik-username',
-                  config_reverse_proxy_trusted_ips=?, config_public_reg=0, config_anonbrowse=0""", (trusted_ips(os.environ["PROXY_SUBNET"]),))
+                  config_reverse_proxy_trusted_ips=?, config_public_reg=0, config_anonbrowse=0""", (trusted_ips(os.environ["TRAEFIK_PROXY_IP"] + "/32"),))
     db.execute("update user set password=? where name='admin'", (pwhash(os.environ["CALIBREWEB_ADMIN_PASSWORD"]),))
     made = add_user(db, os.environ["ADMIN_USER"], os.environ["ADMIN_EMAIL"], admin=True)
     db.commit(); db.close()

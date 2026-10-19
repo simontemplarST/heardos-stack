@@ -21,12 +21,13 @@ grep -q "NEBULA CERTIFICATE" "$CA/prox.crt" || { echo "prox.crt does not look li
 REMOTE=$(cat <<'REMOTE_EOF'
 set -euo pipefail
 echo "== installing cert/key"
-[ -s /tmp/nebula-prox.crt ] && [ -s /tmp/nebula-prox.key ] || { echo "cert/key not staged in /tmp"; exit 1; }
+# D = a root-only staging dir (mktemp -d under /root), set by the caller; never fixed /tmp names
+[ -n "${D:-}" ] && [ -s "$D/nebula-prox.crt" ] && [ -s "$D/nebula-prox.key" ] || { echo "cert/key not staged in \$D"; exit 1; }
 cp -p /etc/nebula/host.crt /etc/nebula/host.crt.bak-$(date +%Y%m%d) 2>/dev/null || true
 cp -p /etc/nebula/host.key /etc/nebula/host.key.bak-$(date +%Y%m%d) 2>/dev/null || true
-install -m 644 /tmp/nebula-prox.crt /etc/nebula/host.crt
-install -m 600 /tmp/nebula-prox.key /etc/nebula/host.key
-rm -f /tmp/nebula-prox.crt /tmp/nebula-prox.key
+install -m 644 "$D/nebula-prox.crt" /etc/nebula/host.crt
+install -m 600 "$D/nebula-prox.key" /etc/nebula/host.key
+rm -rf "$D"
 /usr/local/bin/nebula -config /etc/nebula/config.yml -test && echo "nebula config ok"
 
 echo "== firewall: let admins reach the LAN behind this node (nebula >=1.9 rules only match the node's own overlay IP unless local_cidr is set)"
@@ -78,10 +79,11 @@ REMOTE_EOF
 if [ "${1:-}" = "--print" ]; then
   cat <<EOF
 # ---- paste everything below into the Proxmox shell on prox (as root) ----
-cat > /tmp/nebula-prox.crt <<'CRT'
+D=\$(umask 077; mktemp -d /root/nebula-prox.XXXXXX)
+cat > "\$D/nebula-prox.crt" <<'CRT'
 $(cat "$CA/prox.crt")
 CRT
-cat > /tmp/nebula-prox.key <<'KEY'
+cat > "\$D/nebula-prox.key" <<'KEY'
 $(cat "$CA/prox.key")
 KEY
 $REMOTE
@@ -91,6 +93,7 @@ EOF
 fi
 
 TARGET="${1:?usage: $0 root@192.168.10.2 | --print}"
-scp -q "$CA/prox.crt" "$TARGET:/tmp/nebula-prox.crt"
-scp -q "$CA/prox.key" "$TARGET:/tmp/nebula-prox.key"
-ssh "$TARGET" "bash -s" <<<"$REMOTE"
+R="$(ssh "$TARGET" 'umask 077; mktemp -d /root/nebula-prox.XXXXXX')"; [ -n "$R" ] || { echo "no staging dir on $TARGET"; exit 1; }
+scp -q "$CA/prox.crt" "$TARGET:$R/nebula-prox.crt"
+scp -q "$CA/prox.key" "$TARGET:$R/nebula-prox.key"
+{ printf 'D=%q\n' "$R"; printf '%s\n' "$REMOTE"; } | ssh "$TARGET" "bash -s"

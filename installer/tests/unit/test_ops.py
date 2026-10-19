@@ -44,9 +44,15 @@ def test_add_person_password_goes_to_vault(tmp_path, monkeypatch):
     inst = _inst(tmp_path, monkeypatch)
     calls = []
     from heardos_installer.engine.step import StepResult
-    monkeypatch.setattr(ops, "run_kit", lambda ctx, script, args, **k: calls.append(args) or StepResult(True))
+    envs, puts, cmds = [], [], []
+    monkeypatch.setattr(ops, "run_kit", lambda ctx, script, args, **k: calls.append(args) or envs.append(k.get("env")) or StepResult(True))
+    inst.sessions._host = SimpleNamespace(tempdir=lambda: "/root/.heardos-x", put_text=lambda t, p, m=0o600: puts.append((t, p, m)),
+                                          run=lambda c, **k: cmds.append(c))
     pw = ops.add_person(inst, "bob", "Bob", "b@x.org", ["immich", "nextcloud"], ["flow-self-service"], False)
     assert inst.vault.get("PERSON_BOB_FIRST_PASSWORD") == pw and len(pw) == 23
+    assert pw not in " ".join(calls[0]) and "--password" not in calls[0]          # never on argv
+    assert puts == [(pw, "/root/.heardos-x/password", 0o600)] and envs[0] == {"HEARDOS_PASSWORD_FILE": "/root/.heardos-x/password"}
+    assert cmds == ["rm -rf /root/.heardos-x"]
     assert calls[1] == ["user", "access", "bob", "immich,nextcloud"] and calls[2] == ["user", "join", "bob", "flow-self-service"]
 
 

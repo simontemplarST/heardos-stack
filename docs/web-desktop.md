@@ -26,33 +26,83 @@ of [`apps.json`](../apps/dash/apps.json) whose `access` slug is in the person's 
 Authentik uses to allow the app), plus the public ones (`access: null`). Because the desktop trusts those headers, **it
 must have no route that skips the gate.** The stack has none, and must not get a LAN route.
 
+### The gate header
+
+Other containers share the `proxy` network and could call the desktop directly with forged `X-authentik-*` headers.
+So the dash router adds one more middleware after `authentik-fwd`: `dash-gate`, a Traefik `headers` middleware that sets
+`X-Dash-Gate: ${DASH_GATE_SECRET}` (a random secret `50-app.sh dash` keeps in `secrets.env`). `server.js` answers
+**403** to every path except `/healthz` unless that header matches (constant-time compare), and every `/api/*` call
+also needs a non-empty `X-authentik-username`. Traefik overwrites any `X-Dash-Gate` a client sends, so the secret is
+never seen by a browser. If `DASH_GATE_SECRET` is unset the container logs a warning and still refuses `/api/*` without
+a username, but treat that as a broken install.
+
+### What the widgets show
+
+`/api/summary` (Mealie, Actual Budget, Homebox) is cached once for everyone, then filtered per person: the budget needs
+`app-actual-budget`, meals and shopping `app-mealie`, the inventory `app-homebox`. A section the person can't see
+comes back as `{"error": "no access"}`, and This week and the desktop widgets simply leave it out. An upstream failure is
+logged in the container and shown only as "unavailable". `?refresh` bypasses the cache at most once a minute.
+
 `apps.json` fields: `id`, `name`, `description`, `folder` (Start menu and desktop grouping), `icon` (a
 [dashboard-icons](https://github.com/homarr-labs/dashboard-icons) name, downloaded into the image at build time by
 `fetch-icons.mjs`, or `builtin:<name>`), `url` (`{domain}` substituted), `access`, optional `embed: false` (opens in a
-browser tab, e.g. Proxmox on the home network only), and an optional default window size `w`/`h`.
+browser tab: Proxmox on the home network only, and **My account (Authentik) and Passwords (Vaultwarden), which are never
+framed**), optional `allow` (the window iframe's permissions policy, see below), and an optional default window size
+`w`/`h`.
+
+### Per-app permissions (`allow`)
+
+Each window's `<iframe allow="...">` comes from the app's `allow` field. The default is
+`fullscreen; clipboard-write; publickey-credentials-get` (passkey sign-in works, nothing sensitive is delegated).
+Only apps that need more get it:
+
+| App | Extra permissions | Why |
+|---|---|---|
+| Documents (Nextcloud) | `clipboard-read` | paste inside OnlyOffice documents |
+| Music (Navidrome) | `autoplay` | next track starts by itself |
+| Videos (Invidious) | `autoplay; picture-in-picture` | video playback |
+| Safe browser (Kasm) | `clipboard-read; autoplay` | clipboard sync with the remote browser |
+| Home controls (Home Assistant) | `microphone` | Assist voice commands |
+
+Camera, geolocation and screen capture are given to no app. Add them per app only when a feature needs it.
+
+### Desktop page policy
+
+The desktop's own pages send `Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self'
+'unsafe-inline'; img-src 'self' https://cloud.<domain> data:; frame-src 'self' https:; connect-src 'self';
+frame-ancestors 'self'; base-uri 'none'; form-action 'self'`. No inline scripts (This week's code is `week.js`); the
+brand images come from `https://cloud.<domain>/brand` (`{domain}` in `index.html` and the manifest is filled in by
+the server). A window's "open" request over `postMessage` is honoured only for `https:` addresses or the desktop's own
+pages.
 
 ## The edge has to allow framing by the desktop
 
-Several apps forbid being framed at all: Authentik (`X-Frame-Options: DENY`), Homebox (`DENY`), and Nextcloud,
-Paperless, Home Assistant and Vaultwarden (`SAMEORIGIN` / `frame-ancestors 'self'`). The lighthouse Caddy rewrites
-that for every proxied host so that **only the family's own sites** (`<domain>` and `*.<domain>`) may frame it. That
-covers the desktop and apps that embed each other, such as Nextcloud opening documents from OnlyOffice. The kit's
-`generic/lib/caddyfile.py` renders it into every install:
+Several apps forbid being framed at all: Homebox (`X-Frame-Options: DENY`), and Nextcloud, Paperless and Home
+Assistant (`SAMEORIGIN` / `frame-ancestors 'self'`). The lighthouse Caddy rewrites that, **only for the hosts the
+desktop opens in windows**, so that the app itself and **only the desktop, `https://dash.<domain>`**, may frame it.
+No other family site can frame another app. The kit's `generic/lib/caddyfile.py` renders it, roughly:
 
 ```caddyfile
 reverse_proxy <home-overlay-ip>:80 {
 	# ...
 	header_down -X-Frame-Options
-	header_down Content-Security-Policy "frame-ancestors 'self'" "frame-ancestors 'self' https://example.com https://*.example.com"
-	header_down Content-Security-Policy "frame-ancestors 'none'" "frame-ancestors https://example.com https://*.example.com"
-	header_down +Content-Security-Policy "frame-ancestors 'self' https://example.com https://*.example.com chrome-extension: moz-extension: safari-web-extension:"
+	header_down Content-Security-Policy "frame-ancestors 'self'" "frame-ancestors 'self' https://dash.example.com"
+	header_down Content-Security-Policy "frame-ancestors 'none'" "frame-ancestors https://dash.example.com"
+	header_down +Content-Security-Policy "frame-ancestors 'self' https://dash.example.com"
 }
 ```
 
-Clickjacking protection stays in place: `frame-ancestors` still blocks every site outside the family domain. It is
-just widened from "nobody" or "only me" to "the family's sites". The extension schemes keep browser password-manager
-extensions (e.g. Bitwarden's, already allowed by Vaultwarden) working. A list in the response may show the family
-domain twice (the added policy is widened as well); that's harmless.
+Exceptions:
+
+- **`auth.<domain>` (Authentik) and `vault.<domain>` (Vaultwarden) are never framed.** They keep their own
+  `X-Frame-Options` / `frame-ancestors`, and the desktop opens them in a browser tab (`embed: false`). A sign-in or
+  vault page inside someone else's frame is exactly what clickjacking needs.
+- **`dash.<domain>` (the desktop itself) and `hub.<domain>` keep their own headers too.** They are top-level pages the
+  desktop never frames (the desktop allows only itself as a frame parent).
+- **`office.<domain>` (OnlyOffice) also allows `https://docs.<domain>`**, because Nextcloud opens documents in an
+  OnlyOffice frame: `frame-ancestors 'self' https://dash.<domain> https://docs.<domain>`.
+
+Clickjacking protection stays in place: every site except the desktop (and Nextcloud, for OnlyOffice) is still blocked.
 
 **Keep the quotes.** `'self'` and `'none'` must keep their single quotes. Unquoted, a browser reads `self` as a host
 called "self", and the app can no longer frame itself. (The first live attempt lost them in shell quoting and broke
@@ -77,6 +127,6 @@ through the outpost (`/outpost.goauthentik.io/sign_out`), which ends the Authent
 
 - Cross-origin windows can't be scripted, so there's no back button. Use the app's own navigation, or ⟳ to reload it.
 - Passkeys inside a window need the browser to honour the iframe's `allow="publickey-credentials-get"`. Chrome and
-  Firefox do. If a sign-in prompt misbehaves, use ↗.
+  Firefox do. If a sign-in prompt misbehaves, use ↗. Adding a passkey happens in My account, which opens in a tab.
 - `week.html` (the old one-page dashboard) is the **This week** app. Its "open ↗" links ask the desktop, via
   `postMessage`, to open the matching app window.

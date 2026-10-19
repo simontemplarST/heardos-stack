@@ -110,6 +110,8 @@ def test_order_rebuild_and_root_login(monkeypatch):
     monkeypatch.setattr(Ovh, "_root_login", lambda self, ip, os_label, on_line=None: roots.append((ip, os_label)))
 
     o = Ovh(TOK)
+    assert o.autopay is False            # paying is opt-in (plan ovh_autopay); the flow below opts in
+    o.autopay = True
     key = o.ensure_ssh_key("heardos", PUB)
     h = o.create(VpsSpec("lh", "US-EAST-LZ-DAL", "vps-2027-model2.LZ", o.ubuntu_image(), key))
     assert h.id == "order-99" and h.extra["total"] == "$11.20"

@@ -2,7 +2,6 @@
 credentials.env
 *.env
 !*.env.example
-!apps/actual-to-wallos/actual-to-wallos.env
 secrets/
 *.key
 *.pem

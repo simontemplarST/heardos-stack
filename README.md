@@ -134,6 +134,7 @@ a signature check. On macOS, where distrobox doesn't exist, follow the venv step
 
 - [Architecture and request flow](docs/architecture.md)
 - [Security baseline and audit findings](docs/security-baseline.md)
+- [Security review 2026-10-19: status of every finding](docs/security-review-2026-10-19.md)
 - [Authentik: group-driven flows](docs/authentik-flows.md)
 - [Authentik: branded email kit](docs/email-kit.md)
 - [Outbound mail through Resend](docs/outbound-mail.md)

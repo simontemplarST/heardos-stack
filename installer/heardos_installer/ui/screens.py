@@ -232,11 +232,13 @@ def vps(st: UIState) -> None:
             imgui.set_clipboard_text(pub)
         d["byo_ip"] = w.field("Server address (IPv4)", d.get("byo_ip", ""), "203.0.113.10", key="byoip").strip()
         if w.secondary("Test connection", IPV4.match(d["byo_ip"] or "") is not None and not st.tasks.running("vps.check")):
-            st.tasks.start("vps.check", lambda: providers.make("byo", ip=d["byo_ip"], key_path=DEFAULT_KEY).validate_token().label)
+            st.tasks.start("vps.check", lambda: providers.make("byo", ip=d["byo_ip"], key_path=DEFAULT_KEY,
+                                                               confirm=_fp_confirm(st, "server")).validate_token().label)
         _task_status(st, "vps.check", "connecting...")
         t = st.tasks.get("vps.check")
         d["vps_monthly"] = 0
         _nav(st, bool(t and t.ok))
+        _prompt_modal(st)
         return
 
     tok_name = TOKEN_NAMES[prov]
@@ -370,7 +372,7 @@ def _task_status(st: UIState, name: str, running_text: str) -> None:
 # ---------------------------------------------------------------- home server
 def home(st: UIState) -> None:
     from ..keys import DEFAULT_KEY
-    from ..remote.ssh import Session, SshError
+    from ..remote.ssh import HostKeyError, Session, SshError, ensure_host_key
     d = st.draft
     w.title("Home server")
     w.help_text("The computer at home that will run the apps and keep the data: a mini PC, an old desktop, or a virtual "
@@ -389,9 +391,13 @@ def home(st: UIState) -> None:
         if st.inputs.get("HOST_SSH_PASSWORD"):
             st.vault.set("HOST_SSH_PASSWORD", st.inputs.pop("HOST_SSH_PASSWORD"))
         def test():
+            # confirm the host key before any password is offered to whatever answers on that address
+            ensure_host_key(d["HOST_LAN_IP"], 22, _fp_confirm(st, "home server"))
             try:
                 s = Session(d["HOST_LAN_IP"], d["HOST_SSH_USER"], key_path=DEFAULT_KEY if DEFAULT_KEY.exists() else None,
                             password=None if DEFAULT_KEY.exists() else pw, connect_timeout=10).connect()
+            except HostKeyError:
+                raise
             except SshError:
                 if not pw:
                     raise
@@ -426,6 +432,7 @@ def home(st: UIState) -> None:
     for p in problems:
         _issue(p)
     _nav(st, bool(t and t.ok and not problems))
+    _prompt_modal(st)
 
 
 def _selected_apps(d: dict) -> list[str]:
@@ -601,6 +608,11 @@ def review(st: UIState) -> None:
         w.heading("Cost", "The public server is billed by the hour by your provider and keeps running until you delete it "
                   "(Settings, Delete public server).")
         _, st.cost_ack = imgui.checkbox(f"I understand this creates a server costing about ${monthly:.2f} per month", st.cost_ack)
+        if d.get("provider") == "ovh":
+            _, d["ovh_autopay"] = imgui.checkbox("Pay the OVHcloud order right away with my account's default payment method",
+                                                 bool(d.get("ovh_autopay")))
+            w.help_text("Left unticked, the install stops once the order is placed and shows the link to pay it; pay, then press "
+                        "Try again.")
     else:
         st.cost_ack = True
     w.help_text("Installing takes 30–60 minutes. Keep this computer awake and on your home network until it finishes.")
@@ -705,11 +717,29 @@ def _prompt_modal(st: UIState) -> None:
         if w.secondary("Copy"):
             imgui.set_clipboard_text(p.instructions)
         imgui.spacing()
-        ago = int(time.time() - p.last_check) if p.last_check else None
-        w.spinner_text(f"Checking every {st.prompt.interval} seconds" + (f"; last check {ago}s ago: not yet" if ago is not None else ""))
-        if w.primary("I've done it, check now"):
+        if not p.manual_only:
+            ago = int(time.time() - p.last_check) if p.last_check else None
+            w.spinner_text(f"Checking every {st.prompt.interval} seconds" + (f"; last check {ago}s ago: not yet" if ago is not None else ""))
+        if w.primary("It matches, continue" if p.manual_only else "I've done it, check now"):
+            p.confirmed.set()
+        imgui.same_line()
+        if w.secondary("Cancel"):
+            p.rejected = True
             p.confirmed.set()
         imgui.end_popup()
+
+
+def _fp_confirm(st: UIState, what: str):
+    """Host-key confirmation for the wizard's connection tests, through the same modal the install uses."""
+    def confirm(host: str, fp: str) -> bool:
+        never = lambda: False   # noqa: E731
+        never.manual_only = True   # type: ignore[attr-defined]
+        return st.prompt(f"Check the {what}'s identity",
+                         f"The {what} at {host} identifies itself with this SSH host key fingerprint:\n\n    {fp}\n\n"
+                         f"On the {what} itself (its console, or a session you already trust) run:\n\n"
+                         f"    ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub\n\n"
+                         f"Continue only if the SHA256 value matches exactly.", never)
+    return confirm
 
 
 # ---------------------------------------------------------------- done

@@ -6,7 +6,8 @@
 export HEARDOS_ROOT LAN_DOMAIN NEBULA_LH_OVERLAY PROXY_SUBNET
 install -d "$HEARDOS_ROOT/stacks/traefik" "$HEARDOS_ROOT/dynamic"
 cp "$HERE/stacks/traefik/compose.yml" "$HEARDOS_ROOT/stacks/traefik/compose.yml"
-printf 'HEARDOS_ROOT=%s\nLAN_DOMAIN=%s\nNEBULA_LH_OVERLAY=%s\nPROXY_SUBNET=%s\n' "$HEARDOS_ROOT" "$LAN_DOMAIN" "$NEBULA_LH_OVERLAY" "$PROXY_SUBNET" > "$HEARDOS_ROOT/stacks/traefik/.env"
+printf 'HEARDOS_ROOT=%s\nLAN_DOMAIN=%s\nNEBULA_LH_OVERLAY=%s\nPROXY_SUBNET=%s\nHOST_LAN_IP=%s\nHOST_OVERLAY=%s\nTRAEFIK_PROXY_IP=%s\n' \
+  "$HEARDOS_ROOT" "$LAN_DOMAIN" "$NEBULA_LH_OVERLAY" "$PROXY_SUBNET" "$HOST_LAN_IP" "$HOST_OVERLAY" "${TRAEFIK_PROXY_IP:?run 10-host-bootstrap.sh first}" > "$HEARDOS_ROOT/stacks/traefik/.env"
 render "$HERE/lib/dynamic-local-sso.yml.tmpl" "$HEARDOS_ROOT/dynamic/local-sso.yml"
 deploy_stack traefik
 sleep 3; docker ps --format '{{.Names}} {{.Status}}' | grep -E '^traefik '

@@ -2,16 +2,20 @@
 """63-post-install.py TASK — finish an app's first-run setup over its API instead of in a browser. Run ON THE HOST as root.
 
   ha-onboard        create the Home Assistant owner (ADMIN_USER), finish onboarding, mint a long-lived token -> HA_TOKEN
+                    (valid 365 days; to rotate: delete HA_TOKEN from secrets.env, revoke "HeardOS installer" in the owner's HA
+                    profile > Security, and mint a new one there — onboarding only runs once)
   mealie-token      log in as Mealie's built-in admin and create an API token for the family dashboard -> MEALIE_TOKEN
   nextcloud-admin   put ADMIN_USER in Nextcloud's admin group (exit 3 = they have not signed in to Nextcloud yet)
   baikal-user       (exit 3 = Baïkal wizard not finished) create the Baïkal user for ADMIN_USER -> BAIKAL_ADMIN_PASSWORD
-  paperless-gpt-token  service user `paperless-gpt` in Paperless + its API token -> PAPERLESS_GPT_TOKEN
+  paperless-gpt-token  service user `paperless-gpt` in Paperless (NOT a superuser: view/change documents, view/add tags and
+                    correspondents, view document types + custom fields) + its API token -> PAPERLESS_GPT_TOKEN
   paperless-gpt     pull the Ollama model, add the Paperless workflow that tags new documents paperless-gpt-auto,
                     and queue every existing document once
   listmonk-config   Listmonk root URL, sender (MAIL_FROM), SMTP (MAIL_MODE=resend + RESEND_API_KEY, or SMTP_*), OIDC
   hortusfox-cron    HortusFox cronjob password + an hourly root cron entry (recurring tasks, calendar reminders)
 
-Results are stored in $HEARDOS_ROOT/secrets/secrets.env and printed as HEARDOS_OUTPUT lines for the installer's vault.
+Results are stored in $HEARDOS_ROOT/secrets/secrets.env and printed ONLY as HEARDOS_OUTPUT lines for the installer's vault
+(the installer masks those in its log); no other output carries a secret value.
 Idempotent: a value already in secrets.env is reused. stdlib only.
 """
 import base64, json, os, secrets, socket, struct, subprocess, sys, time, urllib.parse, urllib.request, urllib.error
@@ -36,7 +40,7 @@ def have(k):
     return ""
 
 
-def keep(k, v):
+def keep(k, v):   # the one place a secret value is printed: a HEARDOS_OUTPUT line, which the installer masks
     lines = [l for l in open(SECRETS)] if os.path.exists(SECRETS) else []
     lines = [l for l in lines if not l.startswith(k + "=")] + [f"{k}={v}\n"]
     with open(SECRETS, "w") as f:
@@ -124,8 +128,11 @@ def ws_call(host, port, path, token, msg):
             return m["result"]
 
 
+HA_PORT = 8209   # host-only port (127.0.0.1) from stacks/homeassistant
+
+
 def ha_onboard():
-    base = f"http://{IP}:8209"
+    base = f"http://127.0.0.1:{HA_PORT}"
     if have("HA_TOKEN"):
         st, _ = http("GET", f"{base}/api/", headers={"Authorization": "Bearer " + have("HA_TOKEN")})
         if st == 200:
@@ -148,8 +155,8 @@ def ha_onboard():
     http("POST", f"{base}/api/onboarding/core_config", {}, headers=auth)
     http("POST", f"{base}/api/onboarding/analytics", {}, headers=auth)
     http("POST", f"{base}/api/onboarding/integration", {"client_id": cid, "redirect_uri": f"{base}/?auth_callback=1"}, headers=auth)
-    tok = ws_call(IP, 8209, "/api/websocket", t["access_token"],
-                  {"type": "auth/long_lived_access_token", "client_name": "HeardOS installer", "lifespan": 3650})
+    tok = ws_call("127.0.0.1", HA_PORT, "/api/websocket", t["access_token"],
+                  {"type": "auth/long_lived_access_token", "client_name": "HeardOS installer", "lifespan": 365})
     keep("HA_TOKEN", tok)
     print(f"Home Assistant onboarded: owner {USER}; long-lived token stored as HA_TOKEN")
 
@@ -188,8 +195,8 @@ def baikal_user():
     if not (os.path.exists(db) and os.path.exists(f"{ROOT}/data/baikal/config/baikal.yaml")):
         print("Baïkal wizard not finished yet"); sys.exit(3)
     pw = have("BAIKAL_ADMIN_PASSWORD") or secrets.token_urlsafe(14)
-    r = subprocess.run([sys.executable, os.path.join(os.path.dirname(os.path.abspath(__file__)), "60-baikal.py"), "user", USER, EMAIL, NAME, pw],
-                       capture_output=True, text=True)
+    r = subprocess.run([sys.executable, os.path.join(os.path.dirname(os.path.abspath(__file__)), "60-baikal.py"), "user", USER, EMAIL, NAME, "-"],
+                       input=pw + "\n", capture_output=True, text=True)   # password on stdin, never on argv
     if r.returncode:
         sys.exit(r.stderr.strip() or r.stdout.strip())
     keep("BAIKAL_ADMIN_PASSWORD", pw)
@@ -202,35 +209,59 @@ def cip(name, net="proxy"):
 
 
 # ------------------------------------------------------------------ paperless-gpt
+# model permissions for the paperless-gpt service user (Paperless "documents" app). Documents owned by someone else also
+# need object permissions: the AI filing workflow grants view+change on every new document, and `paperless-gpt` grants
+# them once on the existing ones.
+GPT_PERMS = ["view_document", "change_document", "view_tag", "add_tag", "view_correspondent", "add_correspondent",
+             "view_documenttype", "view_customfield"]
+
+
 def paperless_gpt_token():
-    tok = have("PAPERLESS_GPT_TOKEN")
-    if tok:
-        print("PAPERLESS_GPT_TOKEN already present"); return
-    code = ("from django.contrib.auth.models import User\nfrom rest_framework.authtoken.models import Token\n"
-            "u,_=User.objects.get_or_create(username='paperless-gpt', defaults={'is_staff':True,'is_superuser':True})\n"
-            "u.set_unusable_password(); u.is_staff=True; u.is_superuser=True; u.save()\n"
+    # always (re)applied, so an older install's superuser service account is demoted; the token is reused if it exists
+    code = ("from django.contrib.auth.models import User, Permission\nfrom rest_framework.authtoken.models import Token\n"
+            "u,_=User.objects.get_or_create(username='paperless-gpt')\n"
+            "u.set_unusable_password(); u.is_staff=False; u.is_superuser=False; u.save()\n"
+            f"u.user_permissions.set(Permission.objects.filter(content_type__app_label='documents', codename__in={GPT_PERMS!r}))\n"
             "print('TOKEN='+Token.objects.get_or_create(user=u)[0].key)")
     out = subprocess.check_output(["docker", "exec", "paperless-webserver", "python3", "manage.py", "shell", "-c", code], text=True)
-    keep("PAPERLESS_GPT_TOKEN", [l for l in out.splitlines() if l.startswith("TOKEN=")][-1].split("=", 1)[1])
+    tok = [l for l in out.splitlines() if l.startswith("TOKEN=")][-1].split("=", 1)[1]
+    if tok != have("PAPERLESS_GPT_TOKEN"):
+        keep("PAPERLESS_GPT_TOKEN", tok)
+    print("paperless-gpt service user: not a superuser; permissions " + ", ".join(GPT_PERMS))
 
 
 def paperless_gpt():
     model = env.get("PAPERLESS_GPT_MODEL") or "llama3.2:3b"
     subprocess.run(["docker", "exec", "ollama", "ollama", "pull", model], check=True, stdout=subprocess.DEVNULL)
     B = f"http://{cip('paperless-webserver')}:8000/api"
-    H = {"Authorization": "Token " + have("PAPERLESS_GPT_TOKEN"), "Accept": "application/json; version=9"}
+    # setup (tag, workflow, bulk edits) runs as the Paperless admin; the service user's token only gets what it needs
+    admin = base64.b64encode(f"{USER}:{have('PAPERLESS_ADMIN_PASSWORD')}".encode()).decode()
+    H = {"Authorization": "Basic " + admin, "Accept": "application/json; version=9"}
+    st, us = http("GET", B + "/users/?username__iexact=paperless-gpt", headers=H)
+    if st != 200 or not us.get("results"):
+        sys.exit(f"paperless-gpt user not found ({st}); run: 63-post-install.py paperless-gpt-token")
+    uid = us["results"][0]["id"]
     _, tags = http("GET", B + "/tags/?page_size=500", headers=H)
     ids = {t["name"]: t["id"] for t in tags["results"]}
     if "paperless-gpt-auto" not in ids:
         _, t = http("POST", B + "/tags/", {"name": "paperless-gpt-auto", "matching_algorithm": 0}, headers=H); ids["paperless-gpt-auto"] = t["id"]
+    grant = {"assign_view_users": [uid], "assign_change_users": [uid]}
     _, wfs = http("GET", B + "/workflows/?page_size=100", headers=H)
-    if not any(w["name"] == "AI filing (paperless-gpt)" for w in wfs["results"]):
+    wf = next((w for w in wfs["results"] if w["name"] == "AI filing (paperless-gpt)"), None)
+    if not wf:
         http("POST", B + "/workflows/", {"name": "AI filing (paperless-gpt)", "order": 99, "enabled": True,
              "triggers": [{"type": 2, "sources": [1, 2, 3], "filter_filename": "*"}],
-             "actions": [{"type": 1, "assign_tags": [ids["paperless-gpt-auto"]]}]}, headers=H)
+             "actions": [{"type": 1, "assign_tags": [ids["paperless-gpt-auto"]], **grant}]}, headers=H)
+    elif wf.get("actions") and uid not in (wf["actions"][0].get("assign_change_users") or []):
+        acts = [dict(wf["actions"][0], **grant)] + wf["actions"][1:]
+        st, r = http("PATCH", B + f"/workflows/{wf['id']}/", {"actions": acts}, headers=H)
+        if st != 200:
+            print(f"warning: could not add the paperless-gpt grant to the workflow ({st}); add view+change for paperless-gpt in its action by hand")
     _, docs = http("GET", B + "/documents/?page_size=1000&fields=id", headers=H)
     ds = [d["id"] for d in docs["results"]]
     if ds:
+        http("POST", B + "/documents/bulk_edit/", {"documents": ds, "method": "set_permissions", "parameters": {
+             "set_permissions": {"view": {"users": [uid], "groups": []}, "change": {"users": [uid], "groups": []}}, "merge": True}}, headers=H)
         http("POST", B + "/documents/bulk_edit/", {"documents": ds, "method": "add_tag", "parameters": {"tag": ids["paperless-gpt-auto"]}}, headers=H)
     print(f"paperless-gpt: model {model} pulled, workflow in place, {len(ds)} existing documents queued (~30-60 s each)")
 
@@ -272,14 +303,18 @@ def listmonk_config():
 # ------------------------------------------------------------------ HortusFox
 def hortusfox_cron():
     pw = have("HORTUS_CRON_PW") or secrets.token_urlsafe(24)
-    q = f"UPDATE AppModel SET cronjob_pw = '{pw}';"
-    subprocess.run(["docker", "exec", "hortusfox-db", "mariadb", "-uhortusfox", f"-p{have('HORTUS_DB_PASSWORD')}", "hortusfox", "-e", q], check=True)
+    # the value goes in as hex (no quoting/injection possible), the SQL over stdin and the DB password as MYSQL_PWD in the
+    # exec environment (`-e MYSQL_PWD` copies it from ours) — neither appears on any command line
+    q = f"UPDATE AppModel SET cronjob_pw = CONVERT(UNHEX('{pw.encode().hex()}') USING utf8mb4);\n"
+    subprocess.run(["docker", "exec", "-i", "-e", "MYSQL_PWD", "hortusfox-db", "mariadb", "-uhortusfox", "hortusfox"], input=q, text=True,
+                   env={**os.environ, "MYSQL_PWD": have("HORTUS_DB_PASSWORD")}, check=True)
     keep("HORTUS_CRON_PW", pw)
     os.makedirs("/usr/local/sbin", exist_ok=True)
     with open("/usr/local/sbin/hortusfox-cron.sh", "w") as f:
         f.write("#!/bin/sh\n# HortusFox cron endpoints: recurring tasks reset + calendar reminders (password from secrets.env)\n"
                 f"PW=$(grep '^HORTUS_CRON_PW=' {SECRETS} | cut -d= -f2-)\n"
-                'for ep in "$@"; do docker exec hortusfox curl -fsS -m 60 -X POST -d "cronpw=$PW" "http://127.0.0.1/cronjob/$ep" >/dev/null || echo "hortusfox cron $ep failed" >&2; done\n')
+                '# the password is posted from stdin (--data-binary @-), so it is never in a process list\n'
+                'for ep in "$@"; do printf \'cronpw=%s\' "$PW" | docker exec -i hortusfox curl -fsS -m 60 -X POST --data-binary @- "http://127.0.0.1/cronjob/$ep" >/dev/null || echo "hortusfox cron $ep failed" >&2; done\n')
     os.chmod("/usr/local/sbin/hortusfox-cron.sh", 0o700)
     cur = subprocess.run(["crontab", "-l"], capture_output=True, text=True).stdout
     lines = [l for l in cur.splitlines() if "hortusfox-cron.sh" not in l] + ["7 * * * * /usr/local/sbin/hortusfox-cron.sh tasks/recurring calendar/reminder"]
