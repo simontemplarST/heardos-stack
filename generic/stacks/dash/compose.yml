@@ -13,6 +13,11 @@ services:
       TZ: "${TZ}"
       DOMAIN: "${DOMAIN}"
       DASH_GATE_SECRET: "${DASH_GATE_SECRET:?DASH_GATE_SECRET missing (50-app.sh dash generates it)}"
+      # Help tells people whom to ask; the System app and /api/diagnostics are for members of DASH_ADMIN_GROUP
+      SUPPORT_EMAIL: "${SUPPORT_EMAIL:-}"
+      SUPPORT_NAME: "${SUPPORT_NAME:-}"
+      DASH_ADMIN_GROUP: "${DASH_ADMIN_GROUP:-authentik Admins}"
+      # APPS_FILE: /config/apps.json   # with the volume below: edit the catalogue without rebuilding (apps/dash/README.md)
       CACHE_SECONDS: "180"
       MEALIE_URL: http://mealie:9000
       MEALIE_PUBLIC_URL: "${MEALIE_PUBLIC_URL}"
@@ -24,7 +29,9 @@ services:
       ACTUAL_PUBLIC_URL: "${ACTUAL_PUBLIC_URL}"
       ACTUAL_SYNC_ID: "${ACTUAL_SYNC_ID}"
       ACTUAL_PASSWORD: "${ACTUAL_PASSWORD}"
-    volumes: ["${HEARDOS_ROOT}/data/dash:/data"]
+    volumes:
+      - "${HEARDOS_ROOT}/data/dash:/data"
+      # - "${HEARDOS_ROOT}/data/dash/apps.json:/config/apps.json:ro"   # optional: your own catalogue (set APPS_FILE above)
     networks: [proxy]
     labels:
       traefik.enable: "true"

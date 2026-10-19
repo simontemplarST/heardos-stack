@@ -1,6 +1,8 @@
 // This week (week.html): meals, shopping, budget and inventory from /api/summary. External file so the page's CSP can
 // be script-src 'self'. Sections the person has no access to come back as {error: "no access"} and are left out.
 "use strict";
+// theme: the desktop passes ?theme=light|dark (its own setting); standalone, follow the device
+document.documentElement.dataset.theme = new URLSearchParams(location.search).get("theme") || (matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark");
 const $ = (s) => document.querySelector(s);
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const money = (n) => (n < 0 ? "-" : "") + "$" + Math.abs(n).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2});
@@ -8,7 +10,8 @@ const dayName = (iso) => { const d = new Date(iso + "T12:00:00"); return d.toLoc
 const today = new Date().toISOString().slice(0, 10);
 function card(title, link, body) { return `<section class="card"><h2>${esc(title)}${link ? ` <a href="${esc(link)}">open ↗</a>` : ""}</h2>${body}</section>`; }
 const noAccess = (sec) => sec?.error === "no access";   // the person isn't in that app's group: the card is hidden
-function errOr(sec, fn) { return sec.error ? `<p class="err">${esc(sec.error)}</p>` : fn(sec); }
+const WHY = { "not configured": "Not set up yet — ask whoever runs HeardOS.", unavailable: "Not answering right now. It usually comes back by itself; press refresh in a minute." };
+function errOr(sec, fn) { return sec.error ? `<p class="err">${esc(WHY[sec.error] || sec.error)}</p>` : fn(sec); }
 
 function mealsCard(m) {
   return card("This week's meals", m.link && m.link + "/g/home/mealplan/planner", errOr(m, (m) => {
@@ -66,7 +69,7 @@ async function load(refresh) {
     $("#main").innerHTML = html || `<p class="muted">Nothing to show here yet: you don't have access to meals, the budget or the inventory.</p>`;
     $("#stamp").textContent = "updated " + new Date(d.generatedAt).toLocaleTimeString(undefined, {hour: "numeric", minute: "2-digit"});
   } catch (e) {
-    $("#stamp").textContent = "failed: " + e.message;
+    $("#stamp").textContent = "couldn't load (" + e.message + ") — will try again in 5 minutes";
   }
 }
 $("#refresh").addEventListener("click", () => load(true));

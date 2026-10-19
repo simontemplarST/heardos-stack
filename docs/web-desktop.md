@@ -113,19 +113,45 @@ Nextcloud → OnlyOffice until it was fixed.)
 | Do | How |
 |---|---|
 | Open an app | Double-click its icon (one tap on touch screens), or Start → type → Enter |
-| Start menu and search | Start button, **Ctrl+Space**, or `/` on the desktop |
+| Start menu and search | Start button, **Ctrl+Space**, or `/` on the desktop. Recently used apps are listed first |
+| Help | **?** in the taskbar or **F1**: getting around, shortcuts, what to do when something is wrong, *Copy details for support* and an email button (`SUPPORT_EMAIL`) |
 | Half screen / maximise | Drag a window to the left or right edge / to the top; double-click the title bar |
-| Switch / minimise | Click its taskbar button (again to minimise); middle-click closes |
+| Switch / minimise | Click its taskbar button (again to minimise); middle-click closes; **Ctrl+`** cycles windows |
+| Keyboard windows | Tab to a title bar: arrows move, Shift+arrows resize, Enter maximises, M minimises, Delete closes |
+| Right-click / press and hold | On an icon, Start entry or taskbar button: open, open in a tab, pin to the taskbar, what the app is |
 | Pop out | ↗ in the title bar opens the app in a normal browser tab |
+| Phone | Every app fills the screen; the **back button closes it** |
 | Install as an app | **Install** in the taskbar, or Settings → Install as an app (Chrome, Edge, Brave). Launcher shortcuts open This week, Photos, Recipes and Documents directly (`/?open=<id>`) |
-| Settings | Wallpaper, icon size, widgets on/off, reopen windows next time, tidy / close all |
+| Settings | Theme (match device / dark / light), wallpaper, text and icon size, widgets on/off, reopen windows next time, tidy / close all, show the welcome tips again |
 
-Open windows are remembered per person, per browser (localStorage), and reopen on the next visit. Sign out goes
-through the outpost (`/outpost.goauthentik.io/sign_out`), which ends the Authentik session for every app.
+The first visit shows three welcome tips. Open windows, pins and preferences are remembered per person, per browser
+(localStorage), and reopen on the next visit. Sign out goes through the outpost (`/outpost.goauthentik.io/sign_out`),
+which ends the Authentik session for every app.
+
+### What people see when things go wrong
+
+- **"You've been signed out"** (full-screen): the Authentik session expired, noticed on a timer, when the tab comes
+  back, or when a request fails. *Sign in again* reloads; windows come back.
+- **"Can't reach home right now"**: the home server or the connection is down. The desktop retries by itself; a status
+  line above the taskbar says when it is back.
+- **A window stuck on "Still loading…"** after 15 s offers *Open in a browser tab* and *Try again*.
+- **Widgets** say "not answering right now" for a source that is down, instead of vanishing.
+- Icons whose image is missing show a lettered tile.
+
+## Looking after it
+
+Admins (`DASH_ADMIN_GROUP`, default `authentik Admins`) get a **System** app: version and uptime, a checklist with a fix
+hint for each unmet requirement, each data source's last success / last error / timing, catalogue (`apps.json`)
+warnings, the last 30 errors, and *Fetch fresh data now*. The same information is `GET /api/diagnostics`. The
+container log is one timestamped, levelled line per event (`DASH_LOG_LEVEL`). The catalogue can be a mounted file
+(`APPS_FILE`) so apps can be added without rebuilding; it is validated on every read and a bad entry is skipped,
+never fatal. Settings, the catalogue format, deploy/rollback and a symptom → fix table are in
+[`apps/dash/README.md`](../apps/dash/README.md); `npm test` covers the server.
 
 ## Limits
 
-- Cross-origin windows can't be scripted, so there's no back button. Use the app's own navigation, or ⟳ to reload it.
+- Cross-origin windows can't be scripted, so a window has no back button of its own (on phones the browser's back
+  button closes the window). Use the app's own navigation, or ⟳ to reload it.
 - Passkeys inside a window need the browser to honour the iframe's `allow="publickey-credentials-get"`. Chrome and
   Firefox do. If a sign-in prompt misbehaves, use ↗. Adding a passkey happens in My account, which opens in a tab.
 - `week.html` (the old one-page dashboard) is the **This week** app. Its "open ↗" links ask the desktop, via

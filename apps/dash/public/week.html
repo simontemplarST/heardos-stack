@@ -1,12 +1,13 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex,nofollow">
 <title>This week · HeardOS</title>
 <style>
-  :root { --bg:#26272b; --card:#2f2f32; --line:#3d3d41; --text:#f3f3f3; --muted:#a6a6ab; --amber:#f2a35e; --green:#8BC34A; --red:#EF5350; --blue:#90CAF9; }
+  :root { --bg:#26272b; --card:#2f2f32; --line:#3d3d41; --text:#f3f3f3; --muted:#a6a6ab; --amber:#f2a35e; --green:#8BC34A; --red:#EF5350; --blue:#90CAF9; color-scheme: dark; }
+  :root[data-theme="light"] { --bg:#f3f1ec; --card:#ffffff; --line:#d9d5cc; --text:#1f2023; --muted:#5d5e64; --amber:#c86a16; --green:#3f8f2a; --red:#c2392b; --blue:#1d6fa5; color-scheme: light; }
   * { box-sizing: border-box; }
   html, body { margin:0; background:var(--bg); color:var(--text); font-family: system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; }
   header { display:flex; align-items:baseline; gap:1rem; padding:1.1rem 1.25rem .5rem; flex-wrap:wrap; }

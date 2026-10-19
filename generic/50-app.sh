@@ -179,7 +179,8 @@ PY
       printf 'MEALIE_PUBLIC_URL=%s\nHOMEBOX_PUBLIC_URL=%s\nACTUAL_PUBLIC_URL=%s\n' "$c/mealie" "$c/homebox" "$c/actual-budget"
       printf 'MEALIE_TOKEN=%s\nHOMEBOX_API_KEY=%s\nACTUAL_SYNC_ID=%s\nACTUAL_PASSWORD=%s\n' "$(have MEALIE_TOKEN)" "$(have HOMEBOX_API_KEY)" "$(have ACTUAL_SYNC_ID)" "$(have ACTUAL_SESSION_TOKEN)"
       # Traefik adds X-Dash-Gate on the gated route; the desktop refuses requests without it (other containers can't know it)
-      printf 'DASH_GATE_SECRET=%s\n' "$(secret DASH_GATE_SECRET 48)"; } > "$d/.env" ;;
+      printf 'DASH_GATE_SECRET=%s\n' "$(secret DASH_GATE_SECRET 48)"
+      printf 'SUPPORT_EMAIL=%s\nSUPPORT_NAME=%s\n' "$ADMIN_EMAIL" "${ADMIN_NAME:-$ADMIN_USER}"; } > "$d/.env" ;;
   hortusfox)
     proxy hortusfox --name "Plants (HortusFox)" --host "https://plants.$DOMAIN" --users all --launch "https://cloud.$DOMAIN/plants"
     install -d "$HEARDOS_ROOT/data/hortusfox"/{img,attachments,logs,backup,themes,migrate,db}

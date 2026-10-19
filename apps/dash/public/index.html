@@ -12,50 +12,75 @@
 <link rel="stylesheet" href="/desktop.css">
 </head>
 <body>
-<!-- HeardOS desktop (2026-10-18): apps open signed in, in windows; see desktop.js -->
+<!-- HeardOS desktop: apps open signed in, in windows. Everything here is wired up by desktop.js; styles in desktop.css. -->
 <div id="desktop" aria-label="Desktop">
   <div id="icons" role="list" aria-label="Apps"></div>
   <aside id="widgets" aria-label="Today"></aside>
   <div id="snap-preview" hidden></div>
 </div>
 
+<!-- Start menu -->
 <div id="start-menu" class="panel" hidden role="dialog" aria-label="Start">
   <div class="sm-user"><div class="avatar" id="sm-avatar"></div><div><div id="sm-name"></div><div class="muted small" id="sm-email"></div></div></div>
-  <input id="sm-search" type="search" placeholder="Search apps" autocomplete="off" aria-label="Search apps">
-  <div id="sm-list" role="listbox"></div>
+  <input id="sm-search" type="search" placeholder="Search apps…" autocomplete="off" aria-label="Search apps">
+  <div id="sm-list" role="listbox" aria-label="Apps"></div>
   <div class="sm-foot">
+    <button class="sm-btn" data-action="help">Help</button>
     <button class="sm-btn" data-action="settings">Settings</button>
     <button class="sm-btn" data-action="account">My account</button>
     <button class="sm-btn danger" data-action="signout">Sign out</button>
   </div>
 </div>
 
+<!-- account menu (avatar, bottom right) -->
 <div id="user-menu" class="panel" hidden role="menu">
   <button data-action="account" role="menuitem">My account</button>
   <button data-action="settings" role="menuitem">Settings</button>
+  <button data-action="help" role="menuitem">Help</button>
+  <hr>
   <button data-action="arrange" role="menuitem">Tidy windows</button>
   <button data-action="minimize-all" role="menuitem">Show desktop</button>
   <hr>
   <button data-action="signout" role="menuitem" class="danger">Sign out</button>
 </div>
 
+<!-- right-click / long-press menu for icons and taskbar buttons (filled by desktop.js) -->
+<div id="ctx" class="panel" hidden role="menu"></div>
+
 <nav id="taskbar" aria-label="Taskbar">
   <button id="start" title="Start (Ctrl+Space)" aria-haspopup="dialog"><img alt="" src="https://cloud.{domain}/brand/mark-dark-128.png"><span>Start</span></button>
+  <div id="pins" aria-label="Pinned apps"></div>
   <div id="tasks" role="tablist" aria-label="Open windows"></div>
   <div id="tray">
     <button id="install" hidden title="Install HeardOS as an app on this computer">Install</button>
+    <button id="help-btn" title="Help (F1)" aria-label="Help">?</button>
     <div id="clock" aria-live="off"></div>
     <button id="user" class="avatar" title="Account" aria-haspopup="menu"></button>
   </div>
 </nav>
+
+<!-- status line above the taskbar: offline, reconnecting -->
+<div id="status" hidden role="status"></div>
 <div id="toasts" aria-live="polite"></div>
+
+<!-- full-screen notices: signed out / cannot reach home -->
+<div id="lock" hidden role="alertdialog" aria-labelledby="lock-title">
+  <div class="lock-card">
+    <img alt="" src="https://cloud.{domain}/brand/mark-dark-128.png">
+    <h2 id="lock-title"></h2>
+    <p id="lock-text"></p>
+    <div class="row"><button id="lock-btn" class="primary"></button><button id="lock-dismiss">Not now</button></div>
+  </div>
+</div>
+
 <template id="tpl-window">
   <section class="win" role="dialog">
-    <header class="titlebar">
+    <header class="titlebar" tabindex="0">
       <img class="ticon" alt="">
       <span class="ttitle"></span>
+      <span class="tstate muted small" aria-live="polite"></span>
       <div class="tbtns">
-        <button data-act="reload" title="Reload">⟳</button>
+        <button data-act="reload" title="Reload this app">⟳</button>
         <button data-act="popout" title="Open in a browser tab">↗</button>
         <button data-act="min" title="Minimise">–</button>
         <button data-act="max" title="Maximise">□</button>
@@ -63,7 +88,14 @@
       </div>
     </header>
     <div class="wbody">
-      <div class="loading"><div class="spinner"></div><p class="slow" hidden>Still loading… <a target="_blank" rel="noopener">open it in a browser tab instead</a></p></div>
+      <div class="loading">
+        <div class="spinner"></div>
+        <p class="slow" hidden>
+          <b>Still loading…</b><br>
+          <span class="muted">The app may be slow, or it may not allow opening inside a window.</span><br>
+          <button data-act="popout">Open in a browser tab</button> <button data-act="reload">Try again</button>
+        </p>
+      </div>
     </div>
     <i class="rz n"></i><i class="rz s"></i><i class="rz e"></i><i class="rz w"></i><i class="rz ne"></i><i class="rz nw"></i><i class="rz se"></i><i class="rz sw"></i>
   </section>
