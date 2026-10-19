@@ -160,8 +160,16 @@ def cmd_token(a):
     if g["pk"] not in u.get("groups", []): ak.post(f"/core/groups/{g['pk']}/add_user/", {"pk": u["pk"]})
     ident = f"{AUTO}-{time.strftime('%Y%m%d%H%M%S')}"
     exp = (datetime.now(timezone.utc) + timedelta(days=a.days)).strftime("%Y-%m-%dT%H:%M:%SZ")
-    ak.post("/core/tokens/", {"identifier": ident, "intent": "api", "user": u["pk"], "expiring": True, "expires": exp,
-                              "description": "HeardOS automation; rotate with 42-ak-app.py token rotate"})
+    # Authentik ignores a requested "expires" and applies System > Settings "default token duration" (days=1 by default)
+    # whenever a token is saved: raise it for this one save, read the real expiry back, and always restore it.
+    prev = ak.get("/admin/settings/")["default_token_duration"]
+    try:
+        ak.patch("/admin/settings/", {"default_token_duration": f"days={a.days}"})
+        ak.post("/core/tokens/", {"identifier": ident, "intent": "api", "user": u["pk"], "expiring": True, "expires": exp,
+                                  "description": "HeardOS automation; rotate with 42-ak-app.py token rotate"})
+    finally:
+        ak.patch("/admin/settings/", {"default_token_duration": prev})
+    exp = ak.get(f"/core/tokens/{ident}/")["expires"]
     key = ak.get(f"/core/tokens/{ident}/view_key/")["key"]
     me = AK({"AUTHENTIK_URL": env["AUTHENTIK_URL"], "AUTHENTIK_TOKEN": key}).get("/core/users/me/")["user"]["username"]
     if me != AUTO: sys.exit(f"new token authenticates as {me!r}, expected {AUTO}; not revoking anything")
