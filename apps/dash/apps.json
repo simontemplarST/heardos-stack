@@ -30,6 +30,7 @@
     {"id": "calendars", "name": "Calendar setup", "description": "Calendars sync to your phone; this is only for setup", "folder": "Account", "icon": "baikal", "url": "https://dav.{domain}/admin/", "access": "baikal"},
 
     {"id": "containers", "name": "Containers", "description": "Portainer: the app stacks", "folder": "Admin", "icon": "portainer", "url": "https://portainer.{domain}/", "access": "portainer-web"},
+    {"id": "tools", "name": "Maintenance", "description": "Run the maintenance and setup scripts and see what they did", "folder": "Admin", "icon": "olivetin", "url": "https://tools.{domain}/", "access": "tools", "w": 1240, "h": 820},
     {"id": "jobs", "name": "Scheduled jobs", "description": "CronMaster: feeds, syncs and backups", "folder": "Admin", "icon": "cronmaster", "url": "https://cron.{domain}/", "access": "cronmaster"},
     {"id": "proxmox", "name": "Proxmox", "description": "The home server itself (home network only)", "folder": "Admin", "icon": "proxmox", "url": "https://prox.lan:8006/", "access": "proxmox", "embed": false}
   ]

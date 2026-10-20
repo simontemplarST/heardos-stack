@@ -1,0 +1,443 @@
+# HeardOS Maintenance console — OliveTin (https://olivetin.app) running natively on the apps host, /etc/OliveTin/config.yaml.
+# Every button here runs one of the scripts in CronMaster's library (/root/runtipi/app-data/_user/cronmaster/scripts) or a
+# short read-only command. The desktop (dash) shows it as the "Maintenance" app; Traefik puts the Authentik gate in front
+# and passes the X-authentik-* headers, which is how OliveTin knows who is clicking. Only members of "authentik Admins"
+# can see or run anything (accessControlLists below).
+#
+# Network: OliveTin listens on the host side of the private docker network `tools` (172.30.0.1); Traefik is the only
+# container on that network, so nothing else can reach OliveTin and forge the identity headers.
+#
+# Adding a button: add an action (title, icon, shell or exec, timeout, arguments) and list its title in a dashboard.
+# Argument types are validated by OliveTin (ascii_identifier, int, choices, confirmation…); anything free-form must use
+# `exec:` (argv list) instead of `shell:`. Docs: https://docs.olivetin.app
+listenAddressSingleHTTPFrontend: 172.30.0.1:1337
+logLevel: INFO
+pageTitle: HeardOS maintenance
+showFooter: false
+showNewVersions: false
+sectionNavigationStyle: sidebar
+defaultOnClick: execution-dialog
+logHistoryPageSize: 50
+
+# ---- who may use it: identity comes from Authentik through Traefik (forward auth); nobody else gets even the list
+authHttpHeaderUsername: X-authentik-username
+authHttpHeaderUserGroup: X-authentik-groups
+authHttpHeaderUserGroupSep: "|"
+authRequireGuestsToLogin: true
+defaultPermissions:
+  view: false
+  exec: false
+  logs: false
+defaultPolicy:
+  showDiagnostics: false
+  showLogList: false
+accessControlLists:
+  - name: admins
+    matchUsergroups: ["authentik Admins"]
+    addToEveryAction: true
+    permissions:
+      view: true
+      exec: true
+      logs: true
+    policy:
+      showDiagnostics: true
+      showLogList: true
+
+actions:
+  # ---------------------------------------------------------------- scheduled jobs, run now (same scripts CronMaster runs)
+  - title: Nextcloud background jobs
+    icon: "☁️"
+    shell: bash /root/runtipi/app-data/_user/cronmaster/scripts/tools-run.sh nextcloud-cron bash /root/runtipi/app-data/_user/cronmaster/scripts/nextcloud-cron.sh
+    timeout: 900
+  - title: Calendar feeds sync
+    icon: "📅"
+    shell: f={{ feed }}; bash /root/runtipi/app-data/_user/cronmaster/scripts/tools-run.sh ics-feeds python3 /root/runtipi/app-data/_user/cronmaster/scripts/ics-feeds-sync.py $( [ "$f" = all ] || echo --feed "$f" )
+    timeout: 600
+    arguments:
+      - name: feed
+        title: Which feed
+        default: all
+        choices:
+          - { title: "All feeds", value: all }
+          - { title: "Local government", value: local-government }
+          - { title: "Work (Alice)", value: work-alice }
+          - { title: "Meal plan", value: meal-plan }
+          - { title: "Springfield events", value: austin-events }
+          - { title: "Example County", value: mower-county }
+  - title: Actual Budget to Wallos sync
+    icon: "💳"
+    shell: bash /root/runtipi/app-data/_user/cronmaster/scripts/tools-run.sh actual-to-wallos bash /root/runtipi/app-data/_user/cronmaster/scripts/actual-to-wallos.sh
+    timeout: 900
+  - title: Example County meetings fetch
+    icon: "🏛️"
+    shell: bash /root/runtipi/app-data/_user/cronmaster/scripts/tools-run.sh mower-packets bash /root/runtipi/app-data/_user/cronmaster/scripts/mower-packets.sh
+    timeout: 10800
+  - title: Plants cron (HortusFox)
+    icon: "🪴"
+    shell: bash /root/runtipi/app-data/_user/cronmaster/scripts/tools-run.sh hortusfox-cron bash /root/runtipi/app-data/_user/cronmaster/scripts/hortusfox-cron.sh
+    timeout: 300
+  - title: County website archive
+    icon: "🗄️"
+    shell: bash /root/runtipi/app-data/_user/cronmaster/scripts/tools-run.sh archive-mower bash /root/runtipi/app-data/_user/cronmaster/scripts/archive-mower.sh {{ mode }}
+    timeout: 21600
+    arguments:
+      - name: mode
+        title: What to archive
+        default: weekly
+        choices:
+          - { title: "Weekly: new pages only", value: weekly }
+          - { title: "Monthly: fresh snapshot of every page (hours)", value: monthly }
+  - title: LAN certificate check / renew
+    icon: "🔐"
+    shell: bash /root/runtipi/app-data/_user/cronmaster/scripts/tools-run.sh lan-cert-renew bash /root/runtipi/app-data/_user/cronmaster/scripts/lan-cert-renew.sh
+    timeout: 300
+  - title: ArtCraft repository mirror
+    icon: "🎨"
+    shell: bash /root/runtipi/app-data/_user/cronmaster/scripts/tools-run.sh artcraft bash /root/runtipi/app-data/_user/cronmaster/scripts/artcraft-repository.sh https://github.com/storytold/artcraft.git
+    timeout: 1800
+
+  # ---------------------------------------------------------------- status (read-only)
+  - title: Containers overview
+    icon: "📦"
+    shell: bash /root/runtipi/app-data/_user/cronmaster/scripts/tools-status.sh containers
+    timeout: 60
+  - title: Disk space
+    icon: "💽"
+    shell: bash /root/runtipi/app-data/_user/cronmaster/scripts/tools-status.sh disk
+    timeout: 120
+  - title: Memory and load
+    icon: "📈"
+    shell: bash /root/runtipi/app-data/_user/cronmaster/scripts/tools-status.sh memory
+    timeout: 60
+  - title: Certificates
+    icon: "📜"
+    shell: bash /root/runtipi/app-data/_user/cronmaster/scripts/tools-status.sh cert
+    timeout: 60
+  - title: Scheduled jobs and last runs
+    icon: "⏰"
+    shell: bash /root/runtipi/app-data/_user/cronmaster/scripts/tools-status.sh jobs
+    timeout: 60
+  - title: Nextcloud status
+    icon: "☁️"
+    shell: bash /root/runtipi/app-data/_user/cronmaster/scripts/tools-status.sh nextcloud
+    timeout: 120
+  - title: County documents on file
+    icon: "🏛️"
+    shell: bash /root/runtipi/app-data/_user/cronmaster/scripts/tools-status.sh mower
+    timeout: 60
+  - title: Website archive status
+    icon: "🗄️"
+    shell: bash /root/runtipi/app-data/_user/cronmaster/scripts/tools-status.sh archive
+    timeout: 120
+  - title: Wikipedia download status
+    icon: "📚"
+    shell: bash /root/runtipi/app-data/_user/cronmaster/scripts/tools-status.sh kiwix
+    timeout: 60
+  - title: Nebula overlay
+    icon: "🕸️"
+    shell: bash /root/runtipi/app-data/_user/cronmaster/scripts/tools-status.sh nebula
+    timeout: 30
+  - title: Recent system errors
+    icon: "🚨"
+    shell: bash /root/runtipi/app-data/_user/cronmaster/scripts/tools-status.sh journal
+    timeout: 30
+  - title: Pending OS updates
+    icon: "⬆️"
+    shell: bash /root/runtipi/app-data/_user/cronmaster/scripts/tools-status.sh updates
+    timeout: 120
+  - title: paperless-gpt status
+    icon: "📄"
+    shell: T=$(docker exec paperless-gpt printenv PAPERLESS_API_TOKEN) python3 /root/runtipi/app-data/_user/cronmaster/scripts/pgpt-status.py {{ count }}
+    timeout: 120
+    arguments:
+      - name: count
+        title: How many recent documents to list
+        type: int
+        default: 10
+
+  # ---------------------------------------------------------------- DNS (Cloudflare, example.com)
+  - title: DNS - add a name
+    icon: "🌐"
+    shell: bash /root/runtipi/app-data/_user/cronmaster/scripts/tools-run.sh dns python3 /root/runtipi/app-data/_user/cronmaster/scripts/add-dns.py {{ name }}
+    timeout: 60
+    arguments:
+      - name: name
+        title: Name (becomes NAME.example.com, pointing at the lighthouse)
+        type: ascii_identifier
+        description: Lower-case letters, digits and dashes. Existing records are updated.
+  - title: DNS - delete a name
+    icon: "🌐"
+    shell: bash /root/runtipi/app-data/_user/cronmaster/scripts/tools-run.sh dns python3 /root/runtipi/app-data/_user/cronmaster/scripts/cfdns-del.py {{ name }}
+    timeout: 60
+    arguments:
+      - name: name
+        title: Name to delete (NAME.example.com)
+        type: ascii_identifier
+      - type: confirmation
+        title: Delete this DNS record
+  - title: DNS - set a TXT record
+    icon: "🌐"
+    exec: ["bash", "/root/runtipi/app-data/_user/cronmaster/scripts/tools-run.sh", "dns", "python3", "/root/runtipi/app-data/_user/cronmaster/scripts/cfdns-txt.py", "{{ name }}", "{{ content }}"]
+    timeout: 60
+    arguments:
+      - name: name
+        title: Name (NAME.example.com; use @ for the apex)
+        type: shell_safe_identifier
+      - name: content
+        title: Content
+        type: "regex:^[\\x20-\\x7e]{1,255}$"
+        description: Printable text, e.g. <code>v=spf1 include:_spf.example.com ~all</code>. Replaces an existing TXT record of that name.
+  - title: DNS - repoint every A record (preview)
+    icon: "🌐"
+    shell: python3 /root/runtipi/app-data/_user/cronmaster/scripts/dns-repoint.py {{ old_ip }} {{ new_ip }}
+    timeout: 60
+    arguments:
+      - { name: old_ip, title: "Current address", type: ascii_identifier, default: 203.0.113.10 }
+      - { name: new_ip, title: "New address", type: ascii_identifier }
+  - title: DNS - repoint every A record (apply)
+    icon: "🌐"
+    shell: bash /root/runtipi/app-data/_user/cronmaster/scripts/tools-run.sh dns python3 /root/runtipi/app-data/_user/cronmaster/scripts/dns-repoint.py {{ old_ip }} {{ new_ip }} --apply
+    timeout: 120
+    arguments:
+      - { name: old_ip, title: "Current address", type: ascii_identifier, default: 203.0.113.10 }
+      - { name: new_ip, title: "New address", type: ascii_identifier }
+      - type: confirmation
+        title: Change every example.com A record that points at the current address (used when the lighthouse moves)
+
+  # ---------------------------------------------------------------- Actual Budget
+  - title: Budget history
+    icon: "💰"
+    shell: bash /root/runtipi/app-data/_user/cronmaster/scripts/actual-history.sh
+    timeout: 300
+  - title: Uncategorised transactions
+    icon: "💰"
+    shell: bash /root/runtipi/app-data/_user/cronmaster/scripts/actual-uncat.sh
+    timeout: 300
+  - title: Apply budget plan (preview)
+    icon: "💰"
+    shell: bash /root/runtipi/app-data/_user/cronmaster/scripts/actual-set-budget.sh
+    timeout: 300
+  - title: Apply budget plan
+    icon: "💰"
+    shell: bash /root/runtipi/app-data/_user/cronmaster/scripts/tools-run.sh actual-set-budget bash /root/runtipi/app-data/_user/cronmaster/scripts/actual-set-budget.sh --apply
+    timeout: 300
+    arguments:
+      - type: confirmation
+        title: Write the amounts in budget-plan.json into Actual Budget
+
+  # ---------------------------------------------------------------- Nextcloud
+  - title: Nextcloud file scan
+    icon: "☁️"
+    shell: bash /root/runtipi/app-data/_user/cronmaster/scripts/tools-run.sh nextcloud-scan docker exec -u www-data nextcloud php occ files:scan {{ who }}
+    timeout: 7200
+    arguments:
+      - name: who
+        title: Whose files
+        default: "--all"
+        choices:
+          - { title: "Everyone", value: "--all" }
+          - { title: "alice", value: alice }
+          - { title: "bob", value: bob }
+  - title: Nextcloud maintenance mode
+    icon: "☁️"
+    shell: docker exec -u www-data nextcloud php occ maintenance:mode --{{ mode }}
+    timeout: 60
+    arguments:
+      - name: mode
+        title: Mode
+        choices:
+          - { title: "Off (normal)", value: "off" }
+          - { title: "On (locks everyone out)", value: "on" }
+  - title: Nextcloud app updates
+    icon: "☁️"
+    shell: bash /root/runtipi/app-data/_user/cronmaster/scripts/tools-run.sh nextcloud-apps docker exec -u www-data nextcloud php occ app:update --all
+    timeout: 1800
+    arguments:
+      - type: confirmation
+        title: Update every installed Nextcloud app to its latest version
+
+  # ---------------------------------------------------------------- Example County, archive, Wikipedia
+  - title: Preview new county documents
+    icon: "🏛️"
+    shell: python3 /root/runtipi/app-data/_user/cronmaster/scripts/mower-packets.py "/root/runtipi/media/data/documents/Example County meetings" --types "Agenda Packet,Agenda,Minutes" --dry-run
+    timeout: 300
+  - title: Archive a web page
+    icon: "🗄️"
+    exec: ["bash", "/root/runtipi/app-data/_user/cronmaster/scripts/tools-run.sh", "archive-url", "docker", "exec", "archivebox", "archivebox", "add", "--depth=0", "--tag=manual", "{{ url }}"]
+    timeout: 1800
+    arguments:
+      - name: url
+        title: Address of the page
+        type: url
+  - title: Verify the Wikipedia file
+    icon: "📚"
+    shell: bash /root/runtipi/app-data/_user/cronmaster/scripts/tools-run.sh kiwix-verify sh /root/runtipi/app-data/_user/cronmaster/scripts/kiwix-verify.sh
+    timeout: 14400
+
+  # ---------------------------------------------------------------- network
+  - title: TCP port scan
+    icon: "🔎"
+    shell: python3 /root/runtipi/app-data/_user/cronmaster/scripts/tcpscan.py {{ host }} {{ concurrency }} {{ timeout }}
+    timeout: 1800
+    arguments:
+      - { name: host, title: "Host or address", type: ascii_identifier }
+      - { name: concurrency, title: "Parallel connections", type: int, default: 400 }
+      - name: timeout
+        title: Seconds to wait per port
+        default: "2"
+        choices: [{ value: "1" }, { value: "2" }, { value: "5" }]
+  - title: Ping the lighthouse
+    icon: "📡"
+    shell: ping -c 4 10.42.0.1
+    timeout: 30
+
+  # ---------------------------------------------------------------- host housekeeping (the dangerous ones ask twice)
+  - title: Remove unused docker data
+    icon: "🧹"
+    shell: bash /root/runtipi/app-data/_user/cronmaster/scripts/tools-run.sh docker-prune docker system prune -f
+    timeout: 600
+    arguments:
+      - type: confirmation
+        title: Delete stopped containers, dangling images and unused networks (volumes are kept)
+  - title: Restart Traefik (the web front door)
+    icon: "🚪"
+    shell: docker restart traefik && sleep 3 && docker ps --filter name=traefik
+    timeout: 120
+    arguments:
+      - type: confirmation
+        title: Every site drops for a few seconds
+  - title: Reboot the apps host
+    icon: "🔁"
+    shell: bash /root/runtipi/app-data/_user/cronmaster/scripts/tools-run.sh reboot systemd-run --on-active=5 systemctl reboot
+    timeout: 30
+    arguments:
+      - type: confirmation
+        title: Reboot CT 109 — every app is down for a minute or two
+
+  # ---------------------------------------------------------------- per-container buttons (the container list is an entity file)
+  # The list (entities/containers.json) is refreshed every 5 minutes by the CronMaster job `tools-containers` and after
+  # each start/stop/restart below (OliveTin's own execOnStartup/execOnCron run without a user and are blocked by the ACL).
+  - title: Refresh container list
+    icon: "📦"
+    shell: bash /root/runtipi/app-data/_user/cronmaster/scripts/tools-status.sh containers-json
+    timeout: 60
+    hidden: true
+  - title: Restart {{ .CurrentEntity.Names }}
+    icon: "🔄"
+    shell: docker restart {{ .CurrentEntity.Names }} && echo restarted
+    timeout: 120
+    entity: container
+    triggers: ["Refresh container list"]
+  - title: Stop {{ .CurrentEntity.Names }}
+    icon: "⏹️"
+    shell: docker stop {{ .CurrentEntity.Names }} && echo stopped
+    timeout: 120
+    entity: container
+    triggers: ["Refresh container list"]
+  - title: Start {{ .CurrentEntity.Names }}
+    icon: "▶️"
+    shell: docker start {{ .CurrentEntity.Names }} && echo started
+    timeout: 120
+    entity: container
+    triggers: ["Refresh container list"]
+  - title: Logs of {{ .CurrentEntity.Names }}
+    icon: "📜"
+    shell: docker logs --tail 150 {{ .CurrentEntity.Names }} 2>&1
+    timeout: 30
+    entity: container
+
+entities:
+  - file: entities/containers.json
+    name: container
+
+dashboards:
+  - title: Overview
+    contents:
+      - title: Health
+        type: fieldset
+        contents:
+          - title: Containers overview
+          - title: Disk space
+          - title: Memory and load
+          - title: Certificates
+          - title: Nebula overlay
+          - title: Recent system errors
+          - title: Pending OS updates
+      - title: Scheduled jobs (run now)
+        type: fieldset
+        contents:
+          - title: Scheduled jobs and last runs
+          - title: Nextcloud background jobs
+          - title: Calendar feeds sync
+          - title: Actual Budget to Wallos sync
+          - title: Example County meetings fetch
+          - title: Plants cron (HortusFox)
+          - title: County website archive
+          - title: LAN certificate check / renew
+          - title: ArtCraft repository mirror
+  - title: Apps
+    contents:
+      - title: Nextcloud
+        type: fieldset
+        contents:
+          - title: Nextcloud status
+          - title: Nextcloud file scan
+          - title: Nextcloud app updates
+          - title: Nextcloud maintenance mode
+      - title: Budget
+        type: fieldset
+        contents:
+          - title: Budget history
+          - title: Uncategorised transactions
+          - title: Apply budget plan (preview)
+          - title: Apply budget plan
+      - title: Paperwork
+        type: fieldset
+        contents:
+          - title: paperless-gpt status
+      - title: Example County and archives
+        type: fieldset
+        contents:
+          - title: County documents on file
+          - title: Preview new county documents
+          - title: Website archive status
+          - title: Archive a web page
+          - title: Wikipedia download status
+          - title: Verify the Wikipedia file
+  - title: Network and DNS
+    contents:
+      - title: DNS (example.com)
+        type: fieldset
+        contents:
+          - title: DNS - add a name
+          - title: DNS - delete a name
+          - title: DNS - set a TXT record
+          - title: DNS - repoint every A record (preview)
+          - title: DNS - repoint every A record (apply)
+      - title: Network
+        type: fieldset
+        contents:
+          - title: Ping the lighthouse
+          - title: TCP port scan
+  - title: Containers
+    contents:
+      - title: Host
+        type: fieldset
+        contents:
+          - title: Remove unused docker data
+          - title: Restart Traefik (the web front door)
+          - title: Reboot the apps host
+      - type: fieldset
+        entity: container
+        title: "{{ .CurrentEntity.Names }}"
+        contents:
+          - type: display
+            title: |
+              <strong>{{ container.State }}</strong> · {{ container.Status }}<br />{{ container.Image }}
+          - title: "Restart {{ .CurrentEntity.Names }}"
+          - title: "Logs of {{ .CurrentEntity.Names }}"
+          - title: More
+            type: directory
+            contents:
+              - title: "Stop {{ .CurrentEntity.Names }}"
+              - title: "Start {{ .CurrentEntity.Names }}"

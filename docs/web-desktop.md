@@ -148,6 +148,11 @@ container log is one timestamped, levelled line per event (`DASH_LOG_LEVEL`). Th
 never fatal. Settings, the catalogue format, deploy/rollback and a symptom → fix table are in
 [`apps/dash/README.md`](../apps/dash/README.md); `npm test` covers the server.
 
+Next to it, admins get **Maintenance**: the kit's maintenance and setup scripts as buttons, with live output and a run
+history. That is [OliveTin](https://olivetin.app) on the apps host, framed like any other app at `tools.<domain>`
+behind the Authentik gate; its config and the two helper scripts live in [`apps/tools`](../apps/tools/README.md).
+Only members of `authentik Admins` can see or run anything there, whoever is in `app-tools`.
+
 ## Limits
 
 - Cross-origin windows can't be scripted, so a window has no back button of its own (on phones the browser's back

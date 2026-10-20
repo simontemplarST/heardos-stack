@@ -80,7 +80,9 @@ preferences live in their own browser).
 
 ## When something is wrong
 
-Open **System** (admins see it under *Admin*, or Help → *Open System*). It shows a checklist with a fix hint for
+Open **System** (admins see it under *Admin*, or Help → *Open System*). The **Maintenance** app next to it (OliveTin, see
+[`apps/tools`](../tools/README.md)) is where the scripts are run: status reports, the scheduled jobs on demand, DNS,
+Nextcloud, budget, per-container restart and logs. It shows a checklist with a fix hint for
 every unmet requirement, each data source's last success and last error, catalogue warnings and the last 30 errors.
 `docker logs dash` has the same, one timestamped line per event.
 
@@ -93,6 +95,7 @@ every unmet requirement, each data source's last success and last error, catalog
 | Budget widget missing, System says Actual "unavailable: invalid or expired session token" | `ACTUAL_PASSWORD` expired | Copy a fresh `user-token` from Actual's web app (DevTools → Application → Local Storage) into the stack env and redeploy |
 | An icon shows as a lettered tile | The icon name in `apps.json` isn't in dashboard-icons, or the image was built offline | Fix the name and rebuild, or use `builtin:` with your own SVG |
 | Someone can't see an app that exists | They aren't in `app-<slug>` | Add them to the group in Authentik; the desktop picks it up on the next load |
+| The Maintenance app shows "Unauthorized" or an empty page | OliveTin didn't get the identity headers, or the person isn't in `authentik Admins` | See [`apps/tools/README.md`](../tools/README.md): the `tools` router must carry `authentik-fwd`, and OliveTin's ACL matches that group |
 
 Asking a family member for details: Help → **Copy details for support** copies the version, time, browser, open
 windows and the apps they can see.

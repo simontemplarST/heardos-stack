@@ -1,6 +1,6 @@
 {
   "name": "heardos-dash",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "private": true,
   "description": "HeardOS desktop: the family's apps in windows, signed in through Authentik; This week widgets from Mealie, Actual Budget and Homebox; System diagnostics for admins",
   "type": "module",
