@@ -18,9 +18,9 @@ pull tokens) is asked:
   locally built              (heardos-*)                                 -> skipped
 apply = for each stack with something applicable: take the stack file Portainer holds, rewrite those image lines
 (new tag and/or new digest), PUT it back with pullImage, wait for the deploy (Portainer only recreates containers
-whose image changed), then prune dangling images. The rewritten stack file is saved to
-data/stack-updates/<stack>.yml so the laptop's copy (the source of truth for pstack.py) can be synced:
-~/heardos-install/migration-20261016/stack-updates-sync.sh. pstack.py refuses to deploy a stack whose pins in
+whose image changed), then prune dangling images. The changes (old ref, new ref, digest) are saved to
+data/stack-updates/<stack>.json so the laptop's copy (the source of truth for pstack.py, with its own pins and
+comments) can be brought up to date: ~/heardos-install/migration-20261016/stack-updates-sync.sh. pstack.py refuses to deploy a stack whose pins in
 Portainer are newer than the local file until that sync is done.
 
 Portainer access: stack-updates.env next to this script (PORTAINER_URL, PORTAINER_TOKEN, PORTAINER_ENDPOINT_ID).
@@ -33,6 +33,7 @@ ACCEPT = ", ".join(["application/vnd.oci.image.index.v1+json", "application/vnd.
                     "application/vnd.oci.image.manifest.v1+json", "application/vnd.docker.distribution.manifest.v2+json"])
 FLOATING_WORDS = {"latest", "lts", "master", "main", "stable", "edge", "nightly", "dev"}
 UA = "heardos-stack-updates"
+sys.stdout.reconfigure(line_buffering=True)   # CronMaster/OliveTin read the log while it runs
 
 
 def sh(*cmd):
@@ -234,8 +235,15 @@ def apply(only=None):
             for _ in range(120):   # Status 3 = deployment in progress
                 time.sleep(5)
                 if api("GET", f"/stacks/{s['Id']}").get("Status") != 3: break
-            with open(os.path.join(OUT, f"{name}.yml"), "w") as f: f.write(new_content)
-            print(f"  deployed; updated stack file saved for the laptop: data/stack-updates/{name}.yml")
+            # record what changed (old ref -> new ref, plus the digest now running) for the laptop's copy of the stack
+            # file, which may carry pins and comments Portainer's copy lacks: stack-updates-sync.sh applies these there
+            rec = []
+            for old, new in changes:
+                repo = new.split("@")[0].rsplit(":", 1)[0] if ":" in new.split("@")[0].rsplit("/", 1)[-1] else new.split("@")[0]
+                dig = new.split("@")[1] if "@" in new else next((d.split("@")[1] for d in json.loads(sh("docker", "image", "inspect", new.split("@")[0]))[0].get("RepoDigests", []) if d.startswith(repo + "@")), None)
+                rec.append({"old": old, "new": new.split("@")[0], "digest": dig})
+            with open(os.path.join(OUT, f"{name}.json"), "w") as f: json.dump(rec, f, indent=1)
+            print(f"  deployed; changes saved for the laptop: data/stack-updates/{name}.json")
             down = [l for l in sh("docker", "ps", "-a", "--filter", f"label=com.docker.compose.project={name}", "--format", "{{.Names}}\t{{.Status}}").splitlines() if "\tUp" not in l]
             if down: rc = 1; print("  NOT RUNNING after the update: " + "; ".join(down))
         except Exception as e:
