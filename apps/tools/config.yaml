@@ -291,6 +291,18 @@ actions:
     shell: ping -c 4 10.42.0.1
     timeout: 30
 
+  - title: Stack updates - check
+    icon: "🔎"
+    shell: python3 /root/runtipi/app-data/_user/cronmaster/scripts/stack-updates.py check
+    timeout: 600
+  - title: Stack updates - apply
+    icon: "⬆️"
+    shell: bash /root/runtipi/app-data/_user/cronmaster/scripts/tools-run.sh stack-updates-apply python3 /root/runtipi/app-data/_user/cronmaster/scripts/stack-updates.py apply
+    timeout: 3600
+    arguments:
+      - type: confirmation
+        title: Pin newer same-major versions and new builds in Portainer and redeploy those stacks (what the Sunday job does)
+
   # ---------------------------------------------------------------- host housekeeping (the dangerous ones ask twice)
   - title: Remove unused docker data
     icon: "🧹"
@@ -363,6 +375,8 @@ dashboards:
           - title: Nebula overlay
           - title: Recent system errors
           - title: Pending OS updates
+          - title: Stack updates - check
+          - title: Stack updates - apply
       - title: Scheduled jobs (run now)
         type: fieldset
         contents:

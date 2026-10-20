@@ -11,6 +11,7 @@ generic copy (`example.com`, example feed and user names); edit those to match y
 | `config.yaml` | `/etc/OliveTin/config.yaml` on the apps host: the buttons, their arguments, the dashboards, who may use it |
 | `scripts/tools-run.sh` | Runs a script, shows its output live and keeps a copy under CronMaster's `data/logs/manual-<name>/`, framed like a scheduled run |
 | `scripts/tools-status.sh` | The read-only reports (containers, disk, memory, certificates, jobs, county documents, Wikipedia, Nebula, journal, updates, Nextcloud) |
+| `scripts/stack-updates.py` | `check`: which images have a newer build or version (registry lookups, no credentials); `apply`: pins same-major updates in Portainer, redeploys, saves the rewritten stack file for the operator's copy. Buttons *Stack updates - check/apply*; CronMaster jobs `stack-updates-check` (weekly) and `stack-updates-apply` (Sunday 02:30 local) |
 | Traefik router `pub-tools` | `Host(tools.<domain>)` → `http://172.30.0.1:1337`, middlewares `xfp-https, authentik-fwd` |
 | Authentik | proxy provider + application `tools` (forward auth, single app); group `app-tools` = who sees the app on the desktop |
 | Desktop | `apps/dash/apps.json` entry `tools` (folder *Admin*, access `tools`) |
@@ -66,3 +67,14 @@ Maintenance --host https://tools.<domain> --users <admin>`), the public host on 
 | 502 from the desktop window | OliveTin down or Traefik not on the `tools` network | `systemctl status OliveTin`; `docker network inspect tools` should list `traefik` |
 | A button fails at once with no output | Timeout (default 3 s) or a bad argument | Set `timeout`; check `journalctl -u OliveTin` |
 | Config change not showing | OliveTin not restarted | `systemctl restart OliveTin` |
+
+## Stack updates
+
+Every image in the stacks is pinned (`tag@sha256:…`), so an update is an edit to the stack file. `stack-updates.py`
+asks each registry anonymously: a floating tag (`latest`, `master`, `redis:6.2`) that moved to a new digest is a
+**new build**; a version tag with a higher version of the same shape and major (`v3.28.0` → `v3.29.0`; for `0.x`
+the second number counts as the major) is a **newer version**; both are applied by `apply`. A major upgrade, and a
+digest pinned without a tag (its version is unknown, so a move could be a major jump), are only reported. `apply`
+rewrites the image lines in the stack file Portainer holds, redeploys with pull, checks the stack's containers are
+up, and saves the new file under CronMaster's `data/stack-updates/` for the operator to sync into their stack
+directory (`pstack.py` refuses to deploy a stack whose pins in Portainer are newer than the local file).
