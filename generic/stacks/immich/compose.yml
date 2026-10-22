@@ -46,7 +46,7 @@ services:
     security_opt: ["no-new-privileges:true"]
     networks: [internal]
   database:
-    image: ghcr.io/immich-app/postgres:14-vectorchord0.4.3-pgvectors0.2.0
+    image: ${IMMICH_DB_IMAGE:-ghcr.io/immich-app/postgres:14-vectorchord0.4.3-pgvectors0.2.0}
     restart: unless-stopped
     environment:
       POSTGRES_PASSWORD: "${IMMICH_DB_PASSWORD}"

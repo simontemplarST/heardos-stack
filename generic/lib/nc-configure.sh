@@ -28,7 +28,7 @@ occ config:app:set onlyoffice StorageUrl --value "http://nextcloud/" >/dev/null
 python3 -c 'import json,os; print(json.dumps({"apps": {"onlyoffice": {"jwt_secret": os.environ["NC_JWT_SECRET"], "jwt_header": "Authorization"}}}))' \
   | docker exec -i -u www-data "$C" php occ config:import >/dev/null
 have="$(occ files_external:list --output=json 2>/dev/null || echo '[]')"
-mk() { if ! echo "$have" | grep -q "\"mount_point\": \"/$1\""; then id="$(occ files_external:create "$1" local null::null -c datadir="$2" | grep -oE '[0-9]+' | tail -1)"; [ "${3:-}" = ro ] && occ files_external:option "$id" readonly true >/dev/null; occ files_external:option "$id" filesystem_check_changes 1 >/dev/null; echo "  storage '$1' -> $2${3:+ ($3)}"; fi; }
+mk() { if ! echo "$have" | grep -qE "\"mount_point\": ?\"/$1\""; then id="$(occ files_external:create "$1" local null::null -c datadir="$2" | grep -oE '[0-9]+' | tail -1)"; [ "${3:-}" = ro ] && occ files_external:option "$id" readonly true >/dev/null; occ files_external:option "$id" filesystem_check_changes 1 >/dev/null; echo "  storage '$1' -> $2${3:+ ($3)}"; fi; }
 mk "Family documents" /mnt/documents; mk "Music" /mnt/music; mk "Paperless inbox" /mnt/paperless-inbox; mk "Paperless archive" /mnt/paperless-archive ro
 occ background:cron >/dev/null
 occ onlyoffice:documentserver --check 2>&1 | tail -1

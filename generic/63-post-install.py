@@ -128,7 +128,7 @@ def ws_call(host, port, path, token, msg):
             return m["result"]
 
 
-HA_PORT = 8209   # host-only port (127.0.0.1) from stacks/homeassistant
+HA_PORT = int(os.environ.get("HA_PORT", "8209"))   # host-only port from stacks/homeassistant; 8123 with HA_HOST_NETWORK=1 (host network)
 
 
 def ha_onboard():

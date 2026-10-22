@@ -6,13 +6,13 @@
 #   skopeo inspect --raw docker://ghcr.io/goauthentik/server:<tag> | sha256sum
 services:
   postgresql:
-    image: postgres:16-alpine@sha256:721873c34ceb9f8d8fc265984940dc982404c105f19ad51be9fdc5970a6080ea
+    image: ${AUTHENTIK_PG_IMAGE:-postgres:18-alpine}   # 18: the data dir is /var/lib/postgresql/18/docker, so the parent is mounted
     restart: unless-stopped
     environment:
       POSTGRES_PASSWORD: ${PG_PASS}
       POSTGRES_USER: authentik
       POSTGRES_DB: authentik
-    volumes: ["${HEARDOS_ROOT}/data/authentik/postgres:/var/lib/postgresql/data"]
+    volumes: ["${HEARDOS_ROOT}/data/authentik/postgres:/var/lib/postgresql"]
     healthcheck: {test: ["CMD-SHELL", "pg_isready -d authentik -U authentik"], interval: 10s, timeout: 5s, retries: 10, start_period: 20s}
     networks: [internal]
   redis:
@@ -53,7 +53,7 @@ services:
       - ${HEARDOS_ROOT}/data/authentik/media:/media
       - ${HEARDOS_ROOT}/data/authentik/templates:/templates
     ports:
-      - "${HOST_LAN_IP}:9000:9000"             # LAN API/UI for the automation scripts; public access goes through Traefik
+      - "${AUTHENTIK_API_BIND:-${HOST_LAN_IP}}:9000:9000"   # API/UI for the automation scripts (plan AUTHENTIK_API_BIND=127.0.0.1 keeps it off the LAN); public access goes through Traefik
     depends_on: {postgresql: {condition: service_healthy}, redis: {condition: service_healthy}}
     networks: [internal, proxy]
     labels:

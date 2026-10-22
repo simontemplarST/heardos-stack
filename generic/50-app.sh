@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 50-app.sh — run ON THE HOST as root:  50-app.sh <app>   (see --list: paperless mealie homeassistant homebox baikal navidrome onlyoffice nextcloud immich vaultwarden wallos actual invidious homepage calibre-web librespeed dash hortusfox archivebox listmonk paperless-gpt kiwix searxng)
+# 50-app.sh — run ON THE HOST as root:  50-app.sh <app>   (see --list: paperless mealie homeassistant homebox baikal navidrome onlyoffice nextcloud immich vaultwarden wallos actual invidious homepage calibre-web librespeed dash hortusfox archivebox listmonk paperless-gpt kiwix searxng cronmaster bitmagnet blog open-webui)
 # One command per app: registers it in Authentik (via 42-ak-app.py, using AUTHENTIK_TOKEN from the plan file),
 # generates its secrets, renders its stack .env, creates data dirs, deploys, and runs the app's post-install.
 # Public DNS and the Caddy host list are laptop-side: run 30-vps-caddy.sh and 32-dns.py once PUBLIC_HOSTS is final.
@@ -14,12 +14,12 @@ app="${1:?app name}"; : "${PROXY_SUBNET:?}" "${AUTHENTIK_TOKEN:?run 40-authentik
 d="$HEARDOS_ROOT/stacks/$app"; [ -d "$HERE/stacks/$app" ] || die "no stack definition for '$app'"
 install -d "$d"; cp "$HERE/stacks/$app/compose.yml" "$d/compose.yml"
 base_env() { printf 'HEARDOS_ROOT=%s\nDOMAIN=%s\nLAN_DOMAIN=%s\nHOST_LAN_IP=%s\nPROXY_SUBNET=%s\nTRAEFIK_PROXY_IP=%s\nMEDIA_GID=%s\nTZ=%s\nADMIN_USER=%s\nADMIN_EMAIL=%s\n' "$HEARDOS_ROOT" "$DOMAIN" "$LAN_DOMAIN" "$HOST_LAN_IP" "$PROXY_SUBNET" "$TRAEFIK_PROXY_IP" "$MEDIA_GID" "$TZ" "$ADMIN_USER" "$ADMIN_EMAIL"
-  local v; for v in ONLYOFFICE_MEM NEXTCLOUD_MEM IMMICH_ML_MEM OLLAMA_MEM ARCHIVEBOX_MEM; do [ -z "${!v:-}" ] || printf '%s=%s\n' "$v" "${!v}"; done; }   # optional mem_limit overrides
+  local v; for v in ONLYOFFICE_MEM NEXTCLOUD_MEM IMMICH_ML_MEM OLLAMA_MEM ARCHIVEBOX_MEM AUTHENTIK_PG_IMAGE PAPERLESS_PG_IMAGE LISTMONK_PG_IMAGE IMMICH_DB_IMAGE NEXTCLOUD_PG_IMAGE; do [ -z "${!v:-}" ] || printf '%s=%s\n' "$v" "${!v}"; done; }   # optional mem_limit overrides
 oidc() { # SLUG NAME LAUNCH REDIRECT... -> sets OIDC_CLIENT_ID/SECRET from secrets.env (registering on first run)
   # http:// redirects (the plain-HTTP LAN names) are registered only with LAN_HTTP=1: the kit has no LAN TLS yet, and an
   # http redirect URI hands the authorization code over the LAN in clear. 42-ak-app.py only adds URIs; drop old ones in the UI.
   local slug="$1" name="$2" launch="$3"; shift 3; local args=() u
-  for u in "$@"; do case "$u" in --public) args+=(--public);; http://*) [ "$LAN_HTTP" = 1 ] && args+=(--redirect "$u");; *) args+=(--redirect "$u");; esac; done
+  for u in "$@"; do case "$u" in --public) args+=(--public);; --users=*) args+=(--users "${u#--users=}");; http://*) [ "$LAN_HTTP" = 1 ] && args+=(--redirect "$u");; *) args+=(--redirect "$u");; esac; done
   local key="AUTHENTIK_$(echo "$slug" | tr 'a-z-' 'A-Z_')"
   if ! grep -q "^${key}_CLIENT_ID=" "$HEARDOS_ROOT/secrets/secrets.env" 2>/dev/null; then
     HEARDOS_ENV="$ENV_FILE" python3 "$HERE/42-ak-app.py" oidc "$slug" --name "$name" --launch "$launch" "${args[@]}" --out "$HEARDOS_ROOT/secrets/secrets.env"
@@ -60,6 +60,29 @@ case "$app" in
     { base_env; printf 'OIDC_CLIENT_ID=%s\nOIDC_CLIENT_SECRET=%s\nMEALIE_ADMIN_PASSWORD=%s\n' "$OIDC_CLIENT_ID" "$OIDC_CLIENT_SECRET" "$(secret MEALIE_ADMIN_PASSWORD 24)"; } > "$d/.env" ;;
   homeassistant)
     pub="https://home.$DOMAIN"; oidc home-assistant "Home Assistant" "$pub/" "$pub/auth/oidc/callback" "http://home.$LAN_DOMAIN/auth/oidc/callback"
+    if [ "${HA_HOST_NETWORK:-0}" = 1 ]; then
+      # host network (LAN discovery, a USB radio in HA_DEVICE): no proxy network, so the routes are a file, not labels
+      cp "$HERE/stacks/homeassistant/compose.host.yml" "$d/compose.yml"
+      cat > "$HEARDOS_ROOT/dynamic/homeassistant.yml" <<HAEOF
+# Home Assistant runs on the host network (50-app.sh, HA_HOST_NETWORK=1): Traefik reaches it at the LAN address.
+http:
+  routers:
+    home:
+      rule: Host(\`home.$DOMAIN\`)
+      entryPoints: [web]
+      service: homeassistant
+      middlewares: [xfp-https]
+    home-lan:
+      rule: Host(\`home.$LAN_DOMAIN\`)
+      entryPoints: [web]
+      service: homeassistant
+  services:
+    homeassistant:
+      loadBalancer:
+        servers:
+          - url: http://$HOST_LAN_IP:8123
+HAEOF
+    else rm -f "$HEARDOS_ROOT/dynamic/homeassistant.yml"; fi
     c="$HEARDOS_ROOT/data/homeassistant"; install -d "$c/custom_components"
     if [ ! -d "$c/custom_components/auth_oidc" ]; then
       msg "installing hass-oidc-auth custom component"; tmp="$(mktemp -d)"
@@ -93,10 +116,10 @@ EOF
     # older installs trusted the whole proxy subnet: narrow it to Traefik's /32 (restart below)
     ha_fix=""; if grep -qF "trusted_proxies: [${PROXY_SUBNET}, 127.0.0.1]" "$c/configuration.yaml"; then
       sed -i "s|^  trusted_proxies: \[${PROXY_SUBNET}, 127.0.0.1\]\$|  trusted_proxies: [${TRAEFIK_PROXY_IP}/32]|" "$c/configuration.yaml"; ha_fix=1; fi
-    base_env > "$d/.env" ;;
+    { base_env; printf 'HA_DEVICE=%s\n' "${HA_DEVICE:-/dev/null}"; } > "$d/.env" ;;
   homebox)
     oidc homebox Homebox "$pub/" "$pub/api/v1/users/login/oidc/callback" "http://homebox.$LAN_DOMAIN/api/v1/users/login/oidc/callback"
-    install -d "$HEARDOS_ROOT/data/homebox"; { base_env; printf 'OIDC_CLIENT_ID=%s\nOIDC_CLIENT_SECRET=%s\n' "$OIDC_CLIENT_ID" "$OIDC_CLIENT_SECRET"; } > "$d/.env" ;;
+    install -d "$HEARDOS_ROOT/data/homebox"; { base_env; printf 'OIDC_CLIENT_ID=%s\nOIDC_CLIENT_SECRET=%s\nHOMEBOX_PEPPER=%s\n' "$OIDC_CLIENT_ID" "$OIDC_CLIENT_SECRET" "$(secret HOMEBOX_PEPPER 32)"; } > "$d/.env" ;;
   baikal)
     proxy baikal --name "Baikal (calendar & contacts)" --host "https://dav.$DOMAIN" --launch "https://dav.$DOMAIN/admin/" --skip '^/dav\.php.*' --skip '^/card\.php.*' --skip '^/cal\.php.*' --skip '^/\.well-known/.*'
     install -d "$HEARDOS_ROOT/data/baikal"/{config,specific}; chown -R 33:33 "$HEARDOS_ROOT/data/baikal"; base_env > "$d/.env" ;;
@@ -211,6 +234,26 @@ PY
     render "$HERE/../apps/searxng/limiter.toml" "$HEARDOS_ROOT/data/searxng/config/limiter.toml"
     chmod 644 "$HEARDOS_ROOT/data/searxng/config"/*   # cap_drop ALL: root in the container can't read 0600 files
     { base_env; printf 'SEARXNG_SECRET=%s\n' "$(secret SEARXNG_SECRET 48)"; } > "$d/.env" ;;
+  cronmaster)
+    # the owner's script library + scheduler: Authentik gate on cron.$DOMAIN, then CronMaster's own OIDC sign-in
+    proxy cronmaster-gate --name "Scheduled jobs (CronMaster)" --host "https://cron.$DOMAIN" --launch "https://cloud.$DOMAIN/cron" --users "$ADMIN_USER"
+    oidc cronmaster "CronMaster sign-in" "https://cron.$DOMAIN/" "https://cron.$DOMAIN/api/oidc/callback" "http://cron.$LAN_DOMAIN/api/oidc/callback" "--users=$ADMIN_USER"
+    install -d "$HEARDOS_ROOT/data/cronmaster"/{scripts,data,snippets}
+    { base_env; printf 'OIDC_CLIENT_ID=%s\nOIDC_CLIENT_SECRET=%s\nCRONMASTER_AUTH_PASSWORD=%s\n' "$OIDC_CLIENT_ID" "$OIDC_CLIENT_SECRET" "$(secret CRONMASTER_AUTH_PASSWORD 24)"; } > "$d/.env" ;;
+  bitmagnet)
+    proxy bitmagnet --name "Torrent search (bitmagnet)" --host "https://bitmagnet.$DOMAIN" --launch "https://cloud.$DOMAIN/bitmagnet" --users "$ADMIN_USER"
+    install -d "$HEARDOS_ROOT/data/bitmagnet"/{config,postgres}
+    { base_env; printf 'BITMAGNET_DB_PASSWORD=%s\n' "$(secret BITMAGNET_DB_PASSWORD)"; } > "$d/.env" ;;
+  blog)
+    # public static site at https://$DOMAIN from Listmonk's public archive; generator + nginx config from apps/blog
+    install -d "$HEARDOS_ROOT/data/blog"/{app,site}; install -m 644 "$HERE/../apps/blog"/{gen.py,nginx.conf,style.css} "$HEARDOS_ROOT/data/blog/app/"
+    chown -R 65534:65534 "$HEARDOS_ROOT/data/blog/site"
+    { base_env; printf 'BLOG_TITLE=%s\n' "${BLOG_TITLE:-$DOMAIN}"; } > "$d/.env" ;;
+  open-webui)
+    pub="https://chat.$DOMAIN"; oidc chat "Chat (Open WebUI)" "$pub/" "$pub/oauth/oidc/callback" "--users=$ADMIN_USER"
+    install -d "$HEARDOS_ROOT/data/open-webui"
+    { base_env; printf 'OIDC_CLIENT_ID=%s\nOIDC_CLIENT_SECRET=%s\nWEBUI_SECRET_KEY=%s\nCHAT_HARNESS_URL=%s\nCHAT_HARNESS_KEY=%s\nPAPERLESS_GPT_MODEL=%s\nBRAND_TITLE=%s\n' \
+        "$OIDC_CLIENT_ID" "$OIDC_CLIENT_SECRET" "$(secret WEBUI_SECRET_KEY 64)" "${CHAT_HARNESS_URL:-http://127.0.0.1:11440/v1}" "$(secret CHAT_HARNESS_KEY 48)" "${PAPERLESS_GPT_MODEL:-llama3.2:3b}" "${BRAND_TITLE:-HeardOS}"; } > "$d/.env" ;;
   paperless-gpt)
     # needs Paperless running: creates the paperless-gpt service user + API token (PAPERLESS_GPT_TOKEN) first
     install -d "$HEARDOS_ROOT/data/ollama" "$HEARDOS_ROOT/data/paperless-gpt/prompts"
@@ -239,6 +282,12 @@ case "$app" in
   ocr) msg "check: docker exec paperless-webserver python3 -c \"import urllib.request;print(urllib.request.urlopen('http://heardos-ocr:8000/health').read())\"; then consume a scanned PDF and confirm its text in Paperless" ;;
   onlyoffice) msg "Document Server builds fonts on first start (several minutes); check: curl -s http://office.$LAN_DOMAIN/healthcheck -> true. People only need access to Nextcloud; the office gate only guards Document Server's own pages." ;;
   nextcloud)
+    # an existing instance (an adopted install) answers "trusted domain" to names it does not know yet: add ours first
+    for i in $(seq 1 60); do docker exec -u www-data nextcloud php occ status >/dev/null 2>&1 && break; sleep 5; done
+    td="$(docker exec -u www-data nextcloud php occ config:system:get trusted_domains 2>/dev/null || true)"
+    for h in "docs.$DOMAIN" "docs.$LAN_DOMAIN"; do
+      echo "$td" | grep -qx "$h" || { docker exec -u www-data nextcloud php occ config:system:set trusted_domains "$(echo "$td" | grep -c . )" --value "$h" >/dev/null 2>&1 && td="$td"$'\n'"$h"; }
+    done
     msg "waiting for the Nextcloud installer"; n=0; until curl -s -m 5 "http://docs.$LAN_DOMAIN/status.php" 2>/dev/null | grep -q '"installed":true'; do sleep 10; n=$((n+1)); [ $n -gt 90 ] && die "Nextcloud did not finish installing"; done
     NC_OIDC_CLIENT_SECRET="$OIDC_CLIENT_SECRET" NC_JWT_SECRET="$(secret ONLYOFFICE_JWT_SECRET 40)" \
       bash "$HERE/lib/nc-configure.sh" "$DOMAIN" "$LAN_DOMAIN" "$OIDC_CLIENT_ID" "$TRAEFIK_PROXY_IP" "$NEBULA_LH_OVERLAY"

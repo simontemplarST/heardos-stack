@@ -4,6 +4,7 @@ Debug/screenshot mode (used for docs and visual checks):
   HEARDOS_UI_DEMO=1          throwaway vault + sample answers, nothing real is touched
   HEARDOS_UI_SCREEN=<id>     start on that screen
   HEARDOS_UI_SHOT=<png>      save a screenshot after a few frames and quit
+  HEARDOS_UI_INPUTS=<json>   pre-fill form state, e.g. '{"stack_sel": "homebox"}' (screenshots of a particular view)
 """
 from __future__ import annotations
 
@@ -28,7 +29,7 @@ def _sidebar(st: UIState) -> None:
     imgui.push_font(None, imgui.get_font_size() * 1.3)
     imgui.text_colored(C["ORANGE"], st.draft.get("BRAND_TITLE") or "HeardOS")
     imgui.pop_font()
-    imgui.text_colored(C["MUTED"], "family cloud setup")
+    imgui.text_colored(C["MUTED"], "family cloud setup" if st.mode == "wizard" else "managing your cloud")
     imgui.spacing(); imgui.separator(); imgui.spacing()
     items = WIZARD if st.mode == "wizard" else DAY2
     ids = [i for i, _ in items]
@@ -62,8 +63,8 @@ def _sidebar(st: UIState) -> None:
 
 
 def _day2_placeholder(st: UIState) -> None:
-    from .ui import day2
-    fn = getattr(day2, st.screen, None)
+    from .ui import assistant, day2, stacks
+    fn = getattr(day2, st.screen, None) or {"stacks": stacks.stacks, "assistant": assistant.assistant}.get(st.screen)
     if fn:
         fn(st)
     else:
@@ -109,6 +110,7 @@ def _demo_state() -> UIState:
     v.create("demo-passphrase-123")
     v.update({"CLOUDZY_API_TOKEN": "demo", "CF_API_TOKEN": "demo", "RESEND_API_KEY": "demo"})
     st = UIState(v)
+    _demo_backend(st)
     st.draft.update({"BRAND_TITLE": "The Smith Family Cloud", "DOMAIN": "smithfamily.example", "ADMIN_NAME": "Alice Smith",
                      "ADMIN_USER": "alice", "ADMIN_EMAIL": "alice@example.net", "HOST_LAN_IP": "192.168.1.50",
                      "provider": "cloudzy", "vps_region": "MIA", "vps_region_name": "Miami", "vps_plan": "x",
@@ -141,12 +143,22 @@ def _demo_ops() -> None:
     ops.app_status = lambda inst: {a: "running" for a in inst.plan.get("apps", [])} | {"homebox": "unhealthy"}
 
 
+def _demo_backend(st: UIState) -> None:
+    """Demo mode: Stacks and Assistant work on an in-memory install (manage/sim.py)."""
+    from .manage.sim import SimBackend
+    st.sim_backend = SimBackend(delay=0.4)
+    st.sim_backend.plan["DOMAIN"] = "smithfamily.example"
+
+
 def main() -> None:
     if os.environ.get("HEARDOS_UI_DEMO"):
         st = _demo_state()
     else:
         from .vault import Vault
         st = UIState(Vault())
+    if os.environ.get("HEARDOS_UI_INPUTS"):
+        import json
+        st.inputs.update(json.loads(os.environ["HEARDOS_UI_INPUTS"]))
     if os.environ.get("HEARDOS_UI_SCREEN"):
         st.screen = os.environ["HEARDOS_UI_SCREEN"]
         if st.screen in ("install", "done") and os.environ.get("HEARDOS_UI_DEMO"):
@@ -163,6 +175,7 @@ def main() -> None:
                 from .steps import apply_defaults
                 import copy
                 _demo_ops()
+                _demo_backend(st)
                 st.demo_dry_run = True
                 _start_install(st, apply_defaults(copy.deepcopy(st.draft)))
                 st.inst._thread.join(30)

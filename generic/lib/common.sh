@@ -49,7 +49,7 @@ _sshkey() { [ -n "${SSH_KEY:-}" ] && printf -- '-i %s -o IdentitiesOnly=yes' "$S
 _lhaddr() { printf '%s' "${NEBULA_LH_SSH:-${NEBULA_LH_IP:?set NEBULA_LH_IP}}"; }
 lh() { ssh -o BatchMode=yes -o ConnectTimeout=10 $(_sshkey) "root@$(_lhaddr)" "$@"; }
 # wait_ssh SECONDS — until the VPS accepts our key (fresh VPSes take a minute or two); fails instead of looping forever
-wait_ssh() { local t="${1:-600}" i=0; until lh true 2>/dev/null; do sleep 5; i=$((i+5)); [ "$i" -ge "$t" ] && return 1; done; }
+wait_ssh() { local t="${1:-600}" i=0; until lh true 2>/dev/null; do sleep 5; i=$((i+5)); if [ "$i" -ge "$t" ]; then return 1; fi; done; return 0; }
 lh_put() { scp -q -o BatchMode=yes $(_sshkey) "$1" "root@$(_lhaddr):$2"; }
 # lh_stage — a fresh private (0700) staging directory under /root on the VPS; prints its path
 lh_stage() { lh 'umask 077; mktemp -d /root/heardos-stage.XXXXXX'; }
@@ -59,18 +59,30 @@ set_plan() {
 }
 
 # deploy_stack NAME — bring up $HEARDOS_ROOT/stacks/NAME/compose.yml, via Portainer when a token is set, else docker compose.
+# compose.override.yml next to it (the installer's per-app settings; 50-app.sh never overwrites it) is merged in: docker
+# compose reads it by itself, Portainer gets one merged file (${VAR} references kept, so no secret is inlined).
 deploy_stack() {
-  local name="$1" dir="$HEARDOS_ROOT/stacks/$1"
+  local name="$1" dir="$HEARDOS_ROOT/stacks/$1" file
   [ -f "$dir/compose.yml" ] || die "no compose.yml in $dir"
   if dry; then msg "[dry-run] would deploy stack $name from $dir"; return 0; fi
   if [ -n "${PORTAINER_TOKEN:-}" ]; then
-    "$HERE/lib/portainer-stack.py" "$name" "$dir/compose.yml" "$dir/.env"
+    file="$dir/compose.yml"
+    if [ -f "$dir/compose.override.yml" ]; then
+      # one merged file for Portainer, strings kept as written (${VAR} stays a reference; `docker compose config
+      # --no-interpolate` would turn "${HEARDOS_ROOT}/x:/y" into an undefined named volume)
+      file="$dir/.compose.merged.yml"
+      python3 "$HERE/lib/compose-merge.py" "$dir/compose.yml" "$dir/compose.override.yml" > "$file"
+    fi
+    "$HERE/lib/portainer-stack.py" "$name" "$file" "$dir/.env"
   else
     ( cd "$dir" && docker compose --project-name "$name" up -d --remove-orphans )
   fi
 }
 
-wait_http() { # wait_http URL [seconds] — until URL answers any HTTP status
+wait_http() { # wait_http URL [seconds] — until URL answers any HTTP status; 1 when it never did within the time
   local url="$1" t="${2:-120}" i=0
-  until curl -s -o /dev/null -m 5 "$url"; do sleep 3; i=$((i+3)); [ "$i" -ge "$t" ] && return 1; done
+  # an explicit return: a function's status is that of its last command, and the loop body's "[ ] && return 1" leaves
+  # status 1 behind whenever the service needed a moment (which made every wait after a redeploy look like a failure)
+  until curl -s -o /dev/null -m 5 "$url"; do sleep 3; i=$((i+3)); if [ "$i" -ge "$t" ]; then return 1; fi; done
+  return 0
 }

@@ -15,6 +15,7 @@ services:
       HBOX_OIDC_CLIENT_SECRET: "${OIDC_CLIENT_SECRET}"
       HBOX_OIDC_BUTTON_TEXT: "Sign in with HeardOS"
       HBOX_OIDC_SCOPE: "openid profile email"
+      HBOX_AUTH_API_KEY_PEPPER: "${HOMEBOX_PEPPER}"
     volumes: ["${HEARDOS_ROOT}/data/homebox:/data"]
     security_opt: ["no-new-privileges:true"]
     networks: [proxy]

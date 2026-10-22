@@ -18,6 +18,9 @@ PLAN_KEYS = [
     # 2026-10-19 security review: fixed Traefik address (header trust), shared media group, opt-in LAN http redirects,
     # CrowdSec home allowlist, pinned Nebula, SSH over the overlay once the lighthouse is locked
     "PROXY_IP_RANGE", "TRAEFIK_PROXY_IP", "MEDIA_GID", "LAN_HTTP", "HOME_PUBLIC_IP", "NEBULA_VERSION", "NEBULA_LH_SSH",
+    # per-install image choices (an adopted install keeps the database engines it runs; see docs/adopt-and-migrate.md)
+    "AUTHENTIK_PG_IMAGE", "PAPERLESS_PG_IMAGE", "LISTMONK_PG_IMAGE", "IMMICH_DB_IMAGE", "NEXTCLOUD_PG_IMAGE", "OLLAMA_CPUS", "KIWIX_ZIM",
+    "AUTHENTIK_API_BIND", "HA_HOST_NETWORK", "HA_DEVICE", "CHAT_HARNESS_URL",
 ]
 SECRET_KEYS_BY_SIDE = {
     "local": ["CF_API_TOKEN", "AUTHENTIK_TOKEN", "PORTAINER_TOKEN"],

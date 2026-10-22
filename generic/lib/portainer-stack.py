@@ -47,8 +47,13 @@ content = open(compose).read()
 endpoints = api("GET", "/api/endpoints"); eid = next((e["Id"] for e in endpoints if e.get("Type") == 1), endpoints[0]["Id"])
 existing = next((s for s in api("GET", "/api/stacks") if s["Name"] == name), None)
 if existing:
-    api("PUT", f"/api/stacks/{existing['Id']}?endpointId={eid}", {"stackFileContent": content, "env": env, "prune": True, "pullImage": True})
+    api("PUT", f"/api/stacks/{existing['Id']}?endpointId={eid}", {"stackFileContent": content, "env": env, "prune": True, "pullImage": False})   # no pull: images are pinned, and a locally built one (heardos-dash:local) cannot be pulled
     print(f"portainer: updated stack {name} (id {existing['Id']})")
+    # a stack someone stopped in Portainer (status 2) keeps the new file but stays down after an update: start it
+    cur = next((s for s in api("GET", "/api/stacks") if s["Id"] == existing["Id"]), None)
+    if cur and cur.get("Status") == 2:
+        api("POST", f"/api/stacks/{existing['Id']}/start?endpointId={eid}")
+        print(f"portainer: started stack {name} (it was stopped)")
 else:
     s = api("POST", f"/api/stacks/create/standalone/string?endpointId={eid}", {"name": name, "stackFileContent": content, "env": env, "fromAppTemplate": False})
     print(f"portainer: created stack {name} (id {s.get('Id')})")

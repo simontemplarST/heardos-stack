@@ -8,6 +8,13 @@
   heardos-cli destroy ID                   delete the VPS this install created (billing stops)
   heardos-cli ovh-confirm SERVICE TOKEN    finish an OVH termination with the token from OVH's email
   heardos-cli list                         installs on this machine
+  heardos-cli adopt SPEC.json [--vault F] [--secrets F] [--apply]   take over a HeardOS set up without this installer (adopt.py)
+  heardos-cli migrate ID STACK [--apply]   move an adopted stack into the kit layout (migrate.py)
+  heardos-cli tools [ID|sim] [--json]      the stack-management tools (same as the GUI, the harness and heardos-mcp)
+  heardos-cli tool ID|sim NAME [--args JSON] [--yes]   run one of them; changes ask first unless --yes ("sim": a
+                                           simulated install, nothing real is touched)
+Model harness: heardos-agent (see heardos_installer/harness/cli.py); MCP server: heardos-mcp; chat front ends
+(Open WebUI and the like, OpenAI/Ollama protocols): heardos-serve.
 """
 from __future__ import annotations
 
@@ -184,7 +191,10 @@ def cmd_retry(a) -> None:
     inst = Installation(a.id, v, prompt=_prompt)
     inst.retry(a.step)
     inst.listeners.append(_status_printer)
-    sys.exit(0 if inst.run() else 1)
+    # an adopted install may list apps whose install step never ran because they still live in their old layout
+    # (heardos-cli migrate moves them): a full run would install them on empty folders, so retry stays with its step
+    only = {a.step} if inst.plan.get("adopted_pending") else None
+    sys.exit(0 if inst.run(only=only) else 1)
 
 
 def cmd_destroy(a) -> None:
@@ -233,6 +243,70 @@ def cmd_people(a) -> None:
         print(f"{u['username']:16} {u['name']:24} {'active' if u['active'] else 'SUSPENDED':10} apps: {', '.join(u['apps'])}")
 
 
+def cmd_plan(a) -> None:
+    """Plain plan keys (never secrets): `heardos-cli plan ID` prints them, `heardos-cli plan ID KEY=VALUE ...` sets them."""
+    from .engine import InstallState
+    st = InstallState(a.id)
+    if not a.kv:
+        for k in sorted(st.plan):
+            print(f"{k}={st.plan[k]}")
+        return
+    for kv in a.kv:
+        if "=" not in kv:
+            sys.exit(f"expected KEY=VALUE, got {kv!r}")
+        k, v = kv.split("=", 1)
+        if v[:1] in ("[", "{"):          # lists and objects (e.g. apps=["immich","mealie"]) as JSON
+            v = json.loads(v)
+        if any(w in k.upper() for w in ("PASSWORD", "SECRET", "TOKEN", "_KEY")):
+            sys.exit(f"{k} looks like a secret: put it in the vault (heardos-cli secret {k})")
+        st.set_plan(**{k: v})
+        print(f"{k}={v}")
+
+
+def _backend(a):
+    if a.id in (None, "sim"):
+        from .manage.sim import SimBackend
+        return SimBackend()
+    from .manage.backend import RealBackend
+    from .session import Installation
+    return RealBackend(Installation(a.id, _vault(), prompt=_prompt))
+
+
+def cmd_tools(a) -> None:
+    from .manage import tools as T
+    b = _backend(a)
+    rows = [{"name": t.name, "risk": t.risk, "summary": t.summary, "schema": t.schema(b)} for t in T.TOOLS if t.usable(b)]
+    if a.json:
+        print(json.dumps(rows, indent=1))
+        return
+    for r in rows:
+        args = ", ".join(f"{k}{'' if k in r['schema']['required'] else '?'}" for k in r["schema"]["properties"])
+        print(f"{r['risk']:7} {r['name']}({args})  {r['summary']}")
+
+
+def cmd_tool(a) -> None:
+    from .harness.schema import check, coerce
+    from .manage import tools as T
+    b = _backend(a)
+    t = T.BY_NAME.get(a.name) or sys.exit(f"no tool {a.name}; see heardos-cli tools")
+    args = coerce(t.schema(b), json.loads(a.args or "{}"))
+    errs = check(t.schema(b), args)
+    if errs:
+        sys.exit("wrong arguments: " + "; ".join(errs))
+    if t.preview and t.risk != "read":
+        ok, preview = t.preview(b, args)
+        print(preview)
+        if not ok:
+            sys.exit(1)
+        if t.risk == "danger" or not a.yes:
+            want = str(args.get("app", "yes")) if t.risk == "danger" else "y"
+            if not sys.stdin.isatty() or input(f"type {want} to go ahead: ").strip().lower() != want.lower():
+                sys.exit("cancelled")
+    r = T.call(b, t.name, args)
+    print(r.text)
+    sys.exit(0 if r.ok else 1)
+
+
 def cli(argv=None) -> None:
     ap = argparse.ArgumentParser(prog="heardos-cli", description="HeardOS installer (headless)")
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -250,6 +324,21 @@ def cli(argv=None) -> None:
     s = sub.add_parser("people", help="list family accounts, or --add USER NAME EMAIL"); s.add_argument("id"); s.add_argument("--add", nargs=3, metavar=("USER", "NAME", "EMAIL"))
     s.add_argument("--apps", help="comma-separated app stacks (default: all installed)"); s.add_argument("--welcome", action="store_true", help="email a set-password link")
     s.add_argument("--show", action="store_true", help="print the new person's first password"); s.set_defaults(fn=cmd_people)
+    s = sub.add_parser("tools", help="list the stack-management tools"); s.add_argument("id", nargs="?", help="install id, or sim (default)")
+    s.add_argument("--json", action="store_true"); s.set_defaults(fn=cmd_tools)
+    s = sub.add_parser("tool", help="run one stack-management tool"); s.add_argument("id"); s.add_argument("name"); s.add_argument("--args", help="JSON object")
+    s.add_argument("--yes", action="store_true", help="skip the question for changes (removals still ask)")
+    s.set_defaults(fn=cmd_tool)
+    s = sub.add_parser("adopt", help="take over a HeardOS that was set up without this installer"); s.add_argument("spec")
+    s.add_argument("--vault", help="KEY=VALUE file of values for the vault (tokens)"); s.add_argument("--secrets", help="KEY=VALUE file seeded into the host's secrets.env")
+    s.add_argument("--apply", action="store_true"); s.set_defaults(fn=lambda a: __import__("heardos_installer.adopt", fromlist=["main"]).main(a))
+    s = sub.add_parser("migrate", help="move an adopted stack into the kit layout"); s.add_argument("id"); s.add_argument("stack", nargs="?")
+    s.add_argument("--spec", help="migration spec JSON (default: ~/.config/heardos/migrate/<id>.json)"); s.add_argument("--apply", action="store_true")
+    s.add_argument("--rollback", action="store_true", help="undo a migrated stack: folders back, old stack redeployed")
+    s.add_argument("--release-hold", action="store_true", help="migrate a stack the spec marks on hold (the planned core cutover)")
+    s.set_defaults(fn=lambda a: __import__("heardos_installer.migrate", fromlist=["main"]).main(a))
+    s = sub.add_parser("plan", help="show the plan of an install, or set KEY=VALUE entries in it"); s.add_argument("id"); s.add_argument("kv", nargs="*", metavar="KEY=VALUE")
+    s.set_defaults(fn=cmd_plan)
     sub.add_parser("list").set_defaults(fn=lambda a: [print(i) for i in __import__("heardos_installer.engine", fromlist=["InstallState"]).InstallState.list_installs()])
     a = ap.parse_args(argv)
     a.fn(a)
@@ -261,7 +350,8 @@ def gui() -> None:
 
 
 if __name__ == "__main__":
-    if len(sys.argv) > 1 and sys.argv[1] in ("init", "secret", "install", "status", "retry", "destroy", "list", "health", "people", "-h", "--help"):
+    if len(sys.argv) > 1 and sys.argv[1] in ("init", "secret", "install", "status", "retry", "destroy", "list", "health", "people", "tools", "tool",
+                                                   "adopt", "migrate", "plan", "-h", "--help"):
         cli()
     else:
         gui()

@@ -7,7 +7,7 @@ services:
     volumes: ["${HEARDOS_ROOT}/data/paperless/redis:/data"]
     networks: [internal]
   db:
-    image: postgres:16-alpine
+    image: ${PAPERLESS_PG_IMAGE:-postgres:17}
     restart: unless-stopped
     security_opt: ["no-new-privileges:true"]
     environment: {POSTGRES_DB: paperless, POSTGRES_USER: paperless, POSTGRES_PASSWORD: "${PAPERLESS_DB_PASSWORD}"}
@@ -15,6 +15,7 @@ services:
     healthcheck: {test: ["CMD-SHELL", "pg_isready -U paperless -d paperless"], interval: 10s, timeout: 5s, retries: 10}
     networks: [internal]
   webserver:
+    container_name: paperless-webserver          # 63-post-install.py and paperless-gpt reach it by this name
     image: ghcr.io/paperless-ngx/paperless-ngx:3.3.2@sha256:d232cba37cc0bab0d6c6581ecd320383b7a6f49f33e0fd16adda4d009eb600dd   # 3.3.2
     restart: unless-stopped
     depends_on: {db: {condition: service_healthy}, broker: {condition: service_started}}

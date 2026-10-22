@@ -19,6 +19,7 @@ for d in KIT_DIRS:
             datas.append((str(p), str(Path("kit") / p.parent.relative_to(REPO))))
 
 hidden = collect_submodules("keyring.backends") + collect_submodules("dns") + ["nacl.bindings", "paramiko"]
+hidden += collect_submodules("heardos_installer.manage") + collect_submodules("heardos_installer.harness")   # imported lazily by the Stacks/Assistant screens
 
 a = Analysis([str(HERE / "heardos_installer" / "gui_entry.py")], pathex=[str(HERE)], datas=datas, hiddenimports=hidden,
              excludes=["tkinter", "matplotlib", "IPython", "pytest"], noarchive=False)

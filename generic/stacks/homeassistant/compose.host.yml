@@ -1,0 +1,18 @@
+# Home Assistant on the HOST network (plan HA_HOST_NETWORK=1): for discovery protocols that need the LAN (mDNS, SSDP,
+# HomeKit, Matter) and USB radios (plan HA_DEVICE, e.g. a Zigbee stick). 50-app.sh uses this file instead of compose.yml
+# and writes the Traefik routes to ${HEARDOS_ROOT}/dynamic/homeassistant.yml (labels cannot be used: no proxy network).
+# HA listens on :8123 of every interface; keep the host's firewall closed to it from outside the LAN. The host's network
+# (not the proxy one) means HA's trusted_proxies must include TRAEFIK_PROXY_IP (50-app.sh writes it) — Traefik reaches it
+# as that address.
+services:
+  homeassistant:
+    image: ghcr.io/home-assistant/home-assistant:2026.10.2@sha256:33afb0659d786213264c2211f8d91c5fe87461c56eba6a3a546eb05fc71e89f4   # 2026.10.2
+    container_name: homeassistant
+    restart: unless-stopped
+    network_mode: host
+    environment: {TZ: "${TZ}"}
+    devices:
+      - "${HA_DEVICE:-/dev/null}:${HA_DEVICE:-/dev/null}"   # /dev/null when there is no radio: a harmless mapping
+    volumes:
+      - ${HEARDOS_ROOT}/data/homeassistant:/config
+      - /etc/localtime:/etc/localtime:ro

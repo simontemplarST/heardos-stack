@@ -1,0 +1,40 @@
+# The family's public blog at the apex of the domain (https://${DOMAIN}): a static site rebuilt every 5 minutes from
+# Listmonk's public archive (campaigns that were sent with "Publish to public archive" ticked). Public, no sign-in.
+# The generator and nginx config come from apps/blog (50-app.sh copies them to ${HEARDOS_ROOT}/data/blog/app).
+services:
+  blog:
+    image: nginx@sha256:5616878291a2eed594aee8db4dade5878cf7edcb475e59193904b198d9b830de   # 1.29.8-alpine
+    container_name: blog
+    restart: unless-stopped
+    volumes:
+      - ${HEARDOS_ROOT}/data/blog/app/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ${HEARDOS_ROOT}/data/blog/site:/site:ro
+    networks: [proxy]
+    labels:
+      traefik.enable: "true"
+      traefik.docker.network: proxy
+      traefik.http.routers.blog.rule: Host(`${DOMAIN}`)
+      traefik.http.routers.blog.entrypoints: web
+      traefik.http.routers.blog.middlewares: xfp-https@file
+      traefik.http.services.blog.loadbalancer.server.port: "80"
+  blog-builder:
+    image: python@sha256:2d9aefe2fef018a7eb2c13064c89c71929800fd2e5dccdbf52ea5da5bb8d929a   # 3.13.16-alpine
+    container_name: blog-builder
+    restart: unless-stopped
+    user: "65534:65534"
+    command: [sh, -c, "while :; do python /app/gen.py; sleep 300; done"]
+    environment:
+      FEED: http://listmonk:9000/archive.xml
+      OUT: /site
+      SITE_URL: "https://${DOMAIN}"
+      SITE_TITLE: "${BLOG_TITLE}"
+      SUBSCRIBE_URL: "https://news.${DOMAIN}/subscription/form"
+      PYTHONUNBUFFERED: "1"
+    volumes:
+      - ${HEARDOS_ROOT}/data/blog/app:/app:ro
+      - ${HEARDOS_ROOT}/data/blog/site:/site
+    networks: [proxy]
+    read_only: true
+    cap_drop: [ALL]
+networks:
+  proxy: {external: true}

@@ -43,7 +43,7 @@ services:
       traefik.http.routers.news.service: news
       traefik.http.services.news.loadbalancer.server.port: "9000"
   listmonk-db:
-    image: postgres:17-alpine
+    image: ${LISTMONK_PG_IMAGE:-postgres:17}
     container_name: listmonk-db
     restart: unless-stopped
     environment:

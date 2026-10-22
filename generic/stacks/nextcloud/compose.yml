@@ -46,7 +46,7 @@ services:
     depends_on: [nextcloud]
     networks: [internal, proxy]   # the ONLYOFFICE connector health check runs in cron and must reach the onlyoffice stack
   db:
-    image: postgres:16-alpine
+    image: ${NEXTCLOUD_PG_IMAGE:-postgres:16-alpine}
     restart: unless-stopped
     environment: {POSTGRES_DB: nextcloud, POSTGRES_USER: nextcloud, POSTGRES_PASSWORD: "${NEXTCLOUD_DB_PASSWORD}"}
     volumes: ["${HEARDOS_ROOT}/data/nextcloud/postgres:/var/lib/postgresql/data"]

@@ -1,0 +1,51 @@
+# bitmagnet: BitTorrent DHT crawler and search engine. Owner only, behind the Authentik gate (bitmagnet has no login of its
+# own). The crawler is outbound only (no published ports); PostgreSQL on a private network.
+services:
+  bitmagnet:
+    image: ghcr.io/bitmagnet-io/bitmagnet:v0.10.0@sha256:cf2c16fac5b51f1c18e630b4710175d35d7e44b83012cfd05a2b43712feec05e   # v0.10.0
+    container_name: bitmagnet
+    restart: unless-stopped
+    command: ["worker", "run", "--keys=http_server", "--keys=queue_server", "--keys=dht_crawler"]
+    environment:
+      TZ: "${TZ}"
+      POSTGRES_HOST: bitmagnet-postgres
+      POSTGRES_PASSWORD: "${BITMAGNET_DB_PASSWORD}"
+    volumes:
+      - ${HEARDOS_ROOT}/data/bitmagnet/config:/root/.config/bitmagnet
+    depends_on:
+      bitmagnet-postgres: {condition: service_healthy}
+    cpus: 2
+    mem_limit: 2g
+    networks: [proxy, internal]
+    labels:
+      traefik.enable: "true"
+      traefik.docker.network: proxy
+      traefik.http.routers.bitmagnet-outpost.rule: Host(`bitmagnet.${DOMAIN}`) && PathPrefix(`/outpost.goauthentik.io/`)
+      traefik.http.routers.bitmagnet-outpost.entrypoints: web
+      traefik.http.routers.bitmagnet-outpost.service: authentik-outpost@file
+      traefik.http.routers.bitmagnet-outpost.middlewares: xfp-https@file
+      traefik.http.routers.bitmagnet-outpost.priority: "100"
+      traefik.http.routers.bitmagnet.rule: Host(`bitmagnet.${DOMAIN}`)
+      traefik.http.routers.bitmagnet.entrypoints: web
+      traefik.http.routers.bitmagnet.middlewares: xfp-https@file,authentik-fwd@file
+      traefik.http.services.bitmagnet.loadbalancer.server.port: "3333"
+  bitmagnet-postgres:
+    image: postgres:16-alpine@sha256:721873c34ceb9f8d8fc265984940dc982404c105f19ad51be9fdc5970a6080ea
+    container_name: bitmagnet-postgres
+    restart: unless-stopped
+    shm_size: 1g
+    environment:
+      POSTGRES_PASSWORD: "${BITMAGNET_DB_PASSWORD}"
+      POSTGRES_DB: bitmagnet
+      PGUSER: postgres
+    volumes:
+      - ${HEARDOS_ROOT}/data/bitmagnet/postgres:/var/lib/postgresql/data
+    healthcheck: {test: ["CMD-SHELL", "pg_isready"], interval: 10s, start_period: 20s}
+    cpus: 2
+    mem_limit: 4g
+    networks: [internal]
+networks:
+  proxy: {external: true}
+  internal:
+    name: bitmagnet
+    internal: true

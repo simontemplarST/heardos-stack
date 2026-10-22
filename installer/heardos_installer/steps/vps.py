@@ -47,6 +47,10 @@ def _caddyfile(ctx: Ctx) -> str:
 
 
 def vps_caddy(ctx: Ctx) -> StepResult:
+    if str(ctx.plan.get("CADDY_MANAGED", "1")) in ("0", "false", "False"):
+        # an adopted install whose Caddyfile carries things the generator does not know (an apex site, extra redirects,
+        # a custom log filter): the operator keeps it by hand; the installer must not overwrite it
+        return StepResult(True, message="Caddy on the VPS is managed by hand (plan CADDY_MANAGED=0); nothing changed")
     # wait until public resolvers see auth.<domain> -> VPS, so the first ACME attempt succeeds (rate limits are unforgiving)
     rec = Record("A", f"auth.{ctx.plan['DOMAIN']}", ctx.plan["NEBULA_LH_IP"])
     if not wait_resolved([rec], timeout=900, on_line=ctx.log):

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "heardos-installer"
-version = "0.2.0"
+version = "0.3.0"
 description = "Desktop installer and day-two console for the HeardOS self-hosting stack"
 readme = "README.md"
 requires-python = ">=3.12"
@@ -27,6 +27,9 @@ dev = ["pytest>=8", "respx>=0.21", "pyinstaller>=6", "numpy", "werkzeug"]
 [project.scripts]
 heardos = "heardos_installer.__main__:gui"
 heardos-cli = "heardos_installer.__main__:cli"
+heardos-agent = "heardos_installer.harness.cli:main"
+heardos-mcp = "heardos_installer.harness.mcp:main"
+heardos-serve = "heardos_installer.harness.serve:main"
 
 [tool.setuptools.packages.find]
 where = ["."]

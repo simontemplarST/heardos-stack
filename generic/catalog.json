@@ -1,480 +1,527 @@
 {
-  "about": "Apps the installer can offer. slug = Authentik application slug and the cloud.<domain>/<slug> path; host = public subdomain; stack = generic/stacks/<stack>. core apps are always installed.",
-  "profiles": {
-    "essentials": {
-      "name": "Essentials",
-      "blurb": "Photos, documents, passwords and a shared calendar."
-    },
-    "family": {
-      "name": "Family",
-      "blurb": "Essentials plus recipes, home inventory, music, paperwork, smart home and a family dashboard."
-    },
-    "everything": {
-      "name": "Everything",
-      "blurb": "Every app in the catalogue."
-    }
+ "about": "Apps the installer can offer. slug = Authentik application slug and the cloud.<domain>/<slug> path; host = public subdomain; stack = generic/stacks/<stack>. core apps are always installed.",
+ "profiles": {
+  "essentials": {
+   "name": "Essentials",
+   "blurb": "Photos, documents, passwords and a shared calendar."
   },
-  "apps": [
-    {
-      "stack": "traefik",
-      "core": true,
-      "name": "Traffic router",
-      "blurb": "Routes each web address to the right app.",
-      "hosts": []
-    },
-    {
-      "stack": "authentik",
-      "core": true,
-      "slug": "authentik",
-      "name": "Sign-in (Authentik)",
-      "blurb": "One account and one login for every app, with passkeys and two-factor.",
-      "hosts": [
-        "auth"
-      ]
-    },
-    {
-      "stack": "immich",
-      "slug": "immich",
-      "name": "Photos",
-      "blurb": "Back up phone photos and videos; albums, faces and search.",
-      "hosts": [
-        "photos"
-      ],
-      "profiles": [
-        "essentials",
-        "family",
-        "everything"
-      ],
-      "hub": {
-        "group": "Everyday",
-        "icon": "immich.png",
-        "label": "Photos",
-        "description": "Our pictures and videos"
-      }
-    },
-    {
-      "stack": "onlyoffice",
-      "name": "Office editor",
-      "blurb": "Edit Word, Excel and PowerPoint files in the browser (used by Documents).",
-      "hosts": [
-        "office"
-      ],
-      "profiles": [
-        "essentials",
-        "family",
-        "everything"
-      ]
-    },
-    {
-      "stack": "nextcloud",
-      "slug": "nextcloud",
-      "name": "Documents",
-      "blurb": "Family files with in-browser editing.",
-      "hosts": [
-        "docs"
-      ],
-      "depends_on": [
-        "onlyoffice"
-      ],
-      "profiles": [
-        "essentials",
-        "family",
-        "everything"
-      ],
-      "post_install": [
-        "nextcloud-admin"
-      ],
-      "hub": {
-        "group": "Everyday",
-        "icon": "nextcloud.png",
-        "label": "Documents",
-        "description": "Family files, Word and Excel in the browser"
-      }
-    },
-    {
-      "stack": "vaultwarden",
-      "slug": "vaultwarden",
-      "name": "Passwords",
-      "blurb": "A shared password manager that works with the Bitwarden apps.",
-      "hosts": [
-        "vault"
-      ],
-      "profiles": [
-        "essentials",
-        "family",
-        "everything"
-      ],
-      "hub": {
-        "group": "Everyday",
-        "icon": "vaultwarden.png",
-        "label": "Passwords",
-        "description": "Password vault (Bitwarden apps)"
-      }
-    },
-    {
-      "stack": "baikal",
-      "slug": "baikal",
-      "name": "Calendar & contacts",
-      "blurb": "Shared calendars and contacts that sync to every phone.",
-      "hosts": [
-        "dav"
-      ],
-      "profiles": [
-        "essentials",
-        "family",
-        "everything"
-      ],
-      "post_install": [
-        "baikal-user"
-      ],
-      "hub": {
-        "group": "Account",
-        "icon": "baikal.png",
-        "label": "Calendar help",
-        "description": "Calendars sync to your phone automatically; this is only for setup"
-      }
-    },
-    {
-      "stack": "mealie",
-      "slug": "mealie",
-      "name": "Recipes & meal plan",
-      "blurb": "Recipes, a weekly meal plan and shopping lists.",
-      "hosts": [
-        "mealie"
-      ],
-      "profiles": [
-        "family",
-        "everything"
-      ],
-      "hub": {
-        "group": "Everyday",
-        "icon": "mealie.png",
-        "label": "Recipes & meal plan",
-        "description": "Recipes, shopping list, dinner plan"
-      },
-      "post_install": [
-        "mealie-token"
-      ]
-    },
-    {
-      "stack": "homebox",
-      "slug": "homebox",
-      "name": "Home inventory",
-      "blurb": "What the family owns and where it is.",
-      "hosts": [
-        "homebox"
-      ],
-      "profiles": [
-        "family",
-        "everything"
-      ],
-      "hub": {
-        "group": "House & paperwork",
-        "icon": "homebox.png",
-        "label": "Where is it?",
-        "description": "What we own and where it lives"
-      }
-    },
-    {
-      "stack": "navidrome",
-      "slug": "navidrome",
-      "name": "Music",
-      "blurb": "Stream the family music library to any device.",
-      "hosts": [
-        "music"
-      ],
-      "profiles": [
-        "family",
-        "everything"
-      ],
-      "hub": {
-        "group": "Everyday",
-        "icon": "navidrome.png",
-        "label": "Music",
-        "description": "Our music library"
-      }
-    },
-    {
-      "stack": "paperless",
-      "slug": "paperless",
-      "name": "Paperwork",
-      "blurb": "Scan mail and bills; text search and automatic filing.",
-      "hosts": [
-        "paperless"
-      ],
-      "profiles": [
-        "family",
-        "everything"
-      ],
-      "hub": {
-        "group": "House & paperwork",
-        "icon": "paperless-ngx.png",
-        "label": "Paperwork",
-        "description": "Scanned mail, bills, receipts"
-      }
-    },
-    {
-      "stack": "homeassistant",
-      "slug": "home-assistant",
-      "name": "Smart home",
-      "blurb": "Lights, sensors and automations (Home Assistant).",
-      "hosts": [
-        "home"
-      ],
-      "profiles": [
-        "family",
-        "everything"
-      ],
-      "post_install": [
-        "ha-onboard"
-      ],
-      "hub": {
-        "group": "House & paperwork",
-        "icon": "home-assistant.png",
-        "label": "Home controls",
-        "description": "Lights, TV, house automations"
-      }
-    },
-    {
-      "stack": "homepage",
-      "slug": "hub",
-      "name": "Family hub",
-      "blurb": "A simple start page with a big button for every app.",
-      "hosts": [
-        "hub"
-      ],
-      "profiles": [
-        "family",
-        "everything"
-      ]
-    },
-    {
-      "stack": "dash",
-      "slug": "dash",
-      "name": "HeardOS desktop",
-      "blurb": "A desktop in the browser: every app opens signed in, in its own window, with this week's meals, shopping and budget as widgets. Installable as an app.",
-      "hosts": [
-        "dash"
-      ],
-      "depends_on": [
-        "mealie",
-        "homebox"
-      ],
-      "profiles": [
-        "family",
-        "everything"
-      ],
-      "hub": {
-        "group": "Everyday",
-        "icon": "homepage.png",
-        "label": "Desktop",
-        "description": "All the apps in windows, plus this week at a glance"
-      }
-    },
-    {
-      "stack": "actual",
-      "slug": "actual-budget",
-      "name": "Budget",
-      "blurb": "Household budgeting with bank sync (Actual Budget).",
-      "hosts": [
-        "budget"
-      ],
-      "profiles": [
-        "everything"
-      ],
-      "hub": {
-        "group": "House & paperwork",
-        "icon": "actual-budget.png",
-        "label": "Budget",
-        "description": "Household budget"
-      }
-    },
-    {
-      "stack": "wallos",
-      "slug": "wallos",
-      "name": "Subscriptions",
-      "blurb": "Track recurring bills and renewals.",
-      "hosts": [
-        "wallos"
-      ],
-      "profiles": [
-        "everything"
-      ],
-      "hub": {
-        "group": "House & paperwork",
-        "icon": "wallos.png",
-        "label": "Subscriptions",
-        "description": "Recurring bills and renewals"
-      }
-    },
-    {
-      "stack": "invidious",
-      "slug": "invidious",
-      "name": "Videos",
-      "blurb": "YouTube without ads or tracking.",
-      "hosts": [
-        "tube"
-      ],
-      "profiles": [
-        "everything"
-      ],
-      "hub": {
-        "group": "Everyday",
-        "icon": "invidious.png",
-        "label": "Videos",
-        "description": "YouTube without ads or tracking"
-      }
-    },
-    {
-      "stack": "calibre-web",
-      "slug": "calibre-web",
-      "name": "Books",
-      "blurb": "The family ebook library.",
-      "hosts": [
-        "books"
-      ],
-      "profiles": [
-        "everything"
-      ],
-      "hub": {
-        "group": "Everyday",
-        "icon": "calibre-web.png",
-        "label": "Books",
-        "description": "Our ebook library (read in the browser or download)"
-      }
-    },
-    {
-      "stack": "librespeed",
-      "name": "Speed test",
-      "blurb": "Check the connection speed to home from anywhere.",
-      "hosts": [
-        "speed"
-      ],
-      "profiles": [
-        "everything"
-      ],
-      "hub": {
-        "group": "Account",
-        "icon": "librespeed.png",
-        "label": "Speed test",
-        "description": "How fast is the connection to home?"
-      }
-    },
-    {
-      "stack": "ocr",
-      "name": "Remote OCR",
-      "blurb": "Optional external text recognition for Paperless (advanced).",
-      "hosts": [],
-      "depends_on": [
-        "paperless"
-      ],
-      "profiles": []
-    },
-    {
-      "stack": "hortusfox",
-      "slug": "hortusfox",
-      "name": "Plants",
-      "blurb": "Houseplants and garden: watering tasks, photos, where each plant lives.",
-      "hosts": [
-        "plants"
-      ],
-      "profiles": [
-        "family",
-        "everything"
-      ],
-      "hub": {
-        "group": "House & paperwork",
-        "icon": "hortusfox.png",
-        "label": "Plants",
-        "description": "Watering, photos and where each plant lives"
-      },
-      "post_install": [
-        "hortusfox-cron"
-      ]
-    },
-    {
-      "stack": "archivebox",
-      "slug": "archivebox",
-      "name": "Saved pages",
-      "blurb": "Keep a private copy of a web page before it disappears.",
-      "hosts": [
-        "archive"
-      ],
-      "profiles": [
-        "everything"
-      ],
-      "hub": {
-        "group": "Everyday",
-        "icon": "archivebox.png",
-        "label": "Saved pages",
-        "description": "Keep a copy of a web page before it disappears"
-      }
-    },
-    {
-      "stack": "listmonk",
-      "slug": "listmonk",
-      "name": "Newsletters",
-      "blurb": "Family newsletters and holiday letters with public subscribe pages; sends through your outbound mail.",
-      "hosts": [
-        "news"
-      ],
-      "profiles": [
-        "everything"
-      ],
-      "post_install": [
-        "listmonk-config"
-      ]
-    },
-    {
-      "stack": "kiwix",
-      "slug": "wiki",
-      "name": "Wikipedia",
-      "blurb": "All of English Wikipedia with pictures, stored at home and searchable offline (about 120 GB of disk).",
-      "hosts": [
-        "wiki"
-      ],
-      "profiles": [
-        "everything"
-      ],
-      "hub": {
-        "group": "Everyday",
-        "icon": "wikipedia.png",
-        "label": "Wikipedia",
-        "description": "All of English Wikipedia, with pictures, stored at home"
-      }
-    },
-    {
-      "stack": "searxng",
-      "name": "Search",
-      "blurb": "Private web search with no tracking or ads; public so it can be every browser's search engine.",
-      "hosts": [
-        "search"
-      ],
-      "profiles": [
-        "everything"
-      ],
-      "hub": {
-        "group": "Everyday",
-        "icon": "searxng.png",
-        "label": "Search",
-        "description": "Private web search, no tracking or ads"
-      }
-    },
-    {
-      "stack": "paperless-gpt",
-      "slug": "paperless-gpt",
-      "name": "AI filing for Paperless",
-      "blurb": "A small local AI model writes titles, correspondents and dates for new documents (CPU only, no cloud).",
-      "hosts": [],
-      "profiles": [
-        "everything"
-      ],
-      "depends_on": [
-        "paperless"
-      ],
-      "post_install": [
-        "paperless-gpt"
-      ]
-    }
-  ]
+  "family": {
+   "name": "Family",
+   "blurb": "Essentials plus recipes, home inventory, music, paperwork, smart home and a family dashboard."
+  },
+  "everything": {
+   "name": "Everything",
+   "blurb": "Every app in the catalogue."
+  }
+ },
+ "apps": [
+  {
+   "stack": "traefik",
+   "core": true,
+   "name": "Traffic router",
+   "blurb": "Routes each web address to the right app.",
+   "hosts": []
+  },
+  {
+   "stack": "authentik",
+   "core": true,
+   "slug": "authentik",
+   "name": "Sign-in (Authentik)",
+   "blurb": "One account and one login for every app, with passkeys and two-factor.",
+   "hosts": [
+    "auth"
+   ]
+  },
+  {
+   "stack": "immich",
+   "slug": "immich",
+   "name": "Photos",
+   "blurb": "Back up phone photos and videos; albums, faces and search.",
+   "hosts": [
+    "photos"
+   ],
+   "profiles": [
+    "essentials",
+    "family",
+    "everything"
+   ],
+   "hub": {
+    "group": "Everyday",
+    "icon": "immich.png",
+    "label": "Photos",
+    "description": "Our pictures and videos"
+   }
+  },
+  {
+   "stack": "onlyoffice",
+   "name": "Office editor",
+   "blurb": "Edit Word, Excel and PowerPoint files in the browser (used by Documents).",
+   "hosts": [
+    "office"
+   ],
+   "profiles": [
+    "essentials",
+    "family",
+    "everything"
+   ]
+  },
+  {
+   "stack": "nextcloud",
+   "slug": "nextcloud",
+   "name": "Documents",
+   "blurb": "Family files with in-browser editing.",
+   "hosts": [
+    "docs"
+   ],
+   "depends_on": [
+    "onlyoffice"
+   ],
+   "profiles": [
+    "essentials",
+    "family",
+    "everything"
+   ],
+   "post_install": [
+    "nextcloud-admin"
+   ],
+   "hub": {
+    "group": "Everyday",
+    "icon": "nextcloud.png",
+    "label": "Documents",
+    "description": "Family files, Word and Excel in the browser"
+   }
+  },
+  {
+   "stack": "vaultwarden",
+   "slug": "vaultwarden",
+   "name": "Passwords",
+   "blurb": "A shared password manager that works with the Bitwarden apps.",
+   "hosts": [
+    "vault"
+   ],
+   "profiles": [
+    "essentials",
+    "family",
+    "everything"
+   ],
+   "hub": {
+    "group": "Everyday",
+    "icon": "vaultwarden.png",
+    "label": "Passwords",
+    "description": "Password vault (Bitwarden apps)"
+   }
+  },
+  {
+   "stack": "baikal",
+   "slug": "baikal",
+   "name": "Calendar & contacts",
+   "blurb": "Shared calendars and contacts that sync to every phone.",
+   "hosts": [
+    "dav"
+   ],
+   "profiles": [
+    "essentials",
+    "family",
+    "everything"
+   ],
+   "post_install": [
+    "baikal-user"
+   ],
+   "hub": {
+    "group": "Account",
+    "icon": "baikal.png",
+    "label": "Calendar help",
+    "description": "Calendars sync to your phone automatically; this is only for setup"
+   }
+  },
+  {
+   "stack": "mealie",
+   "slug": "mealie",
+   "name": "Recipes & meal plan",
+   "blurb": "Recipes, a weekly meal plan and shopping lists.",
+   "hosts": [
+    "mealie"
+   ],
+   "profiles": [
+    "family",
+    "everything"
+   ],
+   "hub": {
+    "group": "Everyday",
+    "icon": "mealie.png",
+    "label": "Recipes & meal plan",
+    "description": "Recipes, shopping list, dinner plan"
+   },
+   "post_install": [
+    "mealie-token"
+   ]
+  },
+  {
+   "stack": "homebox",
+   "slug": "homebox",
+   "name": "Home inventory",
+   "blurb": "What the family owns and where it is.",
+   "hosts": [
+    "homebox"
+   ],
+   "profiles": [
+    "family",
+    "everything"
+   ],
+   "hub": {
+    "group": "House & paperwork",
+    "icon": "homebox.png",
+    "label": "Where is it?",
+    "description": "What we own and where it lives"
+   }
+  },
+  {
+   "stack": "navidrome",
+   "slug": "navidrome",
+   "name": "Music",
+   "blurb": "Stream the family music library to any device.",
+   "hosts": [
+    "music"
+   ],
+   "profiles": [
+    "family",
+    "everything"
+   ],
+   "hub": {
+    "group": "Everyday",
+    "icon": "navidrome.png",
+    "label": "Music",
+    "description": "Our music library"
+   }
+  },
+  {
+   "stack": "paperless",
+   "slug": "paperless",
+   "name": "Paperwork",
+   "blurb": "Scan mail and bills; text search and automatic filing.",
+   "hosts": [
+    "paperless"
+   ],
+   "profiles": [
+    "family",
+    "everything"
+   ],
+   "hub": {
+    "group": "House & paperwork",
+    "icon": "paperless-ngx.png",
+    "label": "Paperwork",
+    "description": "Scanned mail, bills, receipts"
+   }
+  },
+  {
+   "stack": "homeassistant",
+   "slug": "home-assistant",
+   "name": "Smart home",
+   "blurb": "Lights, sensors and automations (Home Assistant).",
+   "hosts": [
+    "home"
+   ],
+   "profiles": [
+    "family",
+    "everything"
+   ],
+   "post_install": [
+    "ha-onboard"
+   ],
+   "hub": {
+    "group": "House & paperwork",
+    "icon": "home-assistant.png",
+    "label": "Home controls",
+    "description": "Lights, TV, house automations"
+   }
+  },
+  {
+   "stack": "homepage",
+   "slug": "hub",
+   "name": "Family hub",
+   "blurb": "A simple start page with a big button for every app.",
+   "hosts": [
+    "hub"
+   ],
+   "profiles": [
+    "family",
+    "everything"
+   ]
+  },
+  {
+   "stack": "dash",
+   "slug": "dash",
+   "name": "HeardOS desktop",
+   "blurb": "A desktop in the browser: every app opens signed in, in its own window, with this week's meals, shopping and budget as widgets. Installable as an app.",
+   "hosts": [
+    "dash"
+   ],
+   "depends_on": [
+    "mealie",
+    "homebox"
+   ],
+   "profiles": [
+    "family",
+    "everything"
+   ],
+   "hub": {
+    "group": "Everyday",
+    "icon": "homepage.png",
+    "label": "Desktop",
+    "description": "All the apps in windows, plus this week at a glance"
+   }
+  },
+  {
+   "stack": "actual",
+   "slug": "actual-budget",
+   "name": "Budget",
+   "blurb": "Household budgeting with bank sync (Actual Budget).",
+   "hosts": [
+    "budget"
+   ],
+   "profiles": [
+    "everything"
+   ],
+   "hub": {
+    "group": "House & paperwork",
+    "icon": "actual-budget.png",
+    "label": "Budget",
+    "description": "Household budget"
+   }
+  },
+  {
+   "stack": "wallos",
+   "slug": "wallos",
+   "name": "Subscriptions",
+   "blurb": "Track recurring bills and renewals.",
+   "hosts": [
+    "wallos"
+   ],
+   "profiles": [
+    "everything"
+   ],
+   "hub": {
+    "group": "House & paperwork",
+    "icon": "wallos.png",
+    "label": "Subscriptions",
+    "description": "Recurring bills and renewals"
+   }
+  },
+  {
+   "stack": "invidious",
+   "slug": "invidious",
+   "name": "Videos",
+   "blurb": "YouTube without ads or tracking.",
+   "hosts": [
+    "tube"
+   ],
+   "profiles": [
+    "everything"
+   ],
+   "hub": {
+    "group": "Everyday",
+    "icon": "invidious.png",
+    "label": "Videos",
+    "description": "YouTube without ads or tracking"
+   }
+  },
+  {
+   "stack": "calibre-web",
+   "slug": "calibre-web",
+   "name": "Books",
+   "blurb": "The family ebook library.",
+   "hosts": [
+    "books"
+   ],
+   "profiles": [
+    "everything"
+   ],
+   "hub": {
+    "group": "Everyday",
+    "icon": "calibre-web.png",
+    "label": "Books",
+    "description": "Our ebook library (read in the browser or download)"
+   }
+  },
+  {
+   "stack": "librespeed",
+   "name": "Speed test",
+   "blurb": "Check the connection speed to home from anywhere.",
+   "hosts": [
+    "speed"
+   ],
+   "profiles": [
+    "everything"
+   ],
+   "hub": {
+    "group": "Account",
+    "icon": "librespeed.png",
+    "label": "Speed test",
+    "description": "How fast is the connection to home?"
+   }
+  },
+  {
+   "stack": "ocr",
+   "name": "Remote OCR",
+   "blurb": "Optional external text recognition for Paperless (advanced).",
+   "hosts": [],
+   "depends_on": [
+    "paperless"
+   ],
+   "profiles": []
+  },
+  {
+   "stack": "hortusfox",
+   "slug": "hortusfox",
+   "name": "Plants",
+   "blurb": "Houseplants and garden: watering tasks, photos, where each plant lives.",
+   "hosts": [
+    "plants"
+   ],
+   "profiles": [
+    "family",
+    "everything"
+   ],
+   "hub": {
+    "group": "House & paperwork",
+    "icon": "hortusfox.png",
+    "label": "Plants",
+    "description": "Watering, photos and where each plant lives"
+   },
+   "post_install": [
+    "hortusfox-cron"
+   ]
+  },
+  {
+   "stack": "archivebox",
+   "slug": "archivebox",
+   "name": "Saved pages",
+   "blurb": "Keep a private copy of a web page before it disappears.",
+   "hosts": [
+    "archive"
+   ],
+   "profiles": [
+    "everything"
+   ],
+   "hub": {
+    "group": "Everyday",
+    "icon": "archivebox.png",
+    "label": "Saved pages",
+    "description": "Keep a copy of a web page before it disappears"
+   }
+  },
+  {
+   "stack": "listmonk",
+   "slug": "listmonk",
+   "name": "Newsletters",
+   "blurb": "Family newsletters and holiday letters with public subscribe pages; sends through your outbound mail.",
+   "hosts": [
+    "news"
+   ],
+   "profiles": [
+    "everything"
+   ],
+   "post_install": [
+    "listmonk-config"
+   ]
+  },
+  {
+   "stack": "kiwix",
+   "slug": "wiki",
+   "name": "Wikipedia",
+   "blurb": "All of English Wikipedia with pictures, stored at home and searchable offline (about 120 GB of disk).",
+   "hosts": [
+    "wiki"
+   ],
+   "profiles": [
+    "everything"
+   ],
+   "hub": {
+    "group": "Everyday",
+    "icon": "wikipedia.png",
+    "label": "Wikipedia",
+    "description": "All of English Wikipedia, with pictures, stored at home"
+   }
+  },
+  {
+   "stack": "searxng",
+   "name": "Search",
+   "blurb": "Private web search with no tracking or ads; public so it can be every browser's search engine.",
+   "hosts": [
+    "search"
+   ],
+   "profiles": [
+    "everything"
+   ],
+   "hub": {
+    "group": "Everyday",
+    "icon": "searxng.png",
+    "label": "Search",
+    "description": "Private web search, no tracking or ads"
+   }
+  },
+  {
+   "stack": "paperless-gpt",
+   "slug": "paperless-gpt",
+   "name": "AI filing for Paperless",
+   "blurb": "A small local AI model writes titles, correspondents and dates for new documents (CPU only, no cloud).",
+   "hosts": [],
+   "profiles": [
+    "everything"
+   ],
+   "depends_on": [
+    "paperless"
+   ],
+   "post_install": [
+    "paperless-gpt"
+   ]
+  },
+  {
+   "stack": "cronmaster",
+   "slug": "cronmaster-gate",
+   "name": "Scheduled jobs",
+   "blurb": "CronMaster: the household's maintenance scripts and their schedules, with logs. Owner only.",
+   "hosts": [
+    "cron"
+   ],
+   "profiles": [
+    "everything"
+   ]
+  },
+  {
+   "stack": "bitmagnet",
+   "slug": "bitmagnet",
+   "name": "Torrent search",
+   "blurb": "bitmagnet: a private BitTorrent DHT search engine. Owner only.",
+   "hosts": [
+    "bitmagnet"
+   ],
+   "profiles": []
+  },
+  {
+   "stack": "blog",
+   "name": "Blog",
+   "blurb": "A public blog at your domain's root, rebuilt from the newsletter's public archive.",
+   "hosts": [],
+   "profiles": [],
+   "depends_on": [
+    "listmonk"
+   ]
+  },
+  {
+   "stack": "open-webui",
+   "slug": "chat",
+   "name": "Chat",
+   "blurb": "Open WebUI: chat with the HeardOS assistant (the model harness) and the local Ollama models. Admins only.",
+   "hosts": [
+    "chat"
+   ],
+   "profiles": [
+    "everything"
+   ],
+   "depends_on": [
+    "paperless-gpt"
+   ]
+  }
+ ]
 }

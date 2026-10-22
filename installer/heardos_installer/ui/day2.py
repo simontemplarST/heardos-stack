@@ -1,4 +1,4 @@
-"""Day-two screens: Health, People, Apps, Backups, Logs, Settings. All slow work runs through st.tasks; these functions
+"""Day-two screens: Health, People, Backups, Logs, Settings (Stacks and Assistant live in stacks.py and assistant.py). All slow work runs through st.tasks; these functions
 only draw and start tasks. They work on st.inst (the install opened from Welcome or just finished)."""
 from __future__ import annotations
 
@@ -260,65 +260,6 @@ def _add_person(st, installed) -> None:
             st.tasks.clear("addperson")
             for k in ("np_name", "np_user", "np_email"):
                 st.inputs.pop(k, None)
-
-
-# ------------------------------------------------------------------ Apps
-def manage(st) -> None:
-    if _need_install(st):
-        return
-    inst = st.inst
-    w.title("Apps")
-    w.help_text("Install more apps, update them to the newest version, or restart one that misbehaves.")
-    _steps_banner(st)
-    if not st.tasks.get("appstatus") or w.secondary("Refresh status", not st.tasks.running("appstatus")):
-        st.tasks.start("appstatus", lambda: ops.app_status(inst))
-    status = (st.tasks.get("appstatus").result or {}) if st.tasks.get("appstatus") else {}
-    have = set(inst.plan.get("apps", []))
-    flags = imgui.TableFlags_.row_bg | imgui.TableFlags_.borders_inner_h | imgui.TableFlags_.sizing_stretch_prop
-    if imgui.begin_table("apps", 4, flags):
-        imgui.table_setup_column("App", imgui.TableColumnFlags_.width_stretch, 1.0)
-        imgui.table_setup_column("Address", imgui.TableColumnFlags_.width_stretch, 1.2)
-        imgui.table_setup_column("State", imgui.TableColumnFlags_.width_fixed, 90)
-        imgui.table_setup_column("", imgui.TableColumnFlags_.width_fixed, 250)
-        imgui.table_headers_row()
-        for a in catalog.apps().values():
-            if a.core or not a.available:
-                continue
-            imgui.table_next_row(); imgui.table_next_column()
-            imgui.text(a.name)
-            imgui.table_next_column()
-            imgui.text_colored(C["MUTED"], f"{a.hosts[0]}.{inst.plan.get('DOMAIN')}" if a.hosts else "internal")
-            imgui.table_next_column()
-            if a.stack in have:
-                s = status.get(a.stack, "?")
-                imgui.text_colored(C["GOOD"] if s == "running" else (C["MUTED"] if s == "?" else C["BAD"]), s)
-            else:
-                imgui.text_colored(C["MUTED"], "not installed")
-            imgui.table_next_column()
-            busy = st.tasks.running(f"app.{a.stack}") or inst.running
-            if a.stack in have:
-                if w.secondary(f"Update##{a.stack}", not busy):
-                    st.tasks.start(f"app.{a.stack}", lambda s=a.stack: ops.app_compose(inst, s, "update"))
-                imgui.same_line()
-                if w.secondary(f"Restart##{a.stack}", not busy):
-                    st.tasks.start(f"app.{a.stack}", lambda s=a.stack: ops.app_compose(inst, s, "restart"))
-                t = st.tasks.get(f"app.{a.stack}")
-                if t:
-                    imgui.same_line()
-                    if t.running:
-                        imgui.text_colored(C["MUTED"], ICON_WAIT)
-                    else:
-                        imgui.text_colored(C["GOOD"] if t.ok else C["BAD"], ICON_OK if t.ok else ICON_BAD)
-                        if imgui.is_item_hovered():
-                            imgui.set_tooltip(str(t.result if t.ok else t.error))
-            else:
-                deps = [catalog.apps()[d].name for d in catalog.added_by_dependency([a.stack]) if d not in have]
-                if w.secondary(f"Install##{a.stack}", not busy):
-                    ids = ops.add_apps(inst, [a.stack])
-                    _run_steps(st, ids, f"Installing {a.name}")
-                if deps and imgui.is_item_hovered():
-                    imgui.set_tooltip("Also installs: " + ", ".join(deps))
-        imgui.end_table()
 
 
 # ------------------------------------------------------------------ Backups

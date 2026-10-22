@@ -11,9 +11,14 @@
 from __future__ import annotations
 
 from ..engine.step import Step
-from . import apps, brand, host, local, mail, vps
+from . import apps, brand, custom, host, local, mail, vps
 from .common import apply_defaults, missing_inputs  # noqa: F401
 
 
 def build_steps(plan: dict) -> list[Step]:
-    return local.steps() + vps.steps() + host.steps() + brand.steps() + mail.steps() + apps.steps(plan.get("apps") or [])
+    out = local.steps() + vps.steps() + host.steps() + brand.steps() + mail.steps() + apps.steps(plan.get("apps") or [])
+    extra = custom.steps(plan)          # "your own app" stacks: installed after the catalogue apps, checked by verify
+    for s in out:
+        if s.id == "verify":
+            s.deps = s.deps + [c.id for c in extra]
+    return out + extra

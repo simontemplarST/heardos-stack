@@ -21,12 +21,14 @@ WIZARD = [
     ("install", "Install"),
     ("done", "Finished"),
 ]
-DAY2 = [("dashboard", "Health"), ("people", "People"), ("manage", "Apps"), ("backups", "Backups"), ("logs", "Logs"), ("settings", "Settings")]
+DAY2 = [("dashboard", "Health"), ("stacks", "Stacks"), ("assistant", "Assistant"), ("people", "People"), ("backups", "Backups"),
+        ("logs", "Logs"), ("settings", "Settings")]
 
 DRAFT_KEYS = ["BRAND_TITLE", "BRAND_PRIMARY", "BRAND_LOGO", "DOMAIN", "ADMIN_USER", "ADMIN_EMAIL", "ADMIN_NAME", "TZ", "provider", "byo_ip",
               "vps_region", "vps_plan", "vps_monthly", "vps_region_name", "vps_plan_name", "HOST_LAN_IP", "HOST_SSH_USER",
               "HOST_SSH_PORT", "dns_mode", "CF_ZONE_ID", "profile", "apps", "CADDY_FRONT_DOOR", "CROWDSEC", "mail_mode", "SMTP_HOST",
-              "SMTP_PORT", "SMTP_USER", "MAIL_FROM", "ovh_autopay"]
+              "SMTP_PORT", "SMTP_USER", "MAIL_FROM", "ovh_autopay",
+              "agent_api", "agent_endpoint", "agent_model", "agent_auto"]
 
 
 class UIState:

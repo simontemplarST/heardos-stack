@@ -101,6 +101,10 @@ def apply_defaults(plan: dict) -> dict:
     hosts_ = catalog.public_hosts(p["apps"])
     if p.get("CADDY_FRONT_DOOR"):
         hosts_.append(p.get("FRONT_DOOR_HOST", "cloud"))
+    for c in (p.get("custom_stacks") or {}).values():   # "your own app" stacks (manage/spec.py)
+        h = c.get("host") or c.get("name")
+        if h and h not in hosts_:
+            hosts_.append(h)
     p["PUBLIC_HOSTS"] = hosts_
     return p
 

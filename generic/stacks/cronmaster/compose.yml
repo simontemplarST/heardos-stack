@@ -1,0 +1,52 @@
+# CronMaster: the household's script library and scheduler (root crontab on the host, docker.sock, host pid namespace:
+# it runs maintenance jobs that touch other stacks). Owner only: Authentik gate (proxy app cronmaster-gate) in front, then
+# CronMaster's own OIDC sign-in (app cronmaster). Scripts live in ${HEARDOS_ROOT}/data/cronmaster/scripts.
+services:
+  cronmaster:
+    image: ghcr.io/fccview/cronmaster:latest@sha256:419c93784b2baa8e51577ac8691b6b398449e8fe86b8869a9da162c69cdc2816   # 2026-10
+    container_name: cronmaster
+    restart: unless-stopped
+    init: true
+    privileged: true
+    pid: host
+    user: root
+    entrypoint: ["sh", "-c", "apk add --no-cache git >/dev/null 2>&1 || echo git install failed >&2; exec docker-entrypoint.sh \"$$@\"", "--"]
+    command: ["node", "server.js"]
+    environment:
+      TZ: "${TZ}"
+      APP_URL: "https://cron.${DOMAIN}"
+      HTTPS: "true"
+      NODE_ENV: production
+      DOCKER: "true"
+      HOST_CRONTAB_USER: root
+      AUTH_PASSWORD: "${CRONMASTER_AUTH_PASSWORD}"
+      SSO_MODE: oidc
+      OIDC_ISSUER: "https://auth.${DOMAIN}/application/o/cronmaster/"
+      OIDC_CLIENT_ID: "${OIDC_CLIENT_ID}"
+      OIDC_CLIENT_SECRET: "${OIDC_CLIENT_SECRET}"
+      OIDC_GROUPS_SCOPE: "no"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ${HEARDOS_ROOT}/data/cronmaster/scripts:/app/scripts
+      - ${HEARDOS_ROOT}/data/cronmaster/data:/app/data
+      - ${HEARDOS_ROOT}/data/cronmaster/snippets:/app/snippets
+    healthcheck: {test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"], interval: 30s, timeout: 10s, retries: 3, start_period: 30s}
+    networks: [proxy]
+    labels:
+      traefik.enable: "true"
+      traefik.docker.network: proxy
+      traefik.http.routers.cron-outpost.rule: Host(`cron.${DOMAIN}`) && PathPrefix(`/outpost.goauthentik.io/`)
+      traefik.http.routers.cron-outpost.entrypoints: web
+      traefik.http.routers.cron-outpost.service: authentik-outpost@file
+      traefik.http.routers.cron-outpost.middlewares: xfp-https@file
+      traefik.http.routers.cron-outpost.priority: "100"
+      traefik.http.routers.cron.rule: Host(`cron.${DOMAIN}`)
+      traefik.http.routers.cron.entrypoints: web
+      traefik.http.routers.cron.middlewares: xfp-https@file,authentik-fwd@file
+      # LAN name: no forward-auth gate (the proxy provider only knows the public host and would answer 404); CronMaster's
+      # own OIDC sign-in still applies
+      traefik.http.routers.cron-lan.rule: Host(`cron.${LAN_DOMAIN}`)
+      traefik.http.routers.cron-lan.entrypoints: web
+      traefik.http.services.cron.loadbalancer.server.port: "3000"
+networks:
+  proxy: {external: true}

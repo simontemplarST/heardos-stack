@@ -16,7 +16,8 @@ PG_PASS="$(secret AUTHENTIK_PG_PASS 40)"; SK="$(secret AUTHENTIK_SECRET_KEY 60)"
 BP="$(secret AUTHENTIK_AKADMIN_PASSWORD 28)"
 done_mark="$HEARDOS_ROOT/secrets/authentik-bootstrap.done"
 keep="$(grep "^EMAIL_" "$d/.env" 2>/dev/null || true)"   # mail settings written by 43 survive a re-run
-api="http://$HOST_LAN_IP:9000/api/v3"
+: "${AUTHENTIK_API_BIND:=$HOST_LAN_IP}"   # where the stack publishes :9000 (plan; 127.0.0.1 = this host only)
+api="http://$AUTHENTIK_API_BIND:9000/api/v3"
 
 write_env() { # write_env [BOOTSTRAP_TOKEN] — the stack .env; the bootstrap variables only while the hand-over is pending
   ( umask 077
@@ -25,6 +26,7 @@ HEARDOS_ROOT=$HEARDOS_ROOT
 DOMAIN=$DOMAIN
 LAN_DOMAIN=$LAN_DOMAIN
 HOST_LAN_IP=$HOST_LAN_IP
+AUTHENTIK_API_BIND=$AUTHENTIK_API_BIND
 ADMIN_EMAIL=$ADMIN_EMAIL
 TZ=$TZ
 PG_PASS=$PG_PASS
@@ -40,10 +42,10 @@ tok_ok() { printf 'header = "Authorization: Bearer %s"\n' "$1" | curl -s -m 10 -
 wait_tok() { local n=0; until tok_ok "$1"; do sleep 5; n=$((n+5)); [ $n -ge 300 ] && return 1; done; }
 # set_plan KEY VALUE — replace or append KEY= in the plan file without putting VALUE on a command line
 set_plan() { local t; t="$(mktemp "$ENV_FILE.XXXXXX")"; { grep -v "^$1=" "$ENV_FILE" || true; printf '%s=%s\n' "$1" "$2"; } > "$t"; mv "$t" "$ENV_FILE"; chmod 600 "$ENV_FILE"; }
-ready() { wait_http "http://$HOST_LAN_IP:9000/-/health/ready/" 600 || die "Authentik did not become ready; docker logs authentik-server"; }
+ready() { wait_http "http://$AUTHENTIK_API_BIND:9000/-/health/ready/" 600 || die "Authentik did not become ready; docker logs authentik-server"; }
 
-grep -q '^AUTHENTIK_URL=' "$ENV_FILE" || echo "AUTHENTIK_URL=http://$HOST_LAN_IP:9000" >> "$ENV_FILE"
-out AUTHENTIK_URL "http://$HOST_LAN_IP:9000"
+grep -q '^AUTHENTIK_URL=' "$ENV_FILE" || echo "AUTHENTIK_URL=http://$AUTHENTIK_API_BIND:9000" >> "$ENV_FILE"
+out AUTHENTIK_URL "http://$AUTHENTIK_API_BIND:9000"
 
 # hand-over already done but the marker is missing (interrupted run, restored backup): the plan's token is not the
 # bootstrap token and the running Authentik accepts it

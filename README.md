@@ -118,7 +118,7 @@ a signature check. On macOS, where distrobox doesn't exist, follow the venv step
 | Path | What it holds |
 |---|---|
 | `devbox/` | The laptop dev environment: `distrobox.ini` (the toolchain) and `setup.sh` (installer venv, tool check, tests). |
-| `installer/` | The desktop installer and day-two console (imgui GUI + `heardos-cli`) that drives the `generic/` kit; see its [README](installer/README.md). |
+| `installer/` | The desktop installer and management console (imgui GUI + `heardos-cli`) that drives the `generic/` kit, including the Stacks screen (catalogue apps and your own from any Docker image) and a harness that lets a small local model install and configure stacks (`heardos-agent`, `heardos-mcp`); see its [README](installer/README.md) and [Managing stacks](docs/stack-management.md). |
 | `generic/` | A from-scratch rebuild kit for any x86-64 Ubuntu host + any VPS: numbered scripts (`10-host-bootstrap.sh` → `90-verify.sh`), compose stacks, a plan file (`heardos.env.example`). Start here if you want to build your own. |
 | `edge/` | The lighthouse as it actually runs: `Caddyfile` (TLS, headers, the cloud front door, brand asset hosting), Nebula configs for lighthouse and Proxmox node, the node installer, Cloudflare DNS helpers, and `kasm-egress/` (full-tunnel egress, kill switch and inbound filter for the remote-browser VM). |
 | `host/` | The app host as it ran on Runtipi until 2026-10-17: Traefik public/local router files, per-app Runtipi overrides (secrets redacted), the Runtipi API helper `tipi.py`, Nextcloud/Immich/calendar helpers. |
@@ -133,6 +133,7 @@ a signature check. On macOS, where distrobox doesn't exist, follow the venv step
 ## Documentation
 
 - [Architecture and request flow](docs/architecture.md)
+- [Managing stacks: the Stacks screen, your own apps, and the small-model harness](docs/stack-management.md)
 - [Security baseline and audit findings](docs/security-baseline.md)
 - [Security review 2026-10-19: status of every finding](docs/security-review-2026-10-19.md)
 - [Authentik: group-driven flows](docs/authentik-flows.md)

@@ -79,12 +79,15 @@ Open the install from Welcome (or press *Manage my cloud*):
 |---|---|
 | Health | Read-only checks of the VPS, home server and every web address; optional full TCP port scan of the VPS |
 | People | Add family members (first password shown once, or a set-your-password email), choose their apps and sign-in rules, suspend |
-| Apps | Install more apps, update to the newest images, restart |
+| Stacks | Every app: install from the catalogue, add your own from any Docker image, start/stop/restart/update, remove; per app its containers, logs, settings (kept across updates) and compose file. See [Managing stacks](../docs/stack-management.md) |
+| Assistant | Ask in plain words; a model on your own hardware (Ollama, llama.cpp, LM Studio…) does it with the same tools, showing every change for approval first |
 | Backups | Nightly encrypted restic backups to a disk, NAS (SFTP) or S3; back up now, list, verify |
 | Logs | Every step's log, with secrets masked |
 | Settings | Change name/colour/logo and re-apply, change the vault passphrase, delete the VPS |
 
 ![Health](../docs/installer/health.png)
+
+![Stacks](../docs/installer/stacks.png)
 
 The same jobs from a terminal:
 
@@ -95,6 +98,11 @@ heardos-cli health <install-id> --scan
 heardos-cli people <install-id> --add sam "Sam Smith" sam@example.net --welcome
 heardos-cli retry <install-id> <step>
 heardos-cli destroy <install-id>          # deletes the VPS only
+heardos-cli tools <install-id>            # the stack-management tools; run one with: heardos-cli tool <install-id> <name> --args '{…}'
+heardos-agent --install <install-id> "the inventory app is broken"    # the model harness (default: Ollama, llama3.2:3b)
+heardos-agent --eval --model qwen2.5:7b   # score a model on ten realistic requests against a simulated install
+heardos-mcp --install <install-id>        # the same tools for MCP clients (read-only unless --allow-changes)
+heardos-serve --install <install-id>      # the harness behind the OpenAI/Ollama chat protocols: use it from Open WebUI, LibreChat, Hollama…
 ```
 
 ## Your own look
@@ -148,4 +156,5 @@ and port scan, then deletes the VPS. Never point it at a machine you care about.
 
 Layout: `engine/` (step DAG, runner, state, logs), `vault/`, `remote/` (SSH, kit upload, plan file), `providers/`
 (Cloudzy, Linode, Vultr, OVHcloud, bring-your-own), `dns/`, `mail.py`, `brand/`, `steps/` (one function per install step),
-`ops.py` (day-two jobs), `ui/` (screens).
+`ops.py` (day-two jobs), `manage/` (stack management shared by the GUI, CLI and harness: backends, custom-stack specs,
+the tool registry), `harness/` (the small-model agent loop, model clients, evals, MCP server), `ui/` (screens).
