@@ -13,6 +13,9 @@ services:
       OLLAMA_NUM_PARALLEL: "1"
       OLLAMA_MAX_LOADED_MODELS: "1"
       OLLAMA_KEEP_ALIVE: 10m
+      # a 7B model fits a 6 GB card with the KV cache in 8-bit (needs flash attention); harmless on the CPU
+      OLLAMA_FLASH_ATTENTION: "1"
+      OLLAMA_KV_CACHE_TYPE: q8_0
     volumes: ["${HEARDOS_ROOT}/data/ollama:/root/.ollama"]
     networks: [internal]
   paperless-gpt:
