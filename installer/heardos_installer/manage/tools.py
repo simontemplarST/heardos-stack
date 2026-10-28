@@ -18,12 +18,13 @@ models do more than they were asked, so there are none of those.
 """
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from typing import Any, Callable, Optional
 
 from ..kit import catalog
 from .backend import Backend, ManageError, env_list
-from .spec import ACCESS, ACCESS_LABEL, TRUSTED_REGISTRIES, registry, risky_env
+from .spec import ACCESS, ACCESS_LABEL, TRUSTED_REGISTRIES, registry, risky_env, weakens_security
 
 MAX_TEXT = 1800
 ERROR_WORDS = ("error", "err ", "fatal", "panic", "exception", "denied", "refused", "fail", "warn", "timeout", "unhealthy")
@@ -117,16 +118,68 @@ def t_app_status(b: Backend, a: dict) -> ToolResult:
     lines += [f"- container {c['name']}: {c['status']} ({c['image']})" for c in cs] or ["- no containers found"]
     if st != "running":
         lines.append("Hint: app_logs shows the errors.")
+    load = getattr(b, "load", None)          # optional on a backend: test fakes and old backends need not have it
+    if load:
+        try:
+            ld = load()
+            lines.append(f"Server: {ld['summary']}." + (" The server itself is very busy: slowness, time-outs and failed sign-ins in "
+                                                       "ANY app can come from that, not from this app." if ld.get("busy") else ""))
+        except Exception:  # noqa: BLE001 — load is extra information, never a reason to fail the status
+            pass
     return ToolResult(True, _clip("\n".join(lines)), cs)
+
+
+# what makes two log lines "the same message": timestamps, ids, hex, numbers and durations differ between repeats
+_LOG_NOISE = [
+    (re.compile(r"\d{4}-\d\d-\d\d[T ]\d\d:\d\d:\d\d(?:[.,]\d+)?(?:Z|[+-]\d\d:?\d\d)?"), "<time>"),
+    (re.compile(r"\b\d\d:\d\d:\d\d(?:[.,]\d+)?\b"), "<time>"),
+    (re.compile(r"\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b", re.I), "<id>"),
+    (re.compile(r"\b(?:0x)?[0-9a-f]{8,}\b", re.I), "<hex>"),
+    (re.compile(r"\b\d+(?:\.\d+)?(?:ms|s|µs|ns|%)?\b"), "#"),
+]
+LOG_FETCH_FACTOR, LOG_FETCH_MAX = 4, 400
+
+
+def _log_key(line: str) -> str:
+    for pattern, repl in _LOG_NOISE:
+        line = pattern.sub(repl, line)
+    return line.strip()
+
+
+def log_digest(text: str, n: int) -> tuple[str, int, int]:
+    """Repeated messages collapsed into counts, then the latest occurrence of each distinct message (at most n, oldest first).
+    A log where one harmless line repeats 1,600 times otherwise fills the whole tail and hides the one line that matters
+    (OpenCloud's postprocessing noise, 2026-10-28). Returns (text, distinct messages, error-looking distinct messages)."""
+    lines = [l for l in text.splitlines() if l.strip()]
+    counts: dict[str, int] = {}
+    for l in lines:
+        k = _log_key(l)
+        counts[k] = counts.get(k, 0) + 1
+    latest: dict[str, str] = {}
+    for l in lines:                       # dict keeps the position of the LAST occurrence when re-inserted
+        k = _log_key(l)
+        latest.pop(k, None)
+        latest[k] = l
+    shown = list(latest.items())[-n:]
+    repeated = sorted(((c, k) for k, c in counts.items() if c >= 3), reverse=True)[:5]
+    out = []
+    if repeated:
+        out.append("Repeated messages (count x latest example):")
+        out += [f"- {c}x {latest[k][:300]}" for c, k in repeated]
+        out.append("Latest lines, each message once:")
+    out += [l[:400] for _, l in shown]
+    errs = sum(1 for k in counts if looks_like_error(k))
+    return "\n".join(out), len(counts), errs
 
 
 def t_app_logs(b: Backend, a: dict) -> ToolResult:
     n = int(a.get("lines") or 50)
-    text = b.logs(a["app"], n)
-    tail = text.splitlines()[-n:]
-    errs = [l for l in tail if looks_like_error(l)]
-    head = f"Last {len(tail)} log lines of {a['app']}" + (f"; {len(errs)} look like errors" if errs else "") + ":"
-    return ToolResult(True, _clip(head + "\n" + "\n".join(tail), 2400), text)
+    text = b.logs(a["app"], min(n * LOG_FETCH_FACTOR, LOG_FETCH_MAX))
+    total = len([l for l in text.splitlines() if l.strip()])
+    body, distinct, errs = log_digest(text, n)
+    head = (f"Last {total} log lines of {a['app']}: {distinct} different messages"
+            + (f", {errs} of them look like errors" if errs else "") + ":")
+    return ToolResult(True, _clip(head + "\n" + body, 2400), text)
 
 
 def t_app_settings(b: Backend, a: dict) -> ToolResult:
@@ -257,7 +310,9 @@ def p_setting(b: Backend, a: dict) -> tuple[bool, str]:
         return False, " ".join(errs)
     cur = b.settings(a["app"])
     old = next((kv.get(a["key"]) for kv in cur["services"].values() if a["key"] in kv), None)
-    return True, (f"Set {a['key']}={a['value']} on {a['app']} (now {old if old is not None else 'not set'}), then redeploy it "
+    why = weakens_security(a["key"])
+    return True, ((f"SECURITY: {a['key']} {why}; only a person can approve this. " if why else "")
+                  + f"Set {a['key']}={a['value']} on {a['app']} (now {old if old is not None else 'not set'}), then redeploy it "
                   "(short interruption). Survives updates and reinstalls.")
 
 
@@ -270,7 +325,9 @@ def p_reset(b: Backend, a: dict) -> tuple[bool, str]:
     if not any(a["key"] in kv for kv in over.values()):
         return False, f"{a['key']} was never changed on {a['app']}; changed settings: " + (
             ", ".join(k for kv in over.values() for k in kv) or "none")
-    return True, f"Put {a['key']} on {a['app']} back to the app's default, then redeploy it."
+    why = weakens_security(a["key"])
+    return True, ((f"SECURITY: {a['key']} {why}, and the app's own default may be the open one; only a person can approve this. "
+                   if why else "") + f"Put {a['key']} on {a['app']} back to the app's default, then redeploy it.")
 
 
 def t_reset(b: Backend, a: dict) -> ToolResult:
@@ -350,6 +407,17 @@ TOOLS: list[Tool] = [
          example={"app": "homebox"}),
 ]
 BY_NAME = {t.name: t for t in TOOLS}
+
+
+def needs_person(name: str, args: dict) -> str:
+    """Why this exact call must be approved by a person even when changes are allowed up front ('' when it need not).
+    Every caller that can skip confirmation (the harness's allow_changes, heardos-cli tool --yes, heardos-mcp
+    --allow-changes) checks this, so loosening a protection never happens unattended."""
+    if name in ("change_setting", "reset_setting"):
+        why = weakens_security(str(args.get("key", "")))
+        if why:
+            return f"{args.get('key')} {why}"
+    return ""
 
 
 def call(b: Backend, name: str, args: dict) -> ToolResult:

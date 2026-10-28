@@ -21,6 +21,8 @@ PLAN_KEYS = [
     # per-install image choices (an adopted install keeps the database engines it runs; see docs/adopt-and-migrate.md)
     "AUTHENTIK_PG_IMAGE", "PAPERLESS_PG_IMAGE", "LISTMONK_PG_IMAGE", "IMMICH_DB_IMAGE", "NEXTCLOUD_PG_IMAGE", "OLLAMA_CPUS", "KIWIX_ZIM",
     "AUTHENTIK_API_BIND", "HA_HOST_NETWORK", "HA_DEVICE", "CHAT_HARNESS_URL", "PAPERLESS_GPT_MODEL", "BLOG_TITLE",
+    # slskd: WireGuard exit on the VPS (vps/wg-egress.sh) + Soulseek account name
+    "SLSKD_WG_PUBKEY", "SLSKD_WG_ADDRESS", "SLSKD_WG_ENDPOINT_IP", "SLSKD_WG_ENDPOINT_PORT", "SLSKD_SLSK_USERNAME",
 ]
 SECRET_KEYS_BY_SIDE = {
     "local": ["CF_API_TOKEN", "AUTHENTIK_TOKEN", "PORTAINER_TOKEN"],

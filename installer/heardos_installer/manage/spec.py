@@ -52,6 +52,36 @@ def risky_env(key: str) -> bool:
     return bool(RISKY_ENV.match(key or ""))
 
 
+# Settings that switch off or loosen a protection. Unlike RISKY_ENV they are legitimate to change, but only with a person
+# watching: the assistant asks even when changes are allowed up front, and the reason is shown in the question. Each group
+# is a real incident or near-miss: ONLYOFFICE's ALLOW_PRIVATE_IP_ADDRESS (an anonymous editor URL could make the server fetch
+# internal addresses), Mealie's ALLOW_SIGNUP (its default re-opens sign-ups, so even *resetting* it needs a person),
+# trusted-proxy lists (whoever is trusted can forge the identity headers apps log people in by), credentials (the model would
+# choose the password). Order matters: the first group that matches is the reason given.
+_WEAKENS: list[tuple[re.Pattern, str]] = [
+    (re.compile(r"ALLOW_(PRIVATE|META|INTERNAL|LOCAL)|PRIVATE_IP|INTERNAL_REQUESTS|SSRF", re.I),
+     "lets the app fetch addresses inside the home network"),
+    (re.compile(r"INSECURE|SKIP_?(TLS|SSL|CERT)?_?VERIF|(TLS|SSL|CERT)_?VERIF|VERIFY_?(TLS|SSL|CERT)|CHECK_?CERT|REJECT_?UNAUTHORI[SZ]ED", re.I),
+     "turns off certificate checks"),
+    (re.compile(r"(DISABLE|NO|SKIP)_?(AUTH|LOGIN|PASSWORD)|AUTH_?(DISABLED|NONE|OFF)|ANONYMOUS|(^|_)GUEST|SIGNUP|SIGN_UP|REGISTRATION|"
+                r"(^|_)REGISTER", re.I),
+     "changes who can sign in or create an account"),
+    (re.compile(r"TRUSTED_?(PROXIES|PROXY|ORIGINS|NETWORKS|HOSTS|IPS|DOMAINS)|ALLOWED_?(HOSTS|ORIGINS|IPS|NETWORKS|DOMAINS)|FORWARDED_?ALLOW|"
+                r"REAL_?IP|PROXY_?HEADERS|CORS|CSRF", re.I),
+     "changes which addresses, proxies or websites the app trusts"),
+    (re.compile(r"(^|_)DEBUG$", re.I), "shows internal error details (and sometimes secrets) to visitors"),
+    (re.compile(r"(^|_)(PASSWORD|PASSWD|SECRET|TOKEN|API_?KEY|PRIVATE_?KEY)(_|$)", re.I), "sets a password or key"),
+]
+
+
+def weakens_security(key: str) -> str:
+    """'' when the setting is ordinary; otherwise a plain reason why a person must approve changing it."""
+    for pattern, why in _WEAKENS:
+        if pattern.search(key or ""):
+            return why
+    return ""
+
+
 @dataclass
 class CustomStack:
     name: str                                   # stack / container / Authentik slug, e.g. "uptime"

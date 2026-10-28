@@ -73,7 +73,7 @@ def run(llm, only: list[str] | None = None, verbose: bool = True, max_steps: int
         b = SimBackend()
         events: list = []
         agent = Agent(b, llm, Policy(allow_changes=True, confirm=lambda tool, args, prev, risk: risk != "danger"), max_steps=max_steps,
-                      on_event=lambda k, d: events.append((k, d)))
+                      on_event=lambda k, d: events.append((k, d)), verify_wait=0)   # the simulator's state is final at once
         t0 = time.time()
         try:
             res = agent.run(sc.task)

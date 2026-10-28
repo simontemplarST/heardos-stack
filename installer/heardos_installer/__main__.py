@@ -298,8 +298,9 @@ def cmd_tool(a) -> None:
         print(preview)
         if not ok:
             sys.exit(1)
-        if t.risk == "danger" or not a.yes:
-            want = str(args.get("app", "yes")) if t.risk == "danger" else "y"
+        why = T.needs_person(t.name, args)           # --yes never covers loosening a protection: type the setting's name
+        if t.risk == "danger" or why or not a.yes:
+            want = str(args.get("app", "yes")) if t.risk == "danger" else (str(args.get("key")) if why else "y")
             if not sys.stdin.isatty() or input(f"type {want} to go ahead: ").strip().lower() != want.lower():
                 sys.exit("cancelled")
     r = T.call(b, t.name, args)

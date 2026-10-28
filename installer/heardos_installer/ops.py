@@ -82,9 +82,41 @@ def health(inst) -> list[Check]:
                 Check("Home server", "No restart needed", R[3].strip() == "noreboot", "restart pending" if R[3].strip() == "reboot" else "ok")]
     except Exception as e:  # noqa: BLE001
         out.append(Check("Home server", "Reachable", False, str(e)[:160]))
+    try:
+        ld = host_load(inst)
+        if ld["busy"] is not None:
+            out.append(Check("Home server", "Not overloaded", not ld["busy"],
+                             ld["summary"] + ("; everything on it will be slow until that drops" if ld["busy"] else "")))
+    except Exception:  # noqa: BLE001 — reachability is already reported above
+        pass
     for hname in p.get("PUBLIC_HOSTS", []):
         out.append(_https_check(f"{hname}.{p['DOMAIN']}"))
     return out
+
+
+# A busy disk makes every app on the server look broken (2026-10-28: OpenCloud's first scan kept the disk 94% busy, and
+# sign-ins timed out in an unrelated service). These thresholds mark "the server itself is the bottleneck".
+BUSY_IO_PCT, BUSY_CPU_PCT, BUSY_LOAD_PER_CORE = 40.0, 60.0, 2.0
+LOAD_CMD = "cat /proc/loadavg; nproc; grep -h '^some' /proc/pressure/io /proc/pressure/cpu 2>/dev/null"
+
+
+def parse_load(text: str) -> dict:
+    """/proc/loadavg + nproc + PSI 'some' lines -> {load1, cores, io_pct, cpu_pct, busy, summary}. PSI avg60 = % of the last
+    minute in which some task was stalled waiting for the disk (io) or a CPU (cpu); missing PSI (old kernels) reads as 0."""
+    L = text.splitlines()
+    try:
+        load1, cores = float(L[0].split()[0]), max(1, int(L[1].strip()))
+    except (IndexError, ValueError):
+        return {"busy": None, "summary": "server load unknown"}
+    psi = [float(m.group(1)) for l in L[2:4] for m in [re.search(r"avg60=([0-9.]+)", l)] if m] + [0.0, 0.0]
+    io, cpu = psi[0], psi[1]
+    busy = io >= BUSY_IO_PCT or cpu >= BUSY_CPU_PCT or load1 >= BUSY_LOAD_PER_CORE * cores
+    return {"load1": load1, "cores": cores, "io_pct": io, "cpu_pct": cpu, "busy": busy,
+            "summary": f"load {load1:.1f} on {cores} cores; disk-waits {io:.0f}% and cpu-waits {cpu:.0f}% of the last minute"}
+
+
+def host_load(inst) -> dict:
+    return parse_load(inst.sessions.host().run(LOAD_CMD, timeout=30).stdout)
 
 
 def _https_check(host: str) -> Check:

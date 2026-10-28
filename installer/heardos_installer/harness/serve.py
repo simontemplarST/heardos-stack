@@ -137,6 +137,8 @@ class Assistant:
                 run.put(f"- request type: {md_text(d['intent'])}\n")
             elif kind == "pick":
                 run.put(f"- {md_text(d['thought'], one_line=True)} → {md_text(d['app'] or 'none of the catalogue apps')}\n")
+            elif kind == "fits" and not d["fits"]:
+                run.put(f"- {md_text(d['thought'], one_line=True)} → {md_text(d['app'])} does not fit after all\n")
             elif kind == "thought":
                 run.put(f"- {md_text(d['thought'], one_line=True)} → {md_text(d['tool'])}\n")
             elif kind == "result":

@@ -33,6 +33,8 @@ class Script:
                 return {"thought": "done", "tool": "finish"}
             tool, self._args = self.steps.pop(0)
             return {"thought": f"use {tool}", "tool": tool}
+        if "fits" in p:          # "is the picked app what the task asks for?"
+            return {"thought": "check", "fits": "yes"}
         if "answerable" in p:
             self.asked_answerable = getattr(self, "asked_answerable", 0) + 1
             return {"thought": "check", "answerable": "no" if self.asked_answerable == 1 else "yes"}
@@ -85,6 +87,19 @@ def test_fix_playbook_reads_logs_of_the_picked_app():
     res = A.Agent(b, llm, A.Policy(allow_changes=True)).run("inventory is broken")
     assert [t.tool for t in res.turns] == ["overview", "app_status", "app_logs", "control_app"]
     assert b.journal == [("restart", {"stack": "homebox"})]
+
+
+def test_an_app_named_in_the_task_skips_the_model_pick():
+    rows = [{"stack": "homebox", "name": "Home inventory"}, {"stack": "homeassistant", "name": "Smart home"},
+            {"stack": "paperless", "name": "Paperwork"}, {"stack": "paperless-gpt", "name": "AI filing for Paperless"}]
+    assert A._named_in_task("Restart homebox.", rows) == "homebox"
+    assert A._named_in_task("is the smart home up?", rows) == "homeassistant"
+    assert A._named_in_task("logs of paperless-gpt please", rows) == "paperless-gpt"   # longest of paperless / paperless-gpt
+    assert A._named_in_task("my home stuff is slow", rows) is None
+    b = SimBackend()
+    llm = Script("fix_app", [("control_app", {"app": "homebox", "action": "restart"})], pick="homeassistant")
+    res = A.Agent(b, llm, A.Policy(allow_changes=True)).run("restart homebox")
+    assert [t.args.get("app") for t in res.turns if t.tool == "app_status"] == ["homebox"]   # the scripted wrong pick is never asked
 
 
 def test_intent_limits_tools():

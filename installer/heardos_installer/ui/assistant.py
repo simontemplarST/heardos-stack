@@ -70,6 +70,8 @@ def _start(st, task: str) -> None:
             a.add("MUTED", f"    request type: {data['intent']}")
         elif kind == "pick":
             a.add("MUTED", f"    {data['thought']}  -> {data['app'] or 'none of the catalogue apps'}")
+        elif kind == "fits" and not data["fits"]:
+            a.add("MUTED", f"    {data['thought']}  -> {data['app']} does not fit after all")
         elif kind == "thought":
             a.add("MUTED", f"    {data['thought']}  -> {data['tool']}")
         elif kind == "result":
@@ -117,7 +119,7 @@ def assistant(st) -> None:
             d["agent_endpoint"] = v.strip(); st.save_draft()
         imgui.same_line()
         imgui.set_next_item_width(180)
-        ch, v = imgui.input_text_with_hint("model##agentmodel", "llama3.2:3b", d.get("agent_model", ""))
+        ch, v = imgui.input_text_with_hint("model##agentmodel", "qwen2.5:7b", d.get("agent_model", ""))
         if ch:
             d["agent_model"] = v.strip(); st.save_draft()
         ch, v = imgui.checkbox("Approve installs, restarts and setting changes without asking (removals and your own apps still ask; not for a hosted model)", bool(d.get("agent_auto")))

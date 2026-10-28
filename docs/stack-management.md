@@ -88,11 +88,20 @@ transcripts, invent names, copy examples, and keep "improving" things after the 
 | Ignoring what the request names | When the request names a Docker image, the harness skips the catalogue question and inspects exactly that image itself, so the model works from the name you gave and not from a search result. |
 | Not stopping | After each successful change, a *what is still missing?* check with two worked examples. There is a hard cap of three changes per request (two when adding apps, one for removals). A call that already succeeded isn't run again, and its tool is left out of the next choice; three repeats end the run. |
 | Claiming success | The final answer is followed by what the harness itself recorded: *What was actually changed*, and what you refused. |
+| Picking a look-alike app | When the request spells out an app's id or full name as whole words ("restart homebox"), the harness takes that app without asking the model (a 3B model once picked *homeassistant* for it). |
+| Reporting the intent as the outcome | **Checked, not assumed.** After a change to an app (install, start/stop/restart/update, a setting) the harness looks at the app's real state itself, waiting up to a minute for it to settle, and appends what it saw: *Checked afterwards: homebox is running*, or *is NOT running … app_logs shows why*. A change that left the app down is never treated as done, and the report marks every change *[checked: as expected]* or *[CHECKED: NOT as expected]*. |
+| Noisy logs | `app_logs` collapses repeated messages (timestamps, ids and numbers ignored) into counts and shows each distinct message once. A real log where one harmless line repeated 1,600 times becomes three lines, with the one error that mattered visible. |
+| Blaming the wrong app | `app_status` and `health_check` include the server's own load: CPU load and the share of the last minute spent waiting on the disk. When the server itself is saturated (a large first scan once kept the disk 95% busy and made sign-ins time out in an unrelated app), the status says so: slowness in *any* app can come from that. |
 
 **Safety.** Reads run freely. Every change is shown first and waits for your yes. The Assistant shows an *Approve /
 Refuse* card; on the terminal you answer y/N. You can approve changes up front (`--allow-changes`, or the checkbox),
 but removals and *your own app* (an image nobody vetted) always ask, and for a removal on the terminal you have to type
-the app's name. A refusal ends the request: told "no", a small model otherwise tries a neighbouring change (an eval run had it move on to removing a different app).
+the app's name. So does any setting that **loosens a protection**, even with changes approved up front, and the
+question says why: letting an app fetch addresses inside the home network (`ALLOW_PRIVATE_IP_ADDRESS`,
+`*_ALLOW_INTERNAL_REQUESTS`), switching off certificate checks (`*_INSECURE`, `*_VERIFY_SSL`), opening sign-in or
+sign-ups (`ALLOW_SIGNUP`, `DISABLE_AUTH`), widening trusted proxies, hosts or origins, `DEBUG`, and passwords or keys.
+Resetting one of those asks too, because an app's own default can be the open one (Mealie's sign-ups). `heardos-mcp
+--allow-changes` refuses them outright, and `heardos-cli tool --yes` still makes you type the setting's name. A refusal ends the request: told "no", a small model otherwise tries a neighbouring change (an eval run had it move on to removing a different app).
 Nothing the model writes reaches a shell: tools take validated values, and the kit scripts check them again on the
 host. A model may download images only from well-known registries (Docker Hub, ghcr.io, lscr.io, quay.io, gcr.io,
 registry.gitlab.com, codeberg.org, mcr.microsoft.com, public.ecr.aws), and may not set variables that load code into
@@ -233,9 +242,14 @@ below was added after a failing trace:
 | Questions stop when answerable | eight reads on homebox for "which apps are installed?" |
 | Named image skips the catalogue pick | the private search app picked for "add Uptime Kuma (image …)" |
 | A refusal ends the run | after "no" to removing Passwords, an attempt to remove Documents |
+| Worked examples for the request type; a request about no installed app is sorted again | qwen2.5:7b took "set something up for the plants" as start/stop, then restarted the home inventory app |
+| "Is this app really what was asked?" after a catalogue pick | qwen2.5:7b installed the Blog for "a Minecraft server" (a numbered pick always lands on *some* number) |
+| Access decided from the people list (person read from the task, app picked) | qwen2.5:7b, shown the list, answered "Bob already has access" when he did not |
 
-Times are with a 3B model on 8 CPU cores and no GPU. A GPU or a faster CPU is many times quicker. Bigger models
-(qwen2.5:7b, llama3.1:8b) should do at least as well; run the evals to check yours.
+Times are with a 3B model on 8 CPU cores and no GPU. A GPU or a faster CPU is many times quicker. A bigger model is
+not automatically better: qwen2.5:7b (on a GPU, 3-16 s per scenario) scored 7/10 on the code that took llama3.2:3b to
+10/10, failing the same three scenarios the same way on every run; the last three fixes above bring it to 10/10 (two runs).
+Run the evals on the model you choose.
 
 ## Scripts and other agents
 

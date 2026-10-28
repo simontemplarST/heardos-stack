@@ -103,8 +103,9 @@ def test_an_external_model_sees_error_lines_and_usernames_only():
     assert "INF started" in "\n".join(local.sent) and "INF started" not in "\n".join(ext.sent)
     assert "ERR database is locked" in "\n".join(ext.sent)
     local, ext = Recorder("access", []), Recorder("access", [], external=True)
-    A.Agent(SimBackend(), local).run("let bob use mealie")
-    A.Agent(SimBackend(), ext).run("let bob use mealie")
+    # a person the task does not name ("my brother") leaves it to the model, which then sees the people list
+    A.Agent(SimBackend(), local).run("let my brother use mealie")
+    A.Agent(SimBackend(), ext).run("let my brother use mealie")
     assert "Alice Smith" in "\n".join(local.sent)
     assert "Alice Smith" not in "\n".join(ext.sent) and "- alice (admin): apps:" in "\n".join(ext.sent)
 

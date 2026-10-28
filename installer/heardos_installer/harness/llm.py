@@ -21,7 +21,7 @@ import httpx
 
 from .redact import is_local
 
-DEFAULT_MODEL = os.environ.get("HEARDOS_AGENT_MODEL", "llama3.2:3b")
+DEFAULT_MODEL = os.environ.get("HEARDOS_AGENT_MODEL", "qwen2.5:7b")
 DEFAULT_ENDPOINT = os.environ.get("HEARDOS_AGENT_ENDPOINT", "http://127.0.0.1:11434")
 
 

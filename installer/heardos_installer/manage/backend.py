@@ -473,6 +473,15 @@ class RealBackend(_Common):
         from .. import ops
         return ops.health(self.inst)
 
+    def load(self) -> dict:
+        """The home server's load and disk/cpu stall time (ops.parse_load); cached 30 s — app_status asks on every look."""
+        import time
+        from .. import ops
+        if getattr(self, "_load", None) and time.monotonic() - self._load[0] < 30:
+            return self._load[1]
+        self._load = (time.monotonic(), ops.host_load(self.inst))
+        return self._load[1]
+
     def people(self) -> list[dict]:
         """Cached for a minute: the harness builds its tool menu (people are an enum) every turn, and each read is an
         SSH round trip plus an Authentik API call."""

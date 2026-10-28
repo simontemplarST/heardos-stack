@@ -70,8 +70,14 @@ def serve(b, allow_changes: bool = False, allow_remove: bool = False, inp=None, 
                 else:
                     from .schema import coerce
                     t = T.BY_NAME[name]
-                    r = T.call(b, name, coerce(t.schema(b), params.get("arguments") or {}))
-                    result = {"content": [{"type": "text", "text": scrub(r.text, b.secret_values())}], "isError": not r.ok}
+                    args = coerce(t.schema(b), params.get("arguments") or {})
+                    why = T.needs_person(name, args)
+                    if why:        # MCP clients may or may not ask their user: loosening a protection is never done from here
+                        result = {"content": [{"type": "text", "text": f"Not done: {why}, so only a person may approve it. Change it in the "
+                                               "HeardOS app (Stacks screen) or with `heardos-cli tool`, which asks."}], "isError": True}
+                    else:
+                        r = T.call(b, name, args)
+                        result = {"content": [{"type": "text", "text": scrub(r.text, b.secret_values())}], "isError": not r.ok}
             else:
                 send({"jsonrpc": "2.0", "id": mid, "error": {"code": -32601, "message": f"no method {method}"}})
                 continue

@@ -14,6 +14,10 @@ Design, aimed at models that plan badly but follow instructions and lists:
   * Playbooks for the common requests. "Add an app" first asks which catalogue app fits (a numbered pick, or "none of
     these"); a pick is installed directly, "none" leads to search -> inspect -> add_custom_app. "Fix", "setting" and
     "start/stop" ask which installed app it is about and fetch its status, logs or settings before the model decides.
+  * Picks are checked against facts. A catalogue pick is followed by "is this app really what was asked?" (a numbered
+    pick always lands on some number); access requests read the person from the task and whether they already have the
+    app from the people list, never from the model's reading of it; a fix/setting/start-stop request that matches no
+    installed app is sorted again, so the model never acts on an app it could not name.
   * Questions: after each read, "can it be answered from what is above?"; at most four reads, then it answers.
   * A "done?" check after every successful change (a yes/no question, which small models answer well), and at most
     three changes per request. Without these, small models keep "improving" things after the task is complete.
@@ -25,17 +29,25 @@ Design, aimed at models that plan badly but follow instructions and lists:
     three such loops end the run.
   * The final answer is followed by what the harness itself recorded as done, so a model that claims success it did
     not achieve is visibly contradicted.
+  * Checked, not assumed. After a change to an app (install, start/stop/restart/update, a setting) the harness looks at
+    the app's real state itself (VERIFY_WAIT) and appends what it saw to the result; a change that left the app down is
+    never treated as "done", and the report marks it. Small models — and people — otherwise report the intent as the outcome.
+  * Loosening a protection needs a person. Settings that let an app reach the home network, switch off certificate checks,
+    open sign-ups, widen trusted proxies or set credentials (manage.tools.needs_person) always ask, even with changes
+    allowed up front, and the question says why.
 
 Privacy and trust (see harness/redact.py):
   * Every message is scrubbed before it is sent (tokens, passwords in URLs, e-mail and public IP addresses, long random
     strings, and every secret the install knows of).
   * A model outside this machine and the home network (llm.external) is a third party: it sees only the error lines of
     a log and people's usernames (not their names), and "allow changes" does not apply to it: every change asks.
-  * add_custom_app always asks (tools.Tool.always_ask).
+  * add_custom_app always asks (tools.Tool.always_ask), and so does any call manage.tools.needs_person names.
 """
 from __future__ import annotations
 
 import json
+import re
+import time
 from dataclasses import dataclass, field
 from typing import Callable, Optional
 
@@ -46,21 +58,33 @@ from .redact import scrub_messages
 from .schema import check, coerce
 
 FINISH = "finish"
+VERIFY_TOOLS = ("install_app", "control_app", "change_setting", "reset_setting")   # changes whose outcome is an app's state
+VERIFY_WAIT = 60          # seconds the harness waits for an app to settle after such a change (containers start, health checks run)
 MAX_CHANGES = 3
 CHANGE_CAP = {"add_app": 2, "add_custom": 2, "remove_app": 1}      # per request type; the rest share MAX_CHANGES
 READ_TOOLS = ["overview", "list_apps", "app_status", "app_logs", "app_settings", "health_check", "list_people"]
 INTENTS = {
     "question": ("Answer a question about the apps, people or servers. Changes nothing.", READ_TOOLS),
-    "add_app": ("Install or add an app: from the catalogue, or any other app from a Docker image.",
+    "add_app": ("Install or add an app, or set something up for a need the family describes: from the catalogue, or any "
+                "other app from a Docker image.",
                 ["list_apps", "install_app", "search_images", "inspect_image", "add_custom_app"]),
     "fix_app": ("Something is broken, down or misbehaving: find out why and fix it.", ["app_status", "app_logs", "control_app", "health_check"]),
-    "start_stop": ("Start, stop, restart or update a whole app (not a setting or feature inside it).", ["app_status", "control_app"]),
+    "start_stop": ("Start, stop, restart or update a whole app that is already installed (not a setting or feature inside it).", ["app_status", "control_app"]),
     "setting": ("Change or undo a setting inside an app: an option, a feature or logging turned on or off, a variable "
                 "such as LOG_LEVEL=DEBUG.", ["app_settings", "change_setting", "reset_setting"]),
     "access": ("Let a person use an app.", ["list_people", "give_access"]),
     "remove_app": ("Remove an app.", ["remove_app"]),
     "other": ("Anything else.", None),
 }
+# Worked examples for the intent question (none of them is an eval task). qwen2.5:7b sorted "we keep forgetting to water
+# the plants, can you set something up" as start_stop without them: a NEED with no app named is a request to add one.
+INTENT_EXAMPLES = """Examples:
+- "We never know which bills are due. Can you sort something out?" -> add_app (a need, no app named: add an app for it)
+- "Photos won't load on my phone." -> fix_app
+- "Restart the calendar." -> start_stop
+- "Turn on debug logging for the recipe app." -> setting
+- "Let Carol use the documents app." -> access
+- "Who can open the password manager?" -> question"""
 IMAGE_IN_TASK = __import__("re").compile(r"\b[a-z0-9][a-z0-9._-]*/[a-z0-9][a-z0-9._/-]*:[A-Za-z0-9._-]+")
 # not offered to the model as a kind: the harness switches add_app to this when no catalogue app fits
 ADD_CUSTOM = ("Add an app that is not in the catalogue, from a Docker image.", ["search_images", "inspect_image", "add_custom_app"])
@@ -98,6 +122,7 @@ class Turn:
     risk: str = "read"
     approved: Optional[bool] = None
     seen: Optional[str] = None       # what the model was shown, when less than `text` (an external model)
+    verified: Optional[bool] = None  # after a change: did the app end up in the expected state (None = not checked)
 
     @property
     def for_model(self) -> str:
@@ -121,7 +146,8 @@ class RunResult:
         return [t for t in self.turns if t.risk != "read" and t.ok]
 
     def report(self) -> str:
-        done = [f"- {t.tool}({_args_text(t.args)}): {t.text.splitlines()[0][:200]}" for t in self.changes]
+        mark = {True: " [checked: as expected]", False: " [CHECKED: NOT as expected, see above]", None: ""}
+        done = [f"- {t.tool}({_args_text(t.args)}): {t.text.splitlines()[0][:200]}{mark[t.verified]}" for t in self.changes]
         refused = [f"- {t.tool}({_args_text(t.args)}): not approved" for t in self.turns if t.approved is False]
         out = self.answer.strip()
         out += "\n\nWhat was actually changed:\n" + ("\n".join(done) if done else "- nothing")
@@ -148,14 +174,45 @@ def _overlap(task: str, text: str) -> int:
     return sum(1 for x in a for y in b if x == y or (len(y) > 3 and y in x) or (len(x) > 3 and x in y))
 
 
+def _named_in_task(task: str, rows: list[dict]) -> Optional[str]:
+    """The stack whose id or full name the task contains as whole words, if exactly one does. When several do
+    ('paperless' inside 'paperless-gpt'), the longest match wins only if it is unique."""
+    low = task.lower()
+    hits: dict[str, int] = {}
+    for r in rows:
+        for label in {r["stack"], r["name"]}:
+            label = label.lower().strip()
+            if len(label) > 2 and re.search(rf"(?<![\w-]){re.escape(label)}(?![\w-])", low):
+                hits[r["stack"]] = max(hits.get(r["stack"], 0), len(label))
+    if not hits:
+        return None
+    best = max(hits.values())
+    top = [s for s, n in hits.items() if n == best]
+    return top[0] if len(top) == 1 else None
+
+
+def _named_person(task: str, people: list[dict]) -> Optional[str]:
+    """The username of the one person the task names (by username, first name or full name, as whole words)."""
+    low = task.lower()
+    hits = set()
+    for u in people:
+        full = (u.get("name") or "").lower().strip()
+        for label in {u["username"].lower(), full, full.split(" ")[0] if full else ""}:
+            if len(label) > 1 and re.search(rf"(?<![\w-]){re.escape(label)}(?![\w-])", low):
+                hits.add(u["username"])
+    return hits.pop() if len(hits) == 1 else None
+
+
 def _key(tool: str, args: dict) -> str:
     return tool + json.dumps(args, sort_keys=True)
 
 
 class Agent:
     def __init__(self, backend: Backend, llm: LLM, policy: Optional[Policy] = None, max_steps: int = 12,
-                 on_event: Optional[Callable[[str, dict], None]] = None):
+                 on_event: Optional[Callable[[str, dict], None]] = None, verify_wait: float = VERIFY_WAIT,
+                 sleep: Callable[[float], None] = time.sleep, clock: Callable[[], float] = time.monotonic):
         self.b, self.llm, self.policy, self.max_steps = backend, llm, policy or Policy(), max_steps
+        self.verify_wait, self._sleep, self._clock = verify_wait, sleep, clock
         self.on_event = on_event or (lambda kind, data: None)
         self.external = bool(getattr(llm, "external", False))
         if self.external and self.policy.allow_changes:
@@ -183,21 +240,29 @@ class Agent:
             out = [t for t in out if t.risk == "read"]
         return out
 
-    def _intent(self, task: str, overview: str) -> str:
+    def _intent(self, task: str, overview: str, exclude: tuple = ()) -> str:
         names = list(INTENTS)
         schema = {"type": "object", "properties": {"thought": {"type": "string", "maxLength": 200}, "intent": {"type": "string", "enum": names}},
                   "required": ["thought", "intent"]}
+        kinds = {k: v for k, v in INTENTS.items() if k not in exclude}
+        names = list(kinds)
+        schema["properties"]["intent"]["enum"] = names
         text = (f"Task: {task}\n\nThe cloud right now:\n{overview}\n\nWhat kind of request is the task? Kinds:\n"
-                + "\n".join(f"- {k}: {d}" for k, (d, _) in INTENTS.items()) + "\nThink in one short sentence, then choose.")
+                + "\n".join(f"- {k}: {d}" for k, (d, _) in kinds.items()) + "\n\n" + INTENT_EXAMPLES
+                + "\nThink in one short sentence, then choose.")
         r = self._ask([{"role": "system", "content": "You sort requests for the HeardOS assistant."}, {"role": "user", "content": text}], schema)
         intent = coerce(schema, r).get("intent")
-        return intent if intent in INTENTS else "other"
+        return intent if intent in kinds else "other"
 
     def _pick(self, task: str, question: str, rows: list[dict]) -> Optional[str]:
         """Ask which of `rows` the task means; returns its stack id, or None for 'none of these'.
         A numbered list, answered with the number: measured on llama3.2:3b, numbers picked the right app 5 of 5 times
         where app ids, human names or whole lines as the choices got it wrong 2-3 times (a familiar-looking id such as
         'homeassistant' wins on looks). Most likely first, by word overlap with the task."""
+        named = _named_in_task(task, rows)
+        if named:      # the task spells out an app id or name: no model call ("restart homebox" was once picked as homeassistant)
+            self.on_event("pick", {"question": question, "app": named, "thought": "named in the task"})
+            return named
         rows = sorted(rows, key=lambda r: -_overlap(task, f"{r['name']} {r['stack']} {r.get('blurb', '')}"))
         lines = [f"{r['name']}: {r.get('blurb', '')}" for r in rows] + ["None of these: the task asks for something not in this list"]
         schema = {"type": "object", "properties": {"thought": {"type": "string", "maxLength": 200},
@@ -210,6 +275,44 @@ class Agent:
         app = rows[n - 1]["stack"] if isinstance(n, int) and 1 <= n <= len(rows) else None
         self.on_event("pick", {"question": question, "app": app, "thought": str(r.get("thought", ""))[:200]})
         return app
+
+    def _fits(self, task: str, row: dict) -> bool:
+        """After a catalogue pick: does that app really do what the task asks? A numbered pick always lands on SOME number;
+        asked for a Minecraft server, qwen2.5:7b picked 'Blog'. A yes/no about one app is a question small models get right."""
+        schema = {"type": "object", "properties": {"thought": {"type": "string", "maxLength": 200}, "fits": {"type": "string", "enum": ["yes", "no"]}},
+                  "required": ["thought", "fits"]}
+        text = (f"Task: {task}\n\nApp: {row['name']}: {row.get('blurb', '')}\n\nIs this app what the task asks for (the same kind "
+                "of thing, possibly under another name)? Say no if the task asks for something different and this app is just "
+                "the nearest one.\nThink in one short sentence, then answer.")
+        r = self._ask([{"role": "system", "content": "You check that an app matches a request."}, {"role": "user", "content": text}], schema)
+        ok = coerce(schema, r).get("fits") != "no"
+        self.on_event("fits", {"app": row["stack"], "fits": ok, "thought": str(r.get("thought", ""))[:200]})
+        return ok
+
+    def _access(self, task: str, turns: list, harness_call, rows: list[dict], reply) -> Optional[RunResult]:
+        """'Let Bob use the recipe app', decided from facts: the person is read from the task, the app picked from the
+        installed ones, and whether they already have it from the people list. qwen2.5:7b, shown that list, answered
+        "Bob already has access" when he did not. Returns None (the normal loop takes over) when the person or app is unclear."""
+        try:
+            people = self.b.people()
+        except Exception:  # noqa: BLE001 — no people list: the loop works with what the tools say
+            return None
+        person = _named_person(task, people)
+        gated = [r for r in rows if r["installed"] and r.get("slug") and r.get("access") != "public"]
+        if not person or not gated:
+            return None
+        app = self._pick(task, f"Which of these installed apps should {person} be able to use?", gated)
+        if not app:
+            return None
+        row = next(r for r in gated if r["stack"] == app)
+        if row["slug"] in (next(u for u in people if u["username"] == person).get("apps") or []):
+            return RunResult(f"{person} can already open {row['name']}, so nothing was changed.", turns)
+        t = harness_call("give_access", {"person": person, "app": app}, f"{person} is not in {row['name']}'s sign-in group yet")
+        if t.approved is False:
+            return reply("refused")
+        if t.ok and self._complete(task, turns):
+            return reply()
+        return None
 
     def _answerable(self, task: str, turns: list) -> bool:
         """Questions: do the results so far answer it? (Small models otherwise keep reading.)"""
@@ -323,7 +426,8 @@ class Agent:
             if not ok:
                 t.text = preview
                 return t
-            ask = tool.risk == "danger" or tool.always_ask or (tool.risk == "change" and not self.policy.allow_changes)
+            ask = (tool.risk == "danger" or tool.always_ask or (tool.risk == "change" and not self.policy.allow_changes)
+                   or bool(T.needs_person(tool.name, args)))
             if ask:
                 self.on_event("confirm", {"tool": tool.name, "args": args, "preview": preview, "risk": tool.risk})
                 yes = bool(self.policy.confirm and self.policy.confirm(tool.name, args, preview, tool.risk))
@@ -339,11 +443,32 @@ class Agent:
             res = T.ToolResult(False, str(e))
         except Exception as e:  # noqa: BLE001 — the model gets the reason; the run goes on
             res = T.ToolResult(False, f"{type(e).__name__}: {e}"[:300])
+        if res.ok and tool.name in VERIFY_TOOLS and args.get("app"):
+            t.verified, note = self._verify(args["app"], "stopped" if args.get("action") == "stop" else "running")
+            res = T.ToolResult(res.ok, f"{res.text}\n{note}", res.data)
         t.ok, t.text = res.ok, res.text
         t.seen = self._for_model(tool.name, res)
         if res.ok:
             done[key] = n
         return t
+
+    def _verify(self, app: str, want: str) -> tuple[Optional[bool], str]:
+        """Look at the app's real state after a change, waiting up to VERIFY_WAIT for it to settle. Returns (as expected?, note)."""
+        deadline, state = self._clock() + self.verify_wait, "?"
+        while True:
+            try:
+                state = next((r["state"] for r in self.b.inventory() if r["stack"] == app), "not installed")
+            except Exception as e:  # noqa: BLE001 — a failed check is reported, never fatal
+                return None, f"Could not check {app} afterwards ({type(e).__name__})."
+            good = (state == "running") if want == "running" else (state != "running")
+            if good or self._clock() >= deadline:
+                break
+            self._sleep(min(5, max(0.0, deadline - self._clock())))
+        self.on_event("verify", {"app": app, "want": want, "state": state, "ok": good})
+        if good:
+            return True, f"Checked afterwards: {app} is {state}."
+        return False, (f"Checked afterwards: {app} is NOT {want} (state: {state}). The change did not have the expected result; "
+                       "app_logs shows why.")
 
     # ---------------------------------------------------------------- the loop
     def run(self, task: str) -> RunResult:
@@ -367,30 +492,48 @@ class Agent:
         for name in GROUNDING.get(intent, []):
             if T.BY_NAME[name].usable(self.b):
                 harness_call(name, {}, "look it up first")
+        def reply(stopped: str = "finished") -> RunResult:
+            return RunResult(self._answer([{"role": "system", "content": self._system(self._tools(intent))},
+                                           {"role": "user", "content": self._state(task, turns)}]), turns, stopped)
         try:
             rows = self.b.inventory(with_state=False)
-            if intent == "add_app":
-                missing = [r for r in rows if not r["installed"] and r["kind"] == "app"]
-                named_image = IMAGE_IN_TASK.search(task)          # "add X (image owner/x:1)": not a catalogue app
-                app = (self._pick(task, "Which of these catalogue apps (not installed yet) does the task ask for?", missing)
-                       if missing and not named_image else None)
-                if named_image:
-                    harness_call("inspect_image", {"image": named_image.group(0)}, "the task names this image")
-                if app:
-                    t = harness_call("install_app", {"app": app}, f"the catalogue app {app} fits the task")
-                    if t.approved is False:
-                        return RunResult(self._answer([{"role": "system", "content": self._system(self._tools(intent))},
-                                                       {"role": "user", "content": self._state(task, turns)}]), turns, "refused")
-                    if t.ok and self._complete(task, turns):
-                        return RunResult(self._answer([{"role": "system", "content": self._system(self._tools(intent))},
-                                                       {"role": "user", "content": self._state(task, turns)}]), turns)
-                else:
-                    intent = "add_custom"
-            elif intent in FOCUS_READS:
-                inst = [r for r in rows if r["installed"]]
-                app = self._pick(task, "Which of these installed apps is the task about?", inst)
-                for name in FOCUS_READS[intent] if app else []:
-                    harness_call(name, {"app": app}, f"look at {app}")
+            for attempt in (1, 2):
+                if intent == "add_app":
+                    missing = [r for r in rows if not r["installed"] and r["kind"] == "app"]
+                    named_image = IMAGE_IN_TASK.search(task)          # "add X (image owner/x:1)": not a catalogue app
+                    app = (self._pick(task, "Which of these catalogue apps (not installed yet) does the task ask for?", missing)
+                           if missing and not named_image else None)
+                    if app and not _named_in_task(task, missing) and not self._fits(task, next(r for r in missing if r["stack"] == app)):
+                        app = None
+                    if named_image:
+                        harness_call("inspect_image", {"image": named_image.group(0)}, "the task names this image")
+                    if app:
+                        t = harness_call("install_app", {"app": app}, f"the catalogue app {app} fits the task")
+                        if t.approved is False:
+                            return reply("refused")
+                        if t.ok and t.verified is not False and self._complete(task, turns):
+                            return reply()
+                    else:
+                        intent = "add_custom"
+                elif intent == "access":
+                    out = self._access(task, turns, harness_call, rows, reply)
+                    if out:
+                        return out
+                elif intent in FOCUS_READS:
+                    inst = [r for r in rows if r["installed"]]
+                    app = self._pick(task, "Which of these installed apps is the task about?", inst)
+                    if not app and attempt == 1:
+                        # About no installed app, so not a fix/setting/start-stop request after all (an eval saw qwen2.5:7b take
+                        # "set something up for the plants" as start_stop, then restart a random app). Ask again without
+                        # those kinds; the model never acts on an app it could not name.
+                        intent = self._intent(task, first.for_model, exclude=tuple(FOCUS_READS))
+                        self.on_event("intent", {"intent": intent, "about": INTENTS[intent][0], "again": True})
+                        continue
+                    if not app:
+                        return RunResult("None of the installed apps matches what the task is about, so nothing was changed.", turns)
+                    for name in FOCUS_READS[intent]:
+                        harness_call(name, {"app": app}, f"look at {app}")
+                break
         except (LLMError, ValueError) as e:
             return RunResult(f"The model failed to answer: {e}", turns, "model_error")
         reads = 0
@@ -424,7 +567,7 @@ class Agent:
             if t.approved is False:      # the owner said no: stop, instead of letting the model try something else
                 return RunResult(self._answer([{"role": "system", "content": self._system(tools)},
                                                {"role": "user", "content": self._state(task, turns)}]), turns, "refused")
-            if t.ok and t.risk != "read" and not t.text.startswith("Already done"):
+            if t.ok and t.risk != "read" and not t.text.startswith("Already done") and t.verified is not False:
                 try:
                     finished = self._complete(task, turns)
                 except (LLMError, ValueError):
