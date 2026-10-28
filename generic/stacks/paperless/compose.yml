@@ -18,7 +18,7 @@ services:
     container_name: paperless-webserver          # 63-post-install.py and paperless-gpt reach it by this name
     image: ghcr.io/paperless-ngx/paperless-ngx:3.3.2@sha256:d232cba37cc0bab0d6c6581ecd320383b7a6f49f33e0fd16adda4d009eb600dd   # 3.3.2
     restart: unless-stopped
-    depends_on: {db: {condition: service_healthy}, broker: {condition: service_started}}
+    depends_on: {db: {condition: service_healthy}, broker: {condition: service_started}, gotenberg: {condition: service_started}, tika: {condition: service_started}}
     environment:
       PAPERLESS_REDIS: redis://broker:6379
       PAPERLESS_DBHOST: db
@@ -55,6 +55,10 @@ services:
       PAPERLESS_OCR_CLEAN: clean
       PAPERLESS_OCR_IMAGE_DPI: "300"
       PAPERLESS_OCR_MAX_IMAGE_PIXELS: "0"
+      # Office documents and emails (.eml): Tika extracts text, Gotenberg renders them to PDF (2026-10-28, for the email import)
+      PAPERLESS_TIKA_ENABLED: "1"
+      PAPERLESS_TIKA_ENDPOINT: http://tika:9998
+      PAPERLESS_TIKA_GOTENBERG_ENDPOINT: http://gotenberg:3000
     volumes:
       - ${HEARDOS_ROOT}/data/paperless/data:/usr/src/paperless/data
       - ${HEARDOS_ROOT}/data/paperless/media:/usr/src/paperless/media
@@ -70,6 +74,19 @@ services:
       traefik.http.routers.paperless-lan.rule: Host(`paperless.${LAN_DOMAIN}`)
       traefik.http.routers.paperless-lan.entrypoints: web
       traefik.http.services.paperless.loadbalancer.server.port: "8000"
+  gotenberg:
+    image: gotenberg/gotenberg:8.38.1
+    restart: unless-stopped
+    # renders emails to PDF with Chromium: no JavaScript, and nothing may be loaded except the temp files Paperless hands
+    # over (no tracking pixels, no remote or internal URLs from an email's HTML) — same flags as paperless-ngx's own compose
+    command: ["gotenberg", "--chromium-disable-javascript=true", "--chromium-allow-list=^file:///tmp/.*"]
+    mem_limit: 1g
+    networks: [internal]
+  tika:
+    image: apache/tika:3.3.1.0
+    restart: unless-stopped
+    mem_limit: 1g
+    networks: [internal]
 networks:
   internal: {}
   proxy: {external: true}
