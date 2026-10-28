@@ -47,7 +47,8 @@ case "$app" in
     # x-paperless://oidc-callback + --public: the Swift Paperless iOS app runs the OIDC code exchange itself (PKCE, no secret) — Paperless >= 3.0
     oidc paperless Paperless "$pub/" "$pub/accounts/oidc/authentik/login/callback/" "x-paperless://oidc-callback" --public
     install -d "$HEARDOS_ROOT/data/paperless"/{data,media,export,postgres,redis}; media_dirs "$HEARDOS_ROOT/data/paperless/consume"
-    { base_env; printf 'OIDC_CLIENT_ID=%s\nOIDC_CLIENT_SECRET=%s\nPAPERLESS_DB_PASSWORD=%s\nPAPERLESS_SECRET_KEY=%s\nPAPERLESS_ADMIN_PASSWORD=%s\n' "$OIDC_CLIENT_ID" "$OIDC_CLIENT_SECRET" "$(secret PAPERLESS_DB_PASSWORD)" "$(secret PAPERLESS_SECRET_KEY 50)" "$(secret PAPERLESS_ADMIN_PASSWORD 24)"; printf 'OCR_API_KEY=%s\nOCR_LANGS=%s\n' "$(secret OCR_API_KEY 48)" "${OCR_LANGS:-eng}"
+    install -m 644 "$HERE/../apps/paperless/eml2pdf.py" "$HEARDOS_ROOT/data/paperless/eml2pdf.py"   # .eml -> PDF version (workflow webhook)
+    { base_env; printf 'OIDC_CLIENT_ID=%s\nOIDC_CLIENT_SECRET=%s\nPAPERLESS_DB_PASSWORD=%s\nPAPERLESS_SECRET_KEY=%s\nPAPERLESS_ADMIN_PASSWORD=%s\n' "$OIDC_CLIENT_ID" "$OIDC_CLIENT_SECRET" "$(secret PAPERLESS_DB_PASSWORD)" "$(secret PAPERLESS_SECRET_KEY 50)" "$(secret PAPERLESS_ADMIN_PASSWORD 24)"; printf 'OCR_API_KEY=%s\nOCR_LANGS=%s\n' "$(secret OCR_API_KEY 48)" "${OCR_LANGS:-eng}"; printf 'EML2PDF_SECRET=%s\nEML2PDF_TOKEN=%s\n' "$(secret EML2PDF_SECRET 40)" "$(have PAPERLESS_EML2PDF_TOKEN)"
       [ "$LAN_HTTP" = 1 ] && printf 'PAPERLESS_CSRF_LAN=,http://paperless.%s\n' "$LAN_DOMAIN"; true; } > "$d/.env" ;;
   ocr)
     # OPTIONAL heardos-ocr endpoint (not used by default; see stacks/ocr/compose.yml and stacks/paperless PAPERLESS_REMOTE_OCR_ENGINE)

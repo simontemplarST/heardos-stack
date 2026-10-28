@@ -82,6 +82,23 @@ services:
     command: ["gotenberg", "--chromium-disable-javascript=true", "--chromium-allow-list=^file:///tmp/.*"]
     mem_limit: 1g
     networks: [internal]
+  eml2pdf:
+    # turns emailed documents (.eml) into PDFs at the end of the workflow: a Paperless workflow webhook calls it, it adds the
+    # rendered PDF as a new version of the same document (apps/paperless/eml2pdf.py). Internal network only; idles until
+    # EML2PDF_TOKEN is set (Paperless user `eml2pdf`, created with the email-import setup).
+    image: python:3.13-alpine
+    container_name: paperless-eml2pdf
+    restart: unless-stopped
+    command: ["python3", "-u", "/app/eml2pdf.py"]
+    environment:
+      PAPERLESS_URL: http://paperless-webserver:8000
+      EML2PDF_TOKEN: "${EML2PDF_TOKEN:-}"
+      EML2PDF_SECRET: "${EML2PDF_SECRET:-}"
+    volumes: ["${HEARDOS_ROOT}/data/paperless/eml2pdf.py:/app/eml2pdf.py:ro"]
+    read_only: true
+    cpus: 0.25
+    mem_limit: 128m
+    networks: [internal]
   tika:
     image: apache/tika:3.3.1.0
     restart: unless-stopped
