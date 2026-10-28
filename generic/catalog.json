@@ -92,6 +92,19 @@
    }
   },
   {
+   "stack": "opencloud",
+   "slug": "opencloud",
+   "name": "Documents (OpenCloud)",
+   "blurb": "OpenCloud: family files and shared folders (the real media folders, kept in place) with ONLYOFFICE editing in the browser, plus desktop and phone sync apps. Alternative to Nextcloud on the same address.",
+   "hosts": [
+    "docs"
+   ],
+   "profiles": [],
+   "depends_on": [
+    "onlyoffice"
+   ]
+  },
+  {
    "stack": "vaultwarden",
    "slug": "vaultwarden",
    "name": "Passwords",
@@ -495,6 +508,16 @@
    "blurb": "bitmagnet: a private BitTorrent DHT search engine. Owner only.",
    "hosts": [
     "bitmagnet"
+   ],
+   "profiles": []
+  },
+  {
+   "stack": "nicotine",
+   "slug": "nicotine",
+   "name": "Soulseek",
+   "blurb": "Nicotine+: Soulseek file sharing into the music library, in the browser, routed out through the VPS. Owner only.",
+   "hosts": [
+    "soulseek"
    ],
    "profiles": []
   },

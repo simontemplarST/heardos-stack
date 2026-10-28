@@ -1,0 +1,70 @@
+# Nicotine+ (Soulseek client, GTK4 in the browser via Broadway). Owner only, behind the Authentik gate (Broadway has no login).
+# Replaced slskd 2026-10-26. Downloads land in the music library (Navidrome picks them up) and the whole library is shared back.
+# ALL Soulseek traffic leaves through gluetun's WireGuard tunnel to the VPS (vps/wg-egress.sh), never the home WAN: Nicotine+
+# shares gluetun's network namespace and gluetun's firewall drops anything that is not the tunnel (kill switch). The VPS forwards
+# the Soulseek listen port (50300) back down the tunnel. The SLSKD_* variable names are kept from slskd: same tunnel, same account.
+services:
+  nicotine-vpn:
+    image: qmcgaw/gluetun:v3.41.3@sha256:fa19cc76b2af13d57a8d3dc3066f2ada061b1c761b8aecf989b3877c0486e027   # v3.41.3
+    container_name: nicotine-vpn
+    restart: unless-stopped
+    cap_add: [NET_ADMIN]
+    devices: [/dev/net/tun:/dev/net/tun]
+    environment:
+      TZ: "${TZ}"
+      VPN_SERVICE_PROVIDER: custom
+      VPN_TYPE: wireguard
+      VPN_ENDPOINT_IP: "${SLSKD_WG_ENDPOINT_IP}"
+      VPN_ENDPOINT_PORT: "${SLSKD_WG_ENDPOINT_PORT}"
+      WIREGUARD_PRIVATE_KEY: "${SLSKD_WG_PRIVATE_KEY}"
+      WIREGUARD_PUBLIC_KEY: "${SLSKD_WG_PUBKEY}"
+      WIREGUARD_ADDRESSES: "${SLSKD_WG_ADDRESS}"
+      WIREGUARD_MTU: "1380"
+      FIREWALL_VPN_INPUT_PORTS: "50300"   # Soulseek listen port, forwarded by the VPS
+      FIREWALL_INPUT_PORTS: "6565"        # web UI, reached by Traefik on the proxy network only (no host port)
+      HTTP_CONTROL_SERVER_AUTH_DEFAULT_ROLE: '{"auth":"apikey","apikey":"${SLSKD_GLUETUN_API_KEY}"}'
+      UPDATER_PERIOD: "0"
+    cpus: 1
+    mem_limit: 256m
+    networks: [proxy]
+    labels:
+      traefik.enable: "true"
+      traefik.docker.network: proxy
+      traefik.http.routers.nicotine-outpost.rule: Host(`soulseek.${DOMAIN}`) && PathPrefix(`/outpost.goauthentik.io/`)
+      traefik.http.routers.nicotine-outpost.entrypoints: web
+      traefik.http.routers.nicotine-outpost.service: authentik-outpost@file
+      traefik.http.routers.nicotine-outpost.middlewares: xfp-https@file
+      traefik.http.routers.nicotine-outpost.priority: "100"
+      traefik.http.routers.nicotine.rule: Host(`soulseek.${DOMAIN}`)
+      traefik.http.routers.nicotine.entrypoints: web
+      traefik.http.routers.nicotine.middlewares: xfp-https@file,authentik-fwd@file
+      traefik.http.services.nicotine.loadbalancer.server.port: "6565"
+  nicotine:
+    image: sirjmann92/nicotineplus-proper:latest@sha256:85490ea6e96e89eb3fa384ce6311d2566d59feb6bba645384e198888ce02a560   # 2026-10-25
+    container_name: nicotine
+    restart: unless-stopped
+    network_mode: service:nicotine-vpn
+    depends_on:
+      nicotine-vpn: {condition: service_healthy}
+    environment:
+      TZ: "${TZ}"
+      PUID: "33"                 # www-data + heardos-media, like the rest of the media tree
+      PGID: "${MEDIA_GID}"
+      UMASK: "002"
+      LOGIN: "${SLSKD_SLSK_USERNAME}"
+      PASSW: "${SLSKD_SLSK_PASSWORD}"
+      FORWARD_PORT: "50300"
+      WEB_UI_PORT: "6565"
+      UPNP: "False"              # the VPS forwards the port; UPnP would talk to nothing useful
+      AUTO_CONNECT: "True"
+      TRAY_ICON: "False"
+      DARKMODE: "True"
+    volumes:
+      - ${HEARDOS_ROOT}/data/nicotine/config:/config
+      - ${HEARDOS_ROOT}/data/nicotine/data:/data
+      - ${HEARDOS_ROOT}/media/music/_Soulseek:/downloads
+      - ${HEARDOS_ROOT}/media/music:/shared        # rw: downloads may be saved straight into a library folder ("Download to…")
+    cpus: 2
+    mem_limit: 1g
+networks:
+  proxy: {external: true}

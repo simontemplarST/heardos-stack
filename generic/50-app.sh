@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 50-app.sh — run ON THE HOST as root:  50-app.sh <app>   (see --list: paperless mealie homeassistant homebox baikal navidrome onlyoffice nextcloud immich vaultwarden wallos actual invidious homepage calibre-web librespeed dash hortusfox archivebox listmonk paperless-gpt kiwix searxng cronmaster bitmagnet blog open-webui)
+# 50-app.sh — run ON THE HOST as root:  50-app.sh <app>   (see --list: paperless mealie homeassistant homebox baikal navidrome onlyoffice nextcloud immich vaultwarden wallos actual invidious homepage calibre-web librespeed dash hortusfox archivebox listmonk paperless-gpt kiwix searxng cronmaster bitmagnet nicotine opencloud blog open-webui)
 # One command per app: registers it in Authentik (via 42-ak-app.py, using AUTHENTIK_TOKEN from the plan file),
 # generates its secrets, renders its stack .env, creates data dirs, deploys, and runs the app's post-install.
 # Public DNS and the Caddy host list are laptop-side: run 30-vps-caddy.sh and 32-dns.py once PUBLIC_HOSTS is final.
@@ -128,12 +128,47 @@ EOF
     install -d "$HEARDOS_ROOT/data/navidrome"; chown -R 1000:1000 "$HEARDOS_ROOT/data/navidrome"; media_dirs "$HEARDOS_ROOT/media/music"; base_env > "$d/.env" ;;   # music: read-only mount
   onlyoffice)
     # gate office.$DOMAIN; skip only what the in-browser editor loads (assets, co-editing socket, signed download links).
-    # Nextcloud <-> Document Server server-side calls go container-to-container (http://onlyoffice/, http://nextcloud/).
-    proxy onlyoffice --name "Document editor (ONLYOFFICE)" --host "https://office.$DOMAIN" --users all --launch "https://docs.$DOMAIN/" \
+    # ONLYOFFICE_CLIENT (plan) = which file app drives the editor:
+    #  nextcloud (default): Nextcloud <-> Document Server talk container-to-container (http://onlyoffice/, http://nextcloud/), so
+    #    Document Server must fetch from private addresses; its WOPI entry (/hosting/) stays behind the gate.
+    #  opencloud: WOPI. The editor iframe opens /hosting/wopi/... with OpenCloud's access token and can't do an Authentik hop
+    #    inside an iframe, so /hosting/ is not gated — and therefore private-address fetches are OFF: an anonymous /hosting/
+    #    request must not be able to make Document Server fetch internal URLs. OpenCloud hands it public WOPI URLs instead.
+    oo_client="${ONLYOFFICE_CLIENT:-nextcloud}"; oo_skip=(); oo_private=true; oo_launch="https://docs.$DOMAIN/"
+    case "$oo_client" in
+      opencloud) oo_private=false ;;   # /hosting/ is un-gated only after deploy, once the egress filter is verified (below)
+      nextcloud) ;;
+      *) die "ONLYOFFICE_CLIENT must be nextcloud or opencloud" ;;
+    esac
+    proxy onlyoffice --name "Document editor (ONLYOFFICE)" --host "https://office.$DOMAIN" --users all --launch "$oo_launch" \
       --skip '^/web-apps/.*' --skip '^/sdkjs/.*' --skip '^/sdkjs-plugins/.*' --skip '^/fonts/.*' --skip '^/dictionaries/.*' \
-      --skip '^/\d+\.\d+\.\d+-\d+/.*' --skip '^/doc/.*' --skip '^/cache/files/.*' --skip '^/plugins\.json$' --skip '^/healthcheck$'
+      --skip '^/\d+\.\d+\.\d+-\d+/.*' --skip '^/doc/.*' --skip '^/cache/files/.*' --skip '^/plugins\.json$' --skip '^/healthcheck$' "${oo_skip[@]}"
     install -d "$HEARDOS_ROOT/data/onlyoffice"/{data,logs,lib,db}
-    { base_env; printf 'ONLYOFFICE_JWT_SECRET=%s\nONLYOFFICE_VERSION=9.3\n' "$(secret ONLYOFFICE_JWT_SECRET 40)"; } > "$d/.env" ;;
+    if [ "$oo_client" = opencloud ]; then
+      # WOPI: Document Server alone on office-edge with Traefik, and a kernel egress filter (see stacks/onlyoffice/compose.wopi.yml)
+      cp "$HERE/stacks/onlyoffice/compose.wopi.yml" "$d/compose.yml"
+      dry || { docker network inspect office-edge >/dev/null 2>&1 || docker network create --subnet 172.31.251.0/29 office-edge >/dev/null
+        docker inspect traefik --format '{{json .NetworkSettings.Networks}}' | grep -q '"office-edge"' || docker network connect --ip 172.31.251.2 office-edge traefik
+        oo_fw=/usr/local/lib/heardos-office-egress.sh; [ -d "$HEARDOS_ROOT/data/cronmaster/scripts" ] && oo_fw="$HEARDOS_ROOT/data/cronmaster/scripts/office-egress.sh"
+        install -m 755 "$HERE/../apps/onlyoffice/office-egress.sh" "$oo_fw"
+        cat > /etc/systemd/system/office-egress.service <<'UNIT'
+[Unit]
+Description=ONLYOFFICE Document Server egress filter (no connections to internal addresses)
+After=docker.service
+Requires=docker.service
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/bin/bash OO_FW up
+ExecStop=/bin/bash OO_FW down
+[Install]
+WantedBy=multi-user.target
+UNIT
+        sed -i "s|OO_FW|$oo_fw|" /etc/systemd/system/office-egress.service
+        systemctl daemon-reload; systemctl enable --now office-egress.service >/dev/null; systemctl restart office-egress.service; }
+      warn "Traefik joins office-edge live; add it to the traefik stack's compose.override.yml (networks: office-edge ipv4 172.31.251.2) so a Traefik redeploy keeps it"
+    fi
+    { base_env; printf 'ONLYOFFICE_JWT_SECRET=%s\nONLYOFFICE_VERSION=9.3\nONLYOFFICE_ALLOW_PRIVATE_IP=%s\n' "$(secret ONLYOFFICE_JWT_SECRET 40)" "$oo_private"; } > "$d/.env" ;;
   nextcloud)
     pub="https://docs.$DOMAIN"; oidc nextcloud "Nextcloud (documents)" "$pub/" "$pub/apps/user_oidc/code" "http://docs.$LAN_DOMAIN/apps/user_oidc/code"
     install -d "$HEARDOS_ROOT/data/nextcloud"/{html,postgres} "$HEARDOS_ROOT/data/paperless/media/documents/originals"
@@ -244,6 +279,40 @@ PY
     proxy bitmagnet --name "Torrent search (bitmagnet)" --host "https://bitmagnet.$DOMAIN" --launch "https://cloud.$DOMAIN/bitmagnet" --users "$ADMIN_USER"
     install -d "$HEARDOS_ROOT/data/bitmagnet"/{config,postgres}
     { base_env; printf 'BITMAGNET_DB_PASSWORD=%s\n' "$(secret BITMAGNET_DB_PASSWORD)"; } > "$d/.env" ;;
+  nicotine)
+    # Nicotine+ (replaced slskd 2026-10-26). Needs the VPS WireGuard exit first: pipe vps/wg-egress.sh to the VPS
+    # (`bash -s slskd 10.77.0 51820 50300`) and store SLSKD_WG_PRIVATE_KEY in secrets.env and SLSKD_WG_PUBKEY / SLSKD_WG_ADDRESS
+    # in the plan (names kept from slskd). Soulseek account = SLSKD_SLSK_USERNAME (registered by the network on first login if free).
+    [ -n "$(have SLSKD_WG_PRIVATE_KEY)" ] && [ -n "${SLSKD_WG_PUBKEY:-}" ] || die "nicotine needs the VPS WireGuard exit: see vps/wg-egress.sh"
+    proxy nicotine --name "Soulseek (Nicotine+)" --host "https://soulseek.$DOMAIN" --launch "https://cloud.$DOMAIN/soulseek" --users "$ADMIN_USER"
+    install -d -o 33 -g "$MEDIA_GID" "$HEARDOS_ROOT/data/nicotine" "$HEARDOS_ROOT/data/nicotine/config" "$HEARDOS_ROOT/data/nicotine/data"
+    media_dirs "$HEARDOS_ROOT/media/music"
+    install -d -o 33 -g "$MEDIA_GID" -m 2775 "$HEARDOS_ROOT/media/music/_Soulseek"
+    # seed = upstream config-default with downloads -> music/_Soulseek, the library shared, uploads 5 slots / 2500 KiB/s (VPS bandwidth);
+    # Nicotine+ cannot parse comments in this file
+    [ -f "$HEARDOS_ROOT/data/nicotine/config/config" ] || install -o 33 -g "$MEDIA_GID" -m 600 "$HERE/stacks/nicotine/config" "$HEARDOS_ROOT/data/nicotine/config/config"
+    { base_env; printf 'SLSKD_WG_ENDPOINT_IP=%s\nSLSKD_WG_ENDPOINT_PORT=%s\nSLSKD_WG_PUBKEY=%s\nSLSKD_WG_PRIVATE_KEY=%s\nSLSKD_WG_ADDRESS=%s\nSLSKD_GLUETUN_API_KEY=%s\nSLSKD_SLSK_USERNAME=%s\nSLSKD_SLSK_PASSWORD=%s\n' \
+        "${SLSKD_WG_ENDPOINT_IP:-$NEBULA_LH_IP}" "${SLSKD_WG_ENDPOINT_PORT:-51820}" "$SLSKD_WG_PUBKEY" "$(have SLSKD_WG_PRIVATE_KEY)" "${SLSKD_WG_ADDRESS:-10.77.0.2/32}" \
+        "$(secret SLSKD_GLUETUN_API_KEY 40)" "${SLSKD_SLSK_USERNAME:-$ADMIN_USER-heardos}" "$(secret SLSKD_SLSK_PASSWORD 24)"; } > "$d/.env" ;;
+  opencloud)
+    # OpenCloud (2026-10-28) at https://docs.$DOMAIN — the family file workspace (replaces Nextcloud; don't install both: same host).
+    # Authentik: lib/opencloud-authentik.py (4 public OIDC clients, roles claim, group app-opencloud; OPENCLOUD_USERS adds members).
+    # Shared spaces = real folders (OPENCLOUD_SPACES, "Name=path;Name=path"), adopted in place by apps/opencloud/setup.py after the
+    # first deploy. Editing: stack onlyoffice with ONLYOFFICE_CLIENT=opencloud in the plan (WOPI; see that case).
+    [ -f "$HEARDOS_ROOT/stacks/nextcloud/compose.yml" ] && docker ps --format '{{.Names}}' | grep -qx nextcloud && die "Nextcloud is running on docs.$DOMAIN — stop it first (same host name)"
+    [ "${ONLYOFFICE_CLIENT:-nextcloud}" = opencloud ] || warn "ONLYOFFICE_CLIENT is not 'opencloud': documents will open read-only until the onlyoffice stack is switched"
+    dry || HEARDOS_ENV="$ENV_FILE" python3 "$HERE/lib/opencloud-authentik.py" --users "${OPENCLOUD_USERS:-$ADMIN_USER}"
+    install -d -o 33 -g "$MEDIA_GID" "$HEARDOS_ROOT/data/opencloud" "$HEARDOS_ROOT/data/opencloud/config" "$HEARDOS_ROOT/data/opencloud/data"
+    install -o 33 -g "$MEDIA_GID" -m 644 "$HERE/stacks/opencloud/csp.yaml" "$HERE/stacks/opencloud/app-registry.yaml" "$HEARDOS_ROOT/data/opencloud/config/"
+    install -m 755 "$HERE/stacks/opencloud/perms.sh" "$HEARDOS_ROOT/data/opencloud/perms.sh"
+    python3 - "$HEARDOS_ROOT" "$MEDIA_GID" "${OPENCLOUD_SPACES:-Family documents=$HEARDOS_ROOT/media/documents;Music=$HEARDOS_ROOT/media/music;Paperless inbox=$HEARDOS_ROOT/data/paperless/consume}" > "$HEARDOS_ROOT/data/opencloud/spaces.json" <<'PY'
+import json, os, sys
+root, gid, spec = sys.argv[1], int(sys.argv[2]), sys.argv[3]
+spaces = [dict(zip(("name", "path"), x.split("=", 1))) for x in spec.split(";") if "=" in x]
+print(json.dumps({"data": f"{root}/data/opencloud", "stack": f"{root}/stacks/opencloud", "gid": gid,
+                  "spaces": [s for s in spaces if os.path.isdir(s["path"])]}, indent=1))
+PY
+    { base_env; printf 'OPENCLOUD_ADMIN_PASSWORD=%s\n' "$(secret OPENCLOUD_ADMIN_PASSWORD 32)"; } > "$d/.env" ;;
   blog)
     # public static site at https://$DOMAIN from Listmonk's public archive; generator + nginx config from apps/blog
     install -d "$HEARDOS_ROOT/data/blog"/{app,site}; install -m 644 "$HERE/../apps/blog"/{gen.py,nginx.conf,style.css} "$HEARDOS_ROOT/data/blog/app/"
@@ -280,7 +349,18 @@ case "$app" in
     msg "admin page: https://vault.$DOMAIN/admin (token VAULTWARDEN_ADMIN_TOKEN in secrets.env); people sign in with their family account" ;;
   actual) msg "the first person to sign in to https://budget.$DOMAIN becomes the budget owner — sign in as $ADMIN_USER first" ;;
   ocr) msg "check: docker exec paperless-webserver python3 -c \"import urllib.request;print(urllib.request.urlopen('http://heardos-ocr:8000/health').read())\"; then consume a scanned PDF and confirm its text in Paperless" ;;
-  onlyoffice) msg "Document Server builds fonts on first start (several minutes); check: curl -s http://office.$LAN_DOMAIN/healthcheck -> true. People only need access to Nextcloud; the office gate only guards Document Server's own pages." ;;
+  onlyoffice)
+    if [ "${ONLYOFFICE_CLIENT:-nextcloud}" = opencloud ] && ! dry; then
+      ip="$(docker inspect onlyoffice --format '{{range $k,$v := .NetworkSettings.Networks}}{{$k}}={{$v.IPAddress}} {{end}}')"
+      fw="$(iptables -S DOCKER-USER 2>/dev/null | grep -c -- '-s 172.31.251.3/32 -j OFFICE-EGRESS')"
+      if [ "$ip" = "office-edge=172.31.251.3 " ] && [ "$fw" -ge 1 ] && docker exec onlyoffice sh -c 'echo "$ALLOW_PRIVATE_IP_ADDRESS"' | grep -qx false; then
+        proxy onlyoffice --name "Document editor (ONLYOFFICE)" --host "https://office.$DOMAIN" --users all --launch "https://docs.$DOMAIN/" \
+          --skip '^/web-apps/.*' --skip '^/sdkjs/.*' --skip '^/sdkjs-plugins/.*' --skip '^/fonts/.*' --skip '^/dictionaries/.*' \
+          --skip '^/\d+\.\d+\.\d+-\d+/.*' --skip '^/doc/.*' --skip '^/cache/files/.*' --skip '^/plugins\.json$' --skip '^/healthcheck$' --skip '^/hosting/.*'
+        msg "WOPI: /hosting/ opened (Document Server isolated on office-edge, egress filter active)"
+      else warn "WOPI: NOT opening /hosting/ — isolation check failed (networks: $ip; filter rules: $fw). Editing from OpenCloud stays off."; fi
+    fi
+    msg "Document Server builds fonts on first start (several minutes); check: curl -s http://office.$LAN_DOMAIN/healthcheck -> true. People only need access to Nextcloud; the office gate only guards Document Server's own pages." ;;
   nextcloud)
     # an existing instance (an adopted install) answers "trusted domain" to names it does not know yet: add ours first
     for i in $(seq 1 60); do docker exec -u www-data nextcloud php occ status >/dev/null 2>&1 && break; sleep 5; done
@@ -306,6 +386,12 @@ case "$app" in
       systemd-run -q --unit=kiwix-fetch sh "$HERE/../apps/kiwix/fetch.sh" "$HEARDOS_ROOT/data/kiwix" "$z"
       msg "downloading $z in the background (unit kiwix-fetch; progress: journalctl -fu kiwix-fetch). The wiki starts by itself once it is verified."
     fi ;;
+  opencloud)
+    # users + shared spaces; the first run adopts the real folders (exit 10 = compose.override.yml written -> redeploy, run again)
+    dry || { people="$(HEARDOS_ENV="$ENV_FILE" python3 "$HERE/lib/opencloud-authentik.py" --print-people)"
+      for i in 1 2 3; do rc=0; python3 "$HERE/../apps/opencloud/setup.py" --spec "$HEARDOS_ROOT/data/opencloud/spaces.json" --users "$people" --admin-user "$ADMIN_USER" || rc=$?
+        [ "$rc" = 10 ] && { deploy_stack opencloud; continue; }; [ "$rc" = 0 ] || die "apps/opencloud/setup.py failed ($rc)"; break; done; }
+    msg "OpenCloud: https://docs.$DOMAIN (Authentik login). Apps: OpenCloud desktop/iOS/Android, server https://docs.$DOMAIN. The first scan of the shared spaces checksums every file (large music libraries take a while)." ;;
   searxng) msg "set https://search.$DOMAIN as the browser's search engine (URL: https://search.$DOMAIN/search?q=%s)" ;;
   paperless-gpt) msg "next: 63-post-install.py paperless-gpt (pulls the model, adds the Paperless workflow, queues existing documents)" ;;
 esac

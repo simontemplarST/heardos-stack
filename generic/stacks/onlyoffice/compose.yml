@@ -2,7 +2,7 @@
 # office.$DOMAIN sits behind the Authentik gate; the proxy provider (50-app.sh onlyoffice) skips only what a browser
 # editing a Nextcloud document must load without a login hop: editor assets (/web-apps, /sdkjs, /sdkjs-plugins, /fonts,
 # /dictionaries, versioned /<x.y.z-n>/...), the co-editing socket (/doc/...), signed download links (/cache/files/...)
-# and /healthcheck. Nextcloud's server-to-server calls (/coauthoring/CommandService.ashx, /ConvertService.ashx, document
+# and /healthcheck; since 2026-10-28 also /hosting/ (WOPI discovery + editor entry for OpenCloud). Nextcloud's server-to-server calls (/coauthoring/CommandService.ashx, /ConvertService.ashx, document
 # fetches back from http://nextcloud/) use the container names on the proxy network and never pass Traefik.
 # The LAN name only answers /healthcheck. Needs ~2 GB RAM.
 services:
@@ -18,12 +18,16 @@ services:
       JWT_SECRET: "${ONLYOFFICE_JWT_SECRET}"
       JWT_HEADER: Authorization
       JWT_IN_BODY: "true"
-      # true is required: the document storage is http://nextcloud/ (StorageUrl in lib/nc-configure.sh), a private
-      # address on the proxy network, and Document Server refuses to download from private IPs otherwise. Requests must
-      # still carry a valid JWT, so only Nextcloud can make it fetch anything.
-      ALLOW_PRIVATE_IP_ADDRESS: "true"
+      # ONLYOFFICE_ALLOW_PRIVATE_IP (50-app.sh, from plan ONLYOFFICE_CLIENT): true for Nextcloud — its document storage is
+      # http://nextcloud/ on the proxy network and every request carries the JWT; false for OpenCloud/WOPI, where /hosting/ is
+      # reachable without login and must not be usable to make Document Server fetch internal URLs.
+      ALLOW_PRIVATE_IP_ADDRESS: "${ONLYOFFICE_ALLOW_PRIVATE_IP:-true}"
       ALLOW_META_IP_ADDRESS: "false"        # 0.0.0.0 / :: / link-local metadata addresses: never needed
       ONLYOFFICE_HTTPS_HSTS_ENABLED: "false"
+      # WOPI (2026-10-28): OpenCloud's collaboration service drives the editor through WOPI (/hosting/discovery, /hosting/wopi/...).
+      # The editor fetches files from https://docs.$DOMAIN/wopi (public URL, see ALLOW_PRIVATE_IP_ADDRESS); WOPI requests are
+      # authorised by OpenCloud's per-file access tokens.
+      WOPI_ENABLED: "true"
     volumes:
       - ${HEARDOS_ROOT}/data/onlyoffice/data:/var/www/onlyoffice/Data
       - ${HEARDOS_ROOT}/data/onlyoffice/logs:/var/log/onlyoffice

@@ -1,0 +1,60 @@
+# compose.wopi.yml — Document Server for OpenCloud (WOPI). 50-app.sh installs it as compose.yml when ONLYOFFICE_CLIENT=opencloud.
+# ONLYOFFICE Document Server. No users of its own: every API call is signed with the JWT secret shared with the docs stack.
+# office.$DOMAIN sits behind the Authentik gate; the proxy provider (50-app.sh onlyoffice) skips only what a browser
+# editing a Nextcloud document must load without a login hop: editor assets (/web-apps, /sdkjs, /sdkjs-plugins, /fonts,
+# /dictionaries, versioned /<x.y.z-n>/...), the co-editing socket (/doc/...), signed download links (/cache/files/...)
+# and /healthcheck; since 2026-10-28 also /hosting/ (WOPI discovery + editor entry for OpenCloud). Nextcloud's server-to-server calls (/coauthoring/CommandService.ashx, /ConvertService.ashx, document
+# fetches back from http://nextcloud/) use the container names on the proxy network and never pass Traefik.
+# The LAN name only answers /healthcheck. Needs ~2 GB RAM.
+services:
+  onlyoffice:
+    image: onlyoffice/documentserver:${ONLYOFFICE_VERSION:-9.3}
+    container_name: onlyoffice
+    restart: unless-stopped
+    stop_grace_period: 60s
+    mem_limit: ${ONLYOFFICE_MEM:-3g}
+    environment:
+      TZ: "${TZ}"
+      JWT_ENABLED: "true"
+      JWT_SECRET: "${ONLYOFFICE_JWT_SECRET}"
+      JWT_HEADER: Authorization
+      JWT_IN_BODY: "true"
+      # ONLYOFFICE_ALLOW_PRIVATE_IP (50-app.sh, from plan ONLYOFFICE_CLIENT): true for Nextcloud — its document storage is
+      # http://nextcloud/ on the proxy network and every request carries the JWT; false for OpenCloud/WOPI, where /hosting/ is
+      # reachable without login and must not be usable to make Document Server fetch internal URLs.
+      ALLOW_PRIVATE_IP_ADDRESS: "${ONLYOFFICE_ALLOW_PRIVATE_IP:-true}"
+      ALLOW_META_IP_ADDRESS: "false"        # 0.0.0.0 / :: / link-local metadata addresses: never needed
+      ONLYOFFICE_HTTPS_HSTS_ENABLED: "false"
+      # WOPI (2026-10-28): OpenCloud's collaboration service drives the editor through WOPI (/hosting/discovery, /hosting/wopi/...).
+      # The editor fetches files from https://docs.$DOMAIN/wopi (public URL, see ALLOW_PRIVATE_IP_ADDRESS); WOPI requests are
+      # authorised by OpenCloud's per-file access tokens.
+      WOPI_ENABLED: "true"
+    volumes:
+      - ${HEARDOS_ROOT}/data/onlyoffice/data:/var/www/onlyoffice/Data
+      - ${HEARDOS_ROOT}/data/onlyoffice/logs:/var/log/onlyoffice
+      - ${HEARDOS_ROOT}/data/onlyoffice/lib:/var/lib/onlyoffice
+      - ${HEARDOS_ROOT}/data/onlyoffice/db:/var/lib/postgresql
+    # WOPI variant (ONLYOFFICE_CLIENT=opencloud): its own network shared only with Traefik (office-edge 172.31.251.0/29, Traefik .2,
+    # Document Server .3) + apps/onlyoffice/office-edge firewall (office-egress.sh): /hosting/ is public and Document Server's
+    # WOPI client ignores allowPrivateIPAddress, so the kernel stops it from opening connections to anything internal.
+    networks:
+      office-edge:
+        ipv4_address: 172.31.251.3
+    labels:
+      traefik.enable: "true"
+      traefik.docker.network: office-edge
+      traefik.http.routers.office-outpost.rule: Host(`office.${DOMAIN}`) && PathPrefix(`/outpost.goauthentik.io/`)
+      traefik.http.routers.office-outpost.entrypoints: web
+      traefik.http.routers.office-outpost.priority: "100"
+      traefik.http.routers.office-outpost.service: authentik-outpost@file
+      traefik.http.routers.office-outpost.middlewares: xfp-https@file
+      traefik.http.routers.office.rule: Host(`office.${DOMAIN}`)
+      traefik.http.routers.office.entrypoints: web
+      traefik.http.routers.office.middlewares: xfp-https@file,authentik-fwd@file
+      traefik.http.routers.office.service: office
+      traefik.http.routers.office-lan.rule: Host(`office.${LAN_DOMAIN}`) && Path(`/healthcheck`)
+      traefik.http.routers.office-lan.entrypoints: web
+      traefik.http.routers.office-lan.service: office
+      traefik.http.services.office.loadbalancer.server.port: "80"
+networks:
+  office-edge: {external: true}

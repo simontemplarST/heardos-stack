@@ -27,7 +27,7 @@ services:
       PAPERLESS_TIME_ZONE: "${TZ}"
       PAPERLESS_URL: "https://paperless.${DOMAIN}"
       PAPERLESS_CSRF_TRUSTED_ORIGINS: "https://paperless.${DOMAIN}${PAPERLESS_CSRF_LAN:-}"   # 50-app.sh adds the http:// LAN origin only with LAN_HTTP=1
-      PAPERLESS_ALLOWED_HOSTS: "paperless.${DOMAIN},paperless.${LAN_DOMAIN}"
+      PAPERLESS_ALLOWED_HOSTS: "paperless.${DOMAIN},paperless.${LAN_DOMAIN},paperless-webserver"   # paperless-webserver: paperless-gpt calls the API by container name
       PAPERLESS_USE_X_FORWARD_HOST: "true"
       PAPERLESS_PROXY_SSL_HEADER: '["HTTP_X_FORWARDED_PROTO", "https"]'
       USERMAP_GID: "${MEDIA_GID:-1500}"   # shared media group: Paperless can delete what Nextcloud drops into consume/

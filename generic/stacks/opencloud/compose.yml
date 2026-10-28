@@ -1,0 +1,97 @@
+# OpenCloud (2026-10-28) at https://docs.${DOMAIN} — replaces Nextcloud as the family file workspace, with ONLYOFFICE editing.
+# Login: Authentik OIDC only (issuer https://auth.${DOMAIN}/, public clients web/OpenCloudDesktop/OpenCloudAndroid/OpenCloudIOS from
+# lib/opencloud-authentik.py; the lighthouse Caddy serves the root discovery doc). Roles from the `roles` claim.
+# Storage: PosixFS in collaborative mode (files are plain files on disk, changes made outside OpenCloud are picked up via
+# inotify). The shared project spaces are the real media folders, bind-mounted by compose.override.yml, which apps/opencloud/
+# setup.py writes after creating each space ("Family documents" = media/documents, "Music" = media/music, "Paperless inbox" =
+# paperless/consume). OpenCloud runs as 33:MEDIA_GID, the owner of those trees; it tags every file with user.oc.* xattrs.
+# OpenCloud creates files 0600 / dirs 0700: the opencloud-perms sidecar re-opens them (664 / 2775) so Navidrome (uid 1000) and
+# Paperless (gid MEDIA_GID) can read uploads. ONLYOFFICE: the collaboration (WOPI) service runs inside this process; Document
+# Server (stack onlyoffice, WOPI_ENABLED, ONLYOFFICE_CLIENT=opencloud) fetches files from https://docs.${DOMAIN}/wopi.
+services:
+  opencloud:
+    image: opencloudeu/opencloud:7.2.4
+    container_name: opencloud
+    restart: unless-stopped
+    user: "33:${MEDIA_GID}"
+    entrypoint: ["/bin/sh"]
+    command: ["-c", "opencloud init || true; opencloud server"]
+    mem_limit: ${OPENCLOUD_MEM:-4g}
+    ports: ["127.0.0.1:9201:9200"]          # host-side admin API for apps/opencloud/setup.py (app tokens), never public
+    environment:
+      OC_URL: https://docs.${DOMAIN}
+      # file transfers between OpenCloud's own services use the data gateway at <frontend public URL>/data; keep that inside the
+      # container (users still see OC_URL) — otherwise every upload/download would loop out through the lighthouse and back
+      GATEWAY_FRONTEND_PUBLIC_URL: http://127.0.0.1:9200
+      OC_LOG_LEVEL: warn
+      PROXY_TLS: "false"
+      OC_INSECURE: "false"
+      PROXY_ENABLE_BASIC_AUTH: "false"
+      PROXY_ENABLE_APP_AUTH: "true"           # app tokens (opencloud auth-app create / user settings) for WebDAV clients and setup.py
+      IDM_CREATE_DEMO_USERS: "false"
+      IDM_ADMIN_PASSWORD: ${OPENCLOUD_ADMIN_PASSWORD}
+      FRONTEND_CHECK_FOR_UPDATES: "false"
+      PROXY_CSP_CONFIG_FILE_LOCATION: /etc/opencloud/csp.yaml
+      IDP_DOMAIN: auth.${DOMAIN}
+      EURO_OFFICE_DOMAIN: office.${DOMAIN}     # CSP frame-src/img-src for the ONLYOFFICE editor (variable name from upstream csp.yaml)
+      OC_EXCLUDE_RUN_SERVICES: idp
+      OC_ADD_RUN_SERVICES: collaboration,auth-app
+      OC_OIDC_ISSUER: https://auth.${DOMAIN}/
+      OC_OIDC_CLIENT_ID: web
+      OC_OIDC_CLIENT_SCOPES: openid profile email
+      WEB_OIDC_CLIENT_ID: web
+      WEB_OIDC_SCOPE: openid profile email
+      PROXY_OIDC_REWRITE_WELLKNOWN: "true"
+      PROXY_AUTOPROVISION_ACCOUNTS: "true"
+      PROXY_USER_OIDC_CLAIM: preferred_username
+      PROXY_USER_CS3_CLAIM: username
+      GRAPH_USERNAME_MATCH: none
+      PROXY_ROLE_ASSIGNMENT_DRIVER: oidc
+      PROXY_ROLE_ASSIGNMENT_OIDC_CLAIM: roles
+      WEBFINGER_WEB_OIDC_CLIENT_ID: web
+      WEBFINGER_WEB_OIDC_CLIENT_SCOPES: openid profile email
+      WEBFINGER_DESKTOP_OIDC_CLIENT_ID: OpenCloudDesktop
+      WEBFINGER_DESKTOP_OIDC_CLIENT_SCOPES: openid profile email offline_access
+      WEBFINGER_ANDROID_OIDC_CLIENT_ID: OpenCloudAndroid
+      WEBFINGER_ANDROID_OIDC_CLIENT_SCOPES: openid profile email offline_access
+      WEBFINGER_IOS_OIDC_CLIENT_ID: OpenCloudIOS
+      WEBFINGER_IOS_OIDC_CLIENT_SCOPES: openid profile email offline_access
+      # PosixFS, collaborative: real files on disk, external changes picked up (inotify)
+      STORAGE_USERS_DRIVER: posix
+      STORAGE_USERS_ID_CACHE_STORE: nats-js-kv
+      STORAGE_USERS_POSIX_WATCH_FS: "true"
+      STORAGE_USERS_POSIX_GENERAL_SPACE_PATH_TEMPLATE: "projects/{{.SpaceName}}"
+      STORAGE_USERS_POSIX_PERSONAL_SPACE_PATH_TEMPLATE: "users/{{.User.Username}}"
+      # ONLYOFFICE through WOPI (collaboration service in this process)
+      COLLABORATION_APP_NAME: OnlyOffice
+      COLLABORATION_APP_PRODUCT: OnlyOffice
+      COLLABORATION_APP_ADDR: https://office.${DOMAIN}
+      COLLABORATION_APP_ICON: https://office.${DOMAIN}/web-apps/apps/documenteditor/main/resources/img/favicon.ico
+      COLLABORATION_APP_INSECURE: "false"
+      COLLABORATION_APP_PROOF_DISABLE: "true"
+      # public WOPI URL: Document Server is not allowed to fetch private addresses once /hosting/ is open (stacks/onlyoffice)
+      COLLABORATION_WOPI_SRC: https://docs.${DOMAIN}
+    volumes:
+      - ${HEARDOS_ROOT}/data/opencloud/config:/etc/opencloud
+      - ${HEARDOS_ROOT}/data/opencloud/data:/var/lib/opencloud
+    networks: [proxy]
+    labels:
+      traefik.enable: "true"
+      traefik.docker.network: proxy
+      traefik.http.routers.docs.rule: Host(`docs.${DOMAIN}`)
+      traefik.http.routers.docs.entrypoints: web
+      traefik.http.routers.docs.middlewares: xfp-https@file
+      traefik.http.services.docs.loadbalancer.server.port: "9200"
+  opencloud-perms:
+    image: opencloudeu/opencloud:7.2.4
+    container_name: opencloud-perms
+    restart: unless-stopped
+    user: "33:${MEDIA_GID}"
+    entrypoint: ["/bin/sh", "/perms.sh"]
+    cpus: 0.25
+    mem_limit: 128m
+    network_mode: none
+    volumes:
+      - ${HEARDOS_ROOT}/data/opencloud/perms.sh:/perms.sh:ro
+networks:
+  proxy: {external: true}

@@ -5,7 +5,7 @@ env:   PORTAINER_URL, PORTAINER_TOKEN (access token from Portainer: My account -
        PORTAINER_PIN (default $HEARDOS_ROOT/secrets/portainer.pem): Portainer's self-signed certificate, pinned on first
        use and required to match afterwards. If Portainer's certificate changes on purpose, check it and delete the file.
 Stacks created this way are fully managed in the Portainer UI (editor, redeploy, logs)."""
-import hashlib, http.client, json, os, ssl, sys, urllib.parse
+import hashlib, http.client, json, os, ssl, sys, time, urllib.parse
 
 name, compose = sys.argv[1], sys.argv[2]
 envfile = sys.argv[3] if len(sys.argv) > 3 else None
@@ -37,6 +37,7 @@ def api(method, path, data=None):
     if r.status >= 400: raise SystemExit(f"portainer {method} {path} -> {r.status}: {b.decode()[:300]}")
     return json.loads(b) if b else {}
 
+t0 = int(time.time()) - 2   # deployment-status entries older than this belong to earlier deploys
 env = []
 if envfile and os.path.exists(envfile):
     for line in open(envfile):
@@ -57,3 +58,26 @@ if existing:
 else:
     s = api("POST", f"/api/stacks/create/standalone/string?endpointId={eid}", {"name": name, "stackFileContent": content, "env": env, "fromAppTemplate": False})
     print(f"portainer: created stack {name} (id {s.get('Id')})")
+
+
+def wait_deployed(sid, timeout=900):
+    """Portainer >= 2.2x answers the PUT before compose has finished (DeploymentStatus 3 = deploying, 1 = done,
+    4 = failed). Wait for the outcome, so callers never exec into a container that is about to be replaced
+    (2026-10-25: a post-install step raced Portainer's recreate of a container and left the stack half-replaced)."""
+    start = time.time(); end = start + timeout
+    while time.time() < end:
+        st = [x for x in (api("GET", f"/api/stacks/{sid}").get("DeploymentStatus") or []) if x.get("Time", 0) >= t0]
+        last = st[-1] if st else None
+        if last is None:
+            if time.time() - start > 20:   # this Portainer records no deployment status: nothing to wait for
+                return
+            time.sleep(2); continue
+        if last.get("Status") == 1:
+            return
+        if last.get("Status") == 4:
+            raise SystemExit(f"portainer: stack {name} failed to deploy: {last.get('Message', '')[:300]}")
+        time.sleep(3)
+    raise SystemExit(f"portainer: stack {name} still deploying after {timeout}s")
+
+
+wait_deployed(existing["Id"] if existing else s.get("Id"))
