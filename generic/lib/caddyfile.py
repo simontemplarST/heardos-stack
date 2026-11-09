@@ -137,7 +137,19 @@ def render(env: dict) -> str:
                   f"\theader Strict-Transport-Security \"{HSTS}\"",
                   "\tmap {uri} {dest} {", *lines, f"\t\tdefault \"https://auth.{domain}/if/user/\"", "\t}",
                   "\thandle_path /brand/* {", "\t\troot * /srv/heardos-brand", "\t\theader Cache-Control \"public, max-age=86400\"",
-                  "\t\tfile_server", "\t}", "\thandle {", "\t\tredir {dest} 302", "\t}", "}"]
+                  "\t\tfile_server", "\t}",
+                  # ngfw content packages (2026-11-06): /ngfw/<channel>/latest.json + signed .ngfwc served by the ngfw-content
+                  # stack on the home host (Traefik strips /ngfw). Public by design; every package is signature-verified by the firewall.
+                  "\thandle /ngfw/* {", f"\t\treverse_proxy {upstream}:80 {{", f"\t\t\theader_up Host {fd}.{domain}",
+                  "\t\t\theader_up X-Forwarded-Proto https", "\t\t\theader_up X-Forwarded-Port 443",
+                  "\t\t\tlb_try_duration 15s", "\t\t\tlb_try_interval 500ms", "\t\t}", "\t}",
+                  # ngfw OS-update archives (2026-11-09): /ngfw-software/<channel>/latest.json + .ociarchive, mirrored
+                  # onto the home host from the separate ngfw-build VM (which the home host can reach but not the
+                  # other way around) and served by the ngfw-software stack. Public by design, same as /ngfw/* above.
+                  "\thandle /ngfw-software/* {", f"\t\treverse_proxy {upstream}:80 {{", f"\t\t\theader_up Host {fd}.{domain}",
+                  "\t\t\theader_up X-Forwarded-Proto https", "\t\t\theader_up X-Forwarded-Port 443",
+                  "\t\t\tlb_try_duration 15s", "\t\t\tlb_try_interval 500ms", "\t\t}", "\t}",
+                  "\thandle {", "\t\tredir {dest} 302", "\t}", "}"]
     return "\n".join(parts) + "\n"
 
 
