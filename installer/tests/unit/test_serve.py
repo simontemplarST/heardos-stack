@@ -91,7 +91,7 @@ def test_one_run_at_a_time_and_help(server):
     c, b, set_llm = server
     set_llm(Script("question", []))
     r = c.post("/v1/chat/completions", json={"messages": [{"role": "user", "content": "hello"}]})
-    assert r.json()["choices"][0]["message"]["content"].startswith("I am the HeardOS assistant")
+    assert r.json()["choices"][0]["message"]["content"].startswith("I am the Elysium assistant")
     r = c.post("/v1/chat/completions", json={"messages": [{"role": "user", "content": "### Task:\nGenerate a concise title"}]})
     assert r.json()["choices"][0]["message"]["content"] == "Chat" and b.journal == []      # housekeeping prompts never run
     # a question that waits for an answer blocks other requests, with a plain explanation

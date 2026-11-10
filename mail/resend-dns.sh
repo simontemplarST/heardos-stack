@@ -54,4 +54,4 @@ if [ -n "$DOMAIN_ID" ]; then
   sleep 20; R -X POST "https://api.resend.com/domains/$DOMAIN_ID/verify" >/dev/null
   for i in 1 2 3 4 5 6; do sleep 20; st=$(R "https://api.resend.com/domains/$DOMAIN_ID" | python3 -c 'import json,sys; print(json.load(sys.stdin)["status"])'); echo "resend status: $st"; [ "$st" = "verified" ] && break; done
 else echo "now click Verify in the Resend dashboard (DNS propagates in ~1 min)"; fi
-echo "test send:"; curl -s -m 30 -A "$UA" -H @"$T/send.h" -H "Content-Type: application/json" -X POST https://api.resend.com/emails -d '{"from":"HeardOS <authentik@example.com>","to":["admin@example.net"],"subject":"HeardOS mail is live","text":"example.com is verified in Resend; Authentik recovery and sign-up mail will arrive from this address."}'; echo
+echo "test send:"; curl -s -m 30 -A "$UA" -H @"$T/send.h" -H "Content-Type: application/json" -X POST https://api.resend.com/emails -d '{"from":"Elysium <authentik@example.com>","to":["admin@example.net"],"subject":"Elysium mail is live","text":"example.com is verified in Resend; Authentik recovery and sign-up mail will arrive from this address."}'; echo

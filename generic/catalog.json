@@ -264,7 +264,7 @@
   {
    "stack": "dash",
    "slug": "dash",
-   "name": "HeardOS desktop",
+   "name": "Elysium desktop",
    "blurb": "A desktop in the browser: every app opens signed in, in its own window, with this week's meals, shopping and budget as widgets. Installable as an app.",
    "hosts": [
     "dash"
@@ -535,7 +535,7 @@
    "stack": "open-webui",
    "slug": "chat",
    "name": "Chat",
-   "blurb": "Open WebUI: chat with the HeardOS assistant (the model harness) and the local Ollama models. Admins only.",
+   "blurb": "Open WebUI: chat with the Elysium assistant (the model harness) and the local Ollama models. Admins only.",
    "hosts": [
     "chat"
    ],

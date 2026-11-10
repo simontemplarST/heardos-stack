@@ -1,4 +1,4 @@
-# Open WebUI: the chat front end for the HeardOS model harness (heardos-serve, plan CHAT_HARNESS_URL + secret
+# Open WebUI: the chat front end for the Elysium model harness (heardos-serve, plan CHAT_HARNESS_URL + secret
 # CHAT_HARNESS_KEY) and the local Ollama of the paperless-gpt stack. Sign-in only through Authentik (OIDC app `chat`,
 # group app-chat; "authentik Admins" become Open WebUI admins). Settings live here (ENABLE_PERSISTENT_CONFIG=false).
 # Break-glass: https://chat.<domain>/auth?form=1

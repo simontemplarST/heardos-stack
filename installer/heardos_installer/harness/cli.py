@@ -66,7 +66,7 @@ def printer(kind: str, d: dict) -> None:
 
 
 def main(argv=None) -> None:
-    ap = argparse.ArgumentParser(prog="heardos-agent", description="HeardOS model harness: a small local model installs and configures stacks")
+    ap = argparse.ArgumentParser(prog="heardos-agent", description="Elysium model harness: a small local model installs and configures stacks")
     ap.add_argument("task", nargs="*")
     src = ap.add_mutually_exclusive_group()
     src.add_argument("--install", metavar="ID", help="an install made by this app (heardos-cli list)")
@@ -102,7 +102,7 @@ def main(argv=None) -> None:
         if not sys.stdin.isatty():
             tasks = [l.strip() for l in sys.stdin if l.strip()]
         else:
-            print(f"HeardOS assistant ({model.name}) on {b.domain}. One task per line; empty line or Ctrl+D quits.")
+            print(f"Elysium assistant ({model.name}) on {b.domain}. One task per line; empty line or Ctrl+D quits.")
     while True:
         if tasks is not None:
             if not tasks:

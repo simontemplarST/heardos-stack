@@ -30,7 +30,7 @@ SITE_HEADERS = """\theader {{
 \t}}
 """
 
-# HeardOS desktop: apps open as windows in https://dash.<domain> (docs/web-desktop.md). For those hosts only, drop
+# Elysium desktop: apps open as windows in https://dash.<domain> (docs/web-desktop.md). For those hosts only, drop
 # X-Frame-Options and let the app itself plus the desktop (and, for OnlyOffice, Nextcloud) frame it. Keep the quotes:
 # unquoted self/none would be read as host names.
 FRAMING = """\t\t\theader_down -X-Frame-Options
@@ -147,6 +147,11 @@ def render(env: dict) -> str:
                   # onto the home host from the separate ngfw-build VM (which the home host can reach but not the
                   # other way around) and served by the ngfw-software stack. Public by design, same as /ngfw/* above.
                   "\thandle /ngfw-software/* {", f"\t\treverse_proxy {upstream}:80 {{", f"\t\t\theader_up Host {fd}.{domain}",
+                  "\t\t\theader_up X-Forwarded-Proto https", "\t\t\theader_up X-Forwarded-Port 443",
+                  "\t\t\tlb_try_duration 15s", "\t\t\tlb_try_interval 500ms", "\t\t}", "\t}",
+                  # ngfw installer ISO (2026-11-09): /ngfw-iso/ is an anonymous browsable listing of the latest plain
+                  # installer ISO, served by the ngfw-iso stack. Public by design; only plain (never --bootstrap) builds.
+                  "\thandle /ngfw-iso/* {", f"\t\treverse_proxy {upstream}:80 {{", f"\t\t\theader_up Host {fd}.{domain}",
                   "\t\t\theader_up X-Forwarded-Proto https", "\t\t\theader_up X-Forwarded-Port 443",
                   "\t\t\tlb_try_duration 15s", "\t\t\tlb_try_interval 500ms", "\t\t}", "\t}",
                   "\thandle {", "\t\tredir {dest} 302", "\t}", "}"]

@@ -4,7 +4,7 @@
 
 | Host | Where | Role | Reachable on |
 |---|---|---|---|
-| `nebula-lh` | VPS, Region-1 | Caddy public ingress, Nebula lighthouse + relay | 80, 443 (tcp+udp) public; 22 only on the overlay (10.42.0.1) |
+| `aum-dfw-gw` | VPS, Region-1 | Caddy public ingress, Nebula lighthouse + relay | 80, 443 (tcp+udp) public; 22 only on the overlay (10.42.0.1) |
 | `prox` | Home, Proxmox VE 9 | Runs the app container; Nebula node; routes the home LAN for the `admins` group | LAN; overlay 10.42.0.10 |
 | LXC 108 `runtipi` | On prox, unprivileged | Runtipi v4: Traefik, Authentik, every app | LAN 192.168.10.20; overlay 10.42.0.11 |
 | Laptop | Anywhere | Operator: holds the Nebula CA and `credentials.env` | overlay 10.42.0.20 |

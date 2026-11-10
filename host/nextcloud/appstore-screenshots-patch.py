@@ -14,7 +14,7 @@ report INVALID_HASH for this one file until the next upgrade overwrites it.
 import shutil, sys
 p = "/var/www/html/apps/appstore/lib/Controller/ApiController.php"
 s = open(p).read()
-if "HeardOS local patch" in s:
+if "Elysium local patch" in s:
     print("already patched"); sys.exit(0)
 old2 = """	private function createProxyPreviewUrl(string $url): string {
 		if ($url === '') {
@@ -24,7 +24,7 @@ old2 = """	private function createProxyPreviewUrl(string $url): string {
 		return 'https://usercontent.apps.nextcloud.com/' . base64_encode($url);
 	}"""
 new2 = """	private function createProxyPreviewUrl(string $url): string {
-		// HeardOS local patch 2026-10-12 = upstream PR nextcloud/server#64771: the app store feed already serves proxied
+		// Elysium local patch 2026-10-12 = upstream PR nextcloud/server#64771: the app store feed already serves proxied
 		// screenshot URLs; wrapping them twice made the proxy answer "Preview not available".
 		if ($url === '' || str_starts_with($url, 'https://usercontent.apps.nextcloud.com/')) {
 			return $url;

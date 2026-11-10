@@ -58,7 +58,7 @@ def serve(b, allow_changes: bool = False, allow_remove: bool = False, inp=None, 
             if method == "initialize":
                 result = {"protocolVersion": params.get("protocolVersion", PROTOCOL), "capabilities": {"tools": {"listChanged": False}},
                           "serverInfo": {"name": "heardos", "version": __version__},
-                          "instructions": "Manage a HeardOS family cloud. Start with overview. Use exact app names from it."}
+                          "instructions": "Manage a Elysium family cloud. Start with overview. Use exact app names from it."}
             elif method == "ping":
                 result = {}
             elif method == "tools/list":
@@ -74,7 +74,7 @@ def serve(b, allow_changes: bool = False, allow_remove: bool = False, inp=None, 
                     why = T.needs_person(name, args)
                     if why:        # MCP clients may or may not ask their user: loosening a protection is never done from here
                         result = {"content": [{"type": "text", "text": f"Not done: {why}, so only a person may approve it. Change it in the "
-                                               "HeardOS app (Stacks screen) or with `heardos-cli tool`, which asks."}], "isError": True}
+                                               "Elysium app (Stacks screen) or with `heardos-cli tool`, which asks."}], "isError": True}
                     else:
                         r = T.call(b, name, args)
                         result = {"content": [{"type": "text", "text": scrub(r.text, b.secret_values())}], "isError": not r.ok}

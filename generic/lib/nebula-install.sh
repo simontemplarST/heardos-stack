@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # nebula-install.sh — runs ON THE TARGET as root from a staging dir holding nebula, ca.crt, host.crt, host.key, config.yml,
-# nebula.service (copied there by 21-nebula-node.sh or the HeardOS installer). Idempotent.
+# nebula.service (copied there by 21-nebula-node.sh or the Elysium installer). Idempotent.
 set -euo pipefail; D="$(cd "$(dirname "$0")" && pwd)"
 install -m 755 "$D/nebula" /usr/local/bin/nebula
 install -d -m 700 /etc/nebula

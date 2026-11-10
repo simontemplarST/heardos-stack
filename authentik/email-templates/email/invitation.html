@@ -1,10 +1,10 @@
 {% extends "email/base.html" %}{% load i18n %}{% load humanize %}
-{% block preheader %}You have been invited to HeardOS{% if expires %}; the invitation expires {{ expires|naturaltime }}{% endif %}.{% endblock %}
+{% block preheader %}You have been invited to Elysium{% if expires %}; the invitation expires {{ expires|naturaltime }}{% endif %}.{% endblock %}
 {% block eyebrow %}Invitation{% endblock %}
 {% block content %}
 <tr><td><h1 class="ff">You are invited</h1></td></tr>
 <tr><td class="ff" style="padding:14px 0 20px 0;">
-  <p class="lead" style="font-size:16px;">Someone in the family set up a place for you on HeardOS at <strong>{{ host }}</strong>. Accept the invitation to create your account and pick a password.</p>
+  <p class="lead" style="font-size:16px;">Someone in the family set up a place for you on Elysium at <strong>{{ host }}</strong>. Accept the invitation to create your account and pick a password.</p>
   {% if expires %}<p class="muted" style="color:#8A8A90; font-size:12px;">This invitation expires {{ expires|naturaltime }}.</p>{% endif %}
 </td></tr>
 <tr><td class="btn ff" style="padding-bottom:6px;">
@@ -16,4 +16,4 @@
   If the button does not open, paste this into your browser:<br><span class="raw" style="word-break:break-all; overflow-wrap:anywhere; color:#3a3b40;">{{ url }}</span>
 </td></tr>
 {% endblock %}
-{% block footer_note %}You received this because someone invited this address to HeardOS.{% endblock %}
+{% block footer_note %}You received this because someone invited this address to Elysium.{% endblock %}

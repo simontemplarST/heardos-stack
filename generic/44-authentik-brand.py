@@ -14,7 +14,7 @@ if os.environ.get("HEARDOS_DRY_RUN"):
     print("[dry-run] would set the Authentik brand"); sys.exit(0)
 brand = ak.results("/core/brands/")[0]
 ak.patch(f"/core/brands/{brand['brand_uuid']}/", {
-    "branding_title": env.get("BRAND_TITLE") or "HeardOS",
+    "branding_title": env.get("BRAND_TITLE") or "Elysium",
     "branding_logo": "branding/logo-%(theme)s.png",
     "branding_favicon": "branding/favicon-64.png",
     "branding_default_flow_background": "branding/flow-background.jpg",
@@ -26,4 +26,4 @@ for f in ak.results("/flows/instances/"):   # flows with their own background wo
             ak.patch(f"/flows/instances/{f['slug']}/", {"background": "branding/flow-background.jpg"})
         except SystemExit:
             pass
-print(f"brand applied: {env.get('BRAND_TITLE') or 'HeardOS'}")
+print(f"brand applied: {env.get('BRAND_TITLE') or 'Elysium'}")

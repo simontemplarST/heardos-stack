@@ -30,7 +30,7 @@ EOF
 fi
 cat > /etc/systemd/system/heardos-feeds.service <<EOF
 [Unit]
-Description=HeardOS calendar feed import (all feeds)
+Description=Elysium calendar feed import (all feeds)
 After=docker.service network-online.target
 [Service]
 Type=oneshot
@@ -55,7 +55,7 @@ ReadWritePaths=$F -$BDB
 EOF
 cat > /etc/systemd/system/heardos-feeds.timer <<'EOF'
 [Unit]
-Description=Run the HeardOS calendar feed import every 15 minutes
+Description=Run the Elysium calendar feed import every 15 minutes
 [Timer]
 OnBootSec=3min
 OnUnitActiveSec=15min

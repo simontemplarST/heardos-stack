@@ -1,4 +1,4 @@
-# OPTIONAL — not installed by default (HeardOS uses Paperless's built-in OCR). heardos-ocr: self-hosted OCR endpoint for Paperless-ngx (>= 3.0). Paperless's only "remote OCR" protocol is the
+# OPTIONAL — not installed by default (Elysium uses Paperless's built-in OCR). heardos-ocr: self-hosted OCR endpoint for Paperless-ngx (>= 3.0). Paperless's only "remote OCR" protocol is the
 # Azure Document Intelligence REST API; server.py implements the slice Paperless uses on top of OCRmyPDF/Tesseract,
 # so OCR runs in its own CPU-capped container and documents never leave the host. Internal only (no Traefik route).
 services:

@@ -10,7 +10,7 @@ const dayName = (iso) => { const d = new Date(iso + "T12:00:00"); return d.toLoc
 const today = new Date().toISOString().slice(0, 10);
 function card(title, link, body) { return `<section class="card"><h2>${esc(title)}${link ? ` <a href="${esc(link)}">open ↗</a>` : ""}</h2>${body}</section>`; }
 const noAccess = (sec) => sec?.error === "no access";   // the person isn't in that app's group: the card is hidden
-const WHY = { "not configured": "Not set up yet — ask whoever runs HeardOS.", unavailable: "Not answering right now. It usually comes back by itself; press refresh in a minute." };
+const WHY = { "not configured": "Not set up yet — ask whoever runs Elysium.", unavailable: "Not answering right now. It usually comes back by itself; press refresh in a minute." };
 function errOr(sec, fn) { return sec.error ? `<p class="err">${esc(WHY[sec.error] || sec.error)}</p>` : fn(sec); }
 
 function mealsCard(m) {
@@ -73,7 +73,7 @@ async function load(refresh) {
   }
 }
 $("#refresh").addEventListener("click", () => load(true));
-// inside a HeardOS desktop window: "open" links ask the desktop to open the app in its own window
+// inside a Elysium desktop window: "open" links ask the desktop to open the app in its own window
 if (window.parent !== window) {
   document.body.classList.add("in-desktop");
   document.addEventListener("click", (e) => {

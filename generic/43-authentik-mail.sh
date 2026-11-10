@@ -6,7 +6,7 @@
 # Port 465 = implicit TLS (USE_SSL), anything else = STARTTLS (USE_TLS). Values go only into the stack's .env (0600).
 . "$(dirname "$0")/lib/common.sh"; require_root; load_env
 d="$HEARDOS_ROOT/stacks/authentik"; [ -f "$d/.env" ] || die "run 40-authentik-stack.sh first"
-from="${MAIL_FROM:-${BRAND_TITLE:-HeardOS} <noreply@$DOMAIN>}"
+from="${MAIL_FROM:-${BRAND_TITLE:-Elysium} <noreply@$DOMAIN>}"
 case "${MAIL_MODE:?resend or smtp}" in
   resend) : "${RESEND_API_KEY:?}"; host=smtp.resend.com port=465 user=resend pass="$RESEND_API_KEY" ;;
   smtp)   : "${SMTP_HOST:?}" "${SMTP_USER:?}" "${SMTP_PASSWORD:?}"; host="$SMTP_HOST" port="${SMTP_PORT:-587}" user="$SMTP_USER" pass="$SMTP_PASSWORD" ;;

@@ -1,6 +1,6 @@
 # Managing stacks: the Stacks screen and the model harness
 
-Once HeardOS is installed, every app on the home server is a *stack*: a compose project under
+Once Elysium is installed, every app on the home server is a *stack*: a compose project under
 `$HEARDOS_ROOT/stacks/<name>`, deployed through Portainer (or plain `docker compose`). There are three ways to manage
 them, and all three run the same code (`installer/heardos_installer/manage/`), so they get the same checks, the same
 messages and the same result:
@@ -22,7 +22,7 @@ On the left, every app: installed catalogue apps, your own apps, and what is sti
   where it left off. Remove asks you to type the app's name.
 - **Containers**: each container with its status and image.
 - **Logs**: the last 100 to 2,000 lines, errors in red, warnings in yellow. Secrets the installer knows are masked.
-- **Settings**: the app's environment as HeardOS sets it, with your changes highlighted. *Change a setting* writes it to
+- **Settings**: the app's environment as Elysium sets it, with your changes highlighted. *Change a setting* writes it to
   `compose.override.yml` next to the app and redeploys. The installer keeps that file (`50-app.sh` never overwrites it,
   and `deploy_stack` merges it in for Portainer), so a setting survives updates and reinstalls. Passwords and tokens are
   hidden, and they can't be set here: they would end up readable in the stack file. The app's own setup manages those.
@@ -47,7 +47,7 @@ secrets, DNS record, HTTPS certificate, first-run setup, and any apps it depends
 
 ![Your own app](installer/custom-app.png)
 
-What HeardOS builds from that ([`manage/spec.py`](../installer/heardos_installer/manage/spec.py)) follows the kit's
+What Elysium builds from that ([`manage/spec.py`](../installer/heardos_installer/manage/spec.py)) follows the kit's
 conventions: the external `proxy` network, Traefik labels with `xfp-https@file` and (unless public)
 `authentik-fwd@file`, data under `$HEARDOS_ROOT/data/<name>/` (so it is in the backups), `no-new-privileges`, no ports
 published on the host, an optional memory limit and uid:gid. On the host,
@@ -287,7 +287,7 @@ The vault passphrase comes from the system keyring or `HEARDOS_VAULT_PASSPHRASE`
 ## Limits
 
 - It manages installs made by the installer: plan, vault and SSH key on this machine, stacks under `$HEARDOS_ROOT/stacks`.
-  A hand-built HeardOS (for example one migrated from Runtipi, with its own stack folders) isn't something it can adopt.
+  A hand-built Elysium (for example one migrated from Runtipi, with its own stack folders) isn't something it can adopt.
 - The end-to-end path on a real host (install a custom app, change a setting, remove) has been exercised with the
   host scripts under stubbed Docker and Authentik and through `SimBackend`, not yet on a throwaway server
   (`installer/tests/e2e/run_e2e.sh` is the place for that).

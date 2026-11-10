@@ -8,7 +8,7 @@ IP="${1:-198.51.100.23}"
 echo "== waiting for the overlay (laptop must NOT be on the home network)"
 for i in $(seq 1 20); do ping -c1 -W2 10.42.0.1 >/dev/null 2>&1 && break; sleep 3; done
 ping -c1 -W2 10.42.0.1 >/dev/null || { echo "lighthouse 10.42.0.1 not reachable over Nebula — is the laptop on the hotspot, and is nebula running?"; exit 1; }
-ssh -o ConnectTimeout=10 nebula-lh bash -s -- "$IP" <<'REMOTE'
+ssh -o ConnectTimeout=10 aum-dfw-gw bash -s -- "$IP" <<'REMOTE'
 set -u
 IP="$1"
 echo "== CrowdSec decisions for $IP"
@@ -21,12 +21,12 @@ echo "== removing decisions"
 cscli decisions delete --ip "$IP" 2>&1 | tail -2
 echo "== allowlisting $IP"
 cat > /etc/crowdsec/parsers/s02-enrich/heardos-home-whitelist.yaml <<EOF
-# HeardOS (2026-10-18): the home connection must never be banned — the home server's Nebula link and every admin
+# Elysium (2026-10-18): the home connection must never be banned — the home server's Nebula link and every admin
 # check comes from it. If the home IP changes, update this file and run: systemctl reload crowdsec
 name: heardos/home-whitelist
-description: "Never ban the HeardOS home connection"
+description: "Never ban the Elysium home connection"
 whitelist:
-  reason: "HeardOS home connection"
+  reason: "Elysium home connection"
   ip:
     - "$IP"
 EOF

@@ -1,6 +1,6 @@
 # Operating Runtipi: things that bite
 
-Collected from running HeardOS on Runtipi v4.10. Each one cost real time once.
+Collected from running Elysium on Runtipi v4.10. Each one cost real time once.
 
 ## `update-config` rewrites `app.env` from the store form
 

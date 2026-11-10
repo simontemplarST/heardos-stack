@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# vps/harden.sh — runs ON THE VPS as root (piped by 22-vps-lighthouse.sh or the HeardOS installer). Idempotent.
+# vps/harden.sh — runs ON THE VPS as root (piped by 22-vps-lighthouse.sh or the Elysium installer). Idempotent.
 # Key-only SSH, fail2ban, unattended upgrades, network tuning, ufw allowing only ssh + Nebula (Caddy adds 80/443 later).
 # ssh is public only until vps/ssh-overlay-only.sh moves it onto the overlay; a re-run never reopens it.
 set -euo pipefail

@@ -1,7 +1,7 @@
 # Skipping app login pages when already signed in
 
 Authentik sessions already carry people through the forward-auth gate on every site. What remains is each app's own login
-page with a "Sign in with HeardOS" button. Most apps can skip it and go straight through the OIDC flow; the session makes that
+page with a "Sign in with Elysium" button. Most apps can skip it and go straight through the OIDC flow; the session makes that
 invisible. Password login stays enabled everywhere as break-glass.
 
 | App | Setting | Break-glass URL |

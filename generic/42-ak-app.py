@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""42-ak-app.py — register an application in Authentik the HeardOS way: provider + application + group app-<slug> + binding.
+"""42-ak-app.py — register an application in Authentik the Elysium way: provider + application + group app-<slug> + binding.
   oidc  SLUG --name "Paperless" --launch https://paperless.DOMAIN/ --redirect URI [--redirect URI...] [--public] [--users a,b] [--out FILE]
   proxy SLUG --name "Baikal admin" --host https://dav.DOMAIN [--skip REGEX ...] [--users a,b|all] [--header-auth]
   user  add USERNAME --email E --name N [--password-stdin] [--admin]   create a family member (--admin: authentik Admins
@@ -38,7 +38,7 @@ def ensure_app(slug, name, provider_pk, launch, users):
     return app, g
 
 def cmd_oidc(a):
-    mappings = [m["pk"] for m in ak.results("/propertymappings/all/") if m["name"] in ("authentik default OAuth Mapping: OpenID 'openid'", "authentik default OAuth Mapping: OpenID 'profile'", "heardos-email-verified", "HeardOS email (verified)")]
+    mappings = [m["pk"] for m in ak.results("/propertymappings/all/") if m["name"] in ("authentik default OAuth Mapping: OpenID 'openid'", "authentik default OAuth Mapping: OpenID 'profile'", "heardos-email-verified", "Elysium email (verified)")]
     key = next((k["pk"] for k in ak.results("/crypto/certificatekeypairs/?has_key=true") if "authentik Self-signed" in k["name"]), None)
     prov = ak.one("/providers/oauth2/", name=a.slug)
     cid = csec = None
@@ -124,7 +124,11 @@ def cmd_user(a):
     elif a.action == "welcome":   # email a set-your-password link (needs mail + the recovery flow from recovery-flow.py)
         u = ak.user(a.username) or sys.exit(f"no such user {a.username}")
         st = ak.one("/stages/email/", name="default-recovery-email") or sys.exit("no recovery email stage; run authentik/recovery-flow.py")
-        ak.call("POST", f"/core/users/{u['pk']}/recovery_email/?email_stage={st['pk']}")
+        # body, not query: 2026.x answers 400 to ?email_stage=. The public Host matters: authentik builds the emailed link
+        # from the request, and AUTHENTIK_URL is the loopback API, so without it the link points at 127.0.0.1.
+        pub = f"auth.{env['DOMAIN']}"
+        ak.call("POST", f"/core/users/{u['pk']}/recovery_email/", {"email_stage": st["pk"]},
+                headers={"Host": pub, "X-Forwarded-Host": pub, "X-Forwarded-Proto": "https"})
         print(f"set-password email sent to {u['email']}")
     elif a.action in ("suspend", "resume"):
         u = ak.user(a.username) or sys.exit(f"no such user {a.username}")
@@ -153,9 +157,9 @@ def cmd_token(a):
         return
     # rotate: superuser group (the kit edits flows, stages, policies, brands, providers, outposts, users and tokens;
     # Authentik RBAC has no practical narrower role for that), service-account user, fresh expiring API token
-    g = ak.group(AUTO) or ak.post("/core/groups/", {"name": AUTO, "is_superuser": True, "users": [], "attributes": {"notes": "HeardOS automation service account (42-ak-app.py token rotate)."}})
+    g = ak.group(AUTO) or ak.post("/core/groups/", {"name": AUTO, "is_superuser": True, "users": [], "attributes": {"notes": "Elysium automation service account (42-ak-app.py token rotate)."}})
     if not g.get("is_superuser"): ak.patch(f"/core/groups/{g['pk']}/", {"is_superuser": True})
-    u = ak.user(AUTO) or ak.post("/core/users/", {"username": AUTO, "name": "HeardOS automation", "type": "service_account", "is_active": True, "groups": [g["pk"]]})
+    u = ak.user(AUTO) or ak.post("/core/users/", {"username": AUTO, "name": "Elysium automation", "type": "service_account", "is_active": True, "groups": [g["pk"]]})
     if u.get("type") != "service_account": sys.exit(f"user {AUTO} exists but is not a service account; rename it first")
     if g["pk"] not in u.get("groups", []): ak.post(f"/core/groups/{g['pk']}/add_user/", {"pk": u["pk"]})
     ident = f"{AUTO}-{time.strftime('%Y%m%d%H%M%S')}"
@@ -166,7 +170,7 @@ def cmd_token(a):
     try:
         ak.patch("/admin/settings/", {"default_token_duration": f"days={a.days}"})
         ak.post("/core/tokens/", {"identifier": ident, "intent": "api", "user": u["pk"], "expiring": True, "expires": exp,
-                                  "description": "HeardOS automation; rotate with 42-ak-app.py token rotate"})
+                                  "description": "Elysium automation; rotate with 42-ak-app.py token rotate"})
     finally:
         ak.patch("/admin/settings/", {"default_token_duration": prev})
     exp = ak.get(f"/core/tokens/{ident}/")["expires"]

@@ -1,4 +1,4 @@
-# HeardOS desktop (`dash`)
+# Elysium desktop (`dash`)
 
 The family's apps in one place, already signed in: a desktop in the browser with windows, a taskbar, a Start menu,
 today's widgets, and a System window for whoever looks after it. One small Node container, no build step for the

@@ -1,4 +1,4 @@
-// HeardOS desktop backend (summary page 2026-10-13; desktop shell 2026-10-18; serviceability pass 2026-10-19).
+// Elysium desktop backend (summary page 2026-10-13; desktop shell 2026-10-18; serviceability pass 2026-10-19).
 // The page is a web desktop (public/index.html + desktop.js): apps open signed in, in windows, through the Authentik
 // gate in front of this container. /api/me and /api/apps come from the X-authentik-* headers that gate adds;
 // /api/apps filters apps.json by the person's app-<slug> groups. The old summary page lives on as public/week.html.

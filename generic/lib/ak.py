@@ -48,9 +48,11 @@ class AK:
     def __init__(self, env):
         self.base = env["AUTHENTIK_URL"].rstrip("/") + "/api/v3"; self.tok = env["AUTHENTIK_TOKEN"]
         if not self.tok: raise SystemExit("AUTHENTIK_TOKEN is empty in the plan file")
-    def call(self, method, path, data=None, ok=(200, 201, 204)):
+    def call(self, method, path, data=None, ok=(200, 201, 204), headers=None):
+        # headers: extra request headers, e.g. Host/X-Forwarded-* so links authentik builds from the request (recovery
+        # emails) name the public host instead of the loopback API address
         r = urllib.request.Request(self.base + path, method=method, data=json.dumps(data).encode() if data is not None else None,
-                                   headers={"Authorization": "Bearer " + self.tok, "Content-Type": "application/json"})
+                                   headers={"Authorization": "Bearer " + self.tok, "Content-Type": "application/json", **(headers or {})})
         try:
             with urllib.request.urlopen(r, timeout=60) as x: b = x.read(); return json.loads(b) if b else {}
         except urllib.error.HTTPError as e:

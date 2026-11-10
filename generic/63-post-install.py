@@ -2,7 +2,7 @@
 """63-post-install.py TASK — finish an app's first-run setup over its API instead of in a browser. Run ON THE HOST as root.
 
   ha-onboard        create the Home Assistant owner (ADMIN_USER), finish onboarding, mint a long-lived token -> HA_TOKEN
-                    (valid 365 days; to rotate: delete HA_TOKEN from secrets.env, revoke "HeardOS installer" in the owner's HA
+                    (valid 365 days; to rotate: delete HA_TOKEN from secrets.env, revoke "Elysium installer" in the owner's HA
                     profile > Security, and mint a new one there — onboarding only runs once)
   mealie-token      log in as Mealie's built-in admin and create an API token for the family dashboard -> MEALIE_TOKEN
   nextcloud-admin   put ADMIN_USER in Nextcloud's admin group (exit 3 = they have not signed in to Nextcloud yet)
@@ -156,7 +156,7 @@ def ha_onboard():
     http("POST", f"{base}/api/onboarding/analytics", {}, headers=auth)
     http("POST", f"{base}/api/onboarding/integration", {"client_id": cid, "redirect_uri": f"{base}/?auth_callback=1"}, headers=auth)
     tok = ws_call("127.0.0.1", HA_PORT, "/api/websocket", t["access_token"],
-                  {"type": "auth/long_lived_access_token", "client_name": "HeardOS installer", "lifespan": 365})
+                  {"type": "auth/long_lived_access_token", "client_name": "Elysium installer", "lifespan": 365})
     keep("HA_TOKEN", tok)
     print(f"Home Assistant onboarded: owner {USER}; long-lived token stored as HA_TOKEN")
 
@@ -279,7 +279,7 @@ def listmonk_config():
     s = json.load(op.open(B + "/api/settings"))["data"]
     domain = env["DOMAIN"]
     s["app.root_url"] = f"https://news.{domain}"
-    s["app.from_email"] = os.environ.get("MAIL_FROM") or env.get("MAIL_FROM") or f"{env.get('BRAND_TITLE') or 'HeardOS'} <noreply@{domain}>"
+    s["app.from_email"] = os.environ.get("MAIL_FROM") or env.get("MAIL_FROM") or f"{env.get('BRAND_TITLE') or 'Elysium'} <noreply@{domain}>"
     mode = os.environ.get("MAIL_MODE") or env.get("MAIL_MODE") or ""
     smtp = s["smtp"][0]
     if mode == "resend":
@@ -294,7 +294,7 @@ def listmonk_config():
     cid, csec = have("AUTHENTIK_LISTMONK_SSO_CLIENT_ID"), have("AUTHENTIK_LISTMONK_SSO_CLIENT_SECRET")
     # GET masks secrets; a PUT must re-supply the real SMTP password AND OIDC client secret or the mask gets stored
     s["security.oidc"].update({"enabled": bool(cid), "provider_url": f"https://auth.{domain}/application/o/listmonk-sso/",
-                               "provider_name": env.get("BRAND_TITLE") or "HeardOS", "client_id": cid, "client_secret": csec, "auto_create_users": False})
+                               "provider_name": env.get("BRAND_TITLE") or "Elysium", "client_id": cid, "client_secret": csec, "auto_create_users": False})
     op.open(urllib.request.Request(B + "/api/settings", data=json.dumps(s).encode(), headers={"Content-Type": "application/json"}, method="PUT"))
     time.sleep(5)
     print(f"listmonk configured: https://news.{domain} (sign in to /admin with your family account)")

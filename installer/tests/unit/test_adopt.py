@@ -1,4 +1,4 @@
-"""heardos-cli adopt: taking over a HeardOS that was set up without the installer (no servers involved)."""
+"""heardos-cli adopt: taking over a Elysium that was set up without the installer (no servers involved)."""
 import json
 from types import SimpleNamespace
 

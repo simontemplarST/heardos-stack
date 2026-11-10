@@ -53,7 +53,7 @@ PAUSE, END = object(), object()        # queue sentinels: the run waits for an a
 WAIT_FOR_ANSWER = 15 * 60              # seconds a question stays open before it counts as refused
 MAX_BODY = 4 * 1024 * 1024
 LOCAL_NAMES = {"localhost", "127.0.0.1", "::1"}
-HELP = ("I am the HeardOS assistant. Tell me what you want in plain words, one request per message: for example which apps "
+HELP = ("I am the Elysium assistant. Tell me what you want in plain words, one request per message: for example which apps "
         "are installed, something to keep track of the houseplants, or that the inventory app is broken. Every change is "
         "shown to you first and waits for your yes.")
 
@@ -263,7 +263,7 @@ class Handler(BaseHTTPRequestHandler):
             self._json(421, {"error": {"message": "wrong Host header"}})
             return False
         if not self._origin_ok():
-            self._json(403, {"error": {"message": "this origin may not call the HeardOS assistant"}})
+            self._json(403, {"error": {"message": "this origin may not call the Elysium assistant"}})
             return False
         if not self._auth():
             self._json(401, {"error": {"message": "bearer token required"}})
@@ -319,7 +319,7 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/":
             if not self._host_ok():
                 return self._json(421, {"error": {"message": "wrong Host header"}})
-            data = b"Ollama is running (HeardOS assistant)"       # what Ollama clients probe for
+            data = b"Ollama is running (Elysium assistant)"       # what Ollama clients probe for
             self.send_response(200); self.send_header("Content-Type", "text/plain"); self.send_header("Content-Length", str(len(data))); self.end_headers()
             self.wfile.write(data)
             return
@@ -424,7 +424,7 @@ def make_server(assistant: Assistant, bind: str = "127.0.0.1:11440", token: str 
     host, port = _split_bind(bind)
     wildcard = host in ("0.0.0.0", "::")
     hosts = frozenset({*LOCAL_NAMES, host.lower(), *(h.strip().lower() for h in allowed_hosts if h.strip())})
-    cls = type("HeardOSHandler", (Handler,), {"assistant": assistant, "token": token, "cors_origin": (cors_origin or "").rstrip("/") or None,
+    cls = type("ElysiumHandler", (Handler,), {"assistant": assistant, "token": token, "cors_origin": (cors_origin or "").rstrip("/") or None,
                                                "hosts": hosts, "any_ip_host": wildcard})
     srv = ThreadingHTTPServer((host, port), cls)
     srv.daemon_threads = True
@@ -432,7 +432,7 @@ def make_server(assistant: Assistant, bind: str = "127.0.0.1:11440", token: str 
 
 
 def main(argv=None) -> None:
-    ap = argparse.ArgumentParser(prog="heardos-serve", description="the HeardOS model harness behind the OpenAI and Ollama chat protocols, "
+    ap = argparse.ArgumentParser(prog="heardos-serve", description="the Elysium model harness behind the OpenAI and Ollama chat protocols, "
                                                                    "for chat front ends you already use")
     src = ap.add_mutually_exclusive_group()
     src.add_argument("--install", metavar="ID", help="an install made by this app (heardos-cli list)")
@@ -467,7 +467,7 @@ def main(argv=None) -> None:
     b = backend_for(a)
     asst = Assistant(b, model, allow_changes=a.allow_changes, max_steps=a.max_steps)
     srv = make_server(asst, a.bind, token, a.cors_origin, tuple(a.allowed_host))
-    print(f"HeardOS assistant for {b.domain} on http://{a.bind}  (model '{MODEL_NAME}'; OpenAI: /v1, Ollama: /api; bearer token required)"
+    print(f"Elysium assistant for {b.domain} on http://{a.bind}  (model '{MODEL_NAME}'; OpenAI: /v1, Ollama: /api; bearer token required)"
           + (f"\nToken for this run (set HEARDOS_SERVE_TOKEN to keep one): {token}" if made else "")
           + ("\nThe model runs outside your home network: it sees scrubbed data, error lines of logs only, and every change asks."
              if model.external else ""), flush=True)

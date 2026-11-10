@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-# Run ON CT 109: serve the HeardOS LAN CA wildcard (*.192-168-10-20.sslip.io) from Traefik and keep it renewed.
+# Run ON CT 109: serve the Elysium LAN CA wildcard (*.192-168-10-20.sslip.io) from Traefik and keep it renewed.
 set -euo pipefail
 T=/root/runtipi/traefik
 cat > /usr/local/sbin/heardos-lan-tls.sh <<'X'
 #!/bin/sh
 # (re)write Traefik's dynamic TLS file; the timestamp changes the content so Traefik reloads the renewed cert
 cat > /root/runtipi/traefik/dynamic/tls-lan.yml <<Y
-# HeardOS LAN CA wildcard, renewed by step-renew-lan.service - written $(date -u +%FT%TZ)
+# Elysium LAN CA wildcard, renewed by step-renew-lan.service - written $(date -u +%FT%TZ)
 tls:
   stores:
     default:
@@ -40,7 +40,7 @@ if ! command -v step >/dev/null; then
 fi
 cat > /etc/systemd/system/step-renew-lan.service <<'X'
 [Unit]
-Description=Renew the HeardOS LAN wildcard cert from step-ca (CT 113) and reload Traefik's TLS file
+Description=Renew the Elysium LAN wildcard cert from step-ca (CT 113) and reload Traefik's TLS file
 After=network-online.target
 Wants=network-online.target
 [Service]

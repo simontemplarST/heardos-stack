@@ -20,7 +20,7 @@ if st not in (200, 201): raise SystemExit(f"login failed: {st} {login}")
 tok = login["accessToken"]
 st, cfg = api("GET", "/api/system-config", token=tok)
 cfg["oauth"].update({"enabled": True, "issuerUrl": ISSUER, "clientId": CID, "clientSecret": CSEC, "scope": "openid email profile",
-                     "buttonText": "Sign in with HeardOS", "autoRegister": True, "autoLaunch": False,
+                     "buttonText": "Sign in with Elysium", "autoRegister": True, "autoLaunch": False,
                      "mobileOverrideEnabled": True, "mobileRedirectUri": PUB.rstrip("/") + "/api/oauth/mobile-redirect",
                      "signingAlgorithm": "RS256", "profileSigningAlgorithm": "none"})
 cfg["passwordLogin"]["enabled"] = True

@@ -1,4 +1,4 @@
-# HeardOS Search (rendered by 50-app.sh searxng with envsubst; edit here, not in data/searxng/config)
+# Elysium Search (rendered by 50-app.sh searxng with envsubst; edit here, not in data/searxng/config)
 use_default_settings: true
 general:
   instance_name: "${BRAND_TITLE} Search"

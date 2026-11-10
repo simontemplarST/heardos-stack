@@ -42,7 +42,7 @@ def host_probe(ctx: Ctx) -> StepResult:
     ctx.log(f"home server: {os_id} {ver}, {arch}, {cidr}, {cpus} CPU, {mem} MB RAM, /dev/net/tun {'present' if tun == 'tun' else 'MISSING'}")
     if os_id != "ubuntu" or not ver.startswith("24.04"):
         if not p.get("allow_other_os"):
-            return StepResult(False, message=f"home server runs {os_id} {ver}; HeardOS needs Ubuntu 24.04")
+            return StepResult(False, message=f"home server runs {os_id} {ver}; Elysium needs Ubuntu 24.04")
     if tun != "tun":
         return StepResult(False, message="the home server has no /dev/net/tun (for a Proxmox container, enable the TUN device)")
     out = {"HOST_ARCH": arch, "HOST_CPUS": int(cpus), "HOST_MEM_MB": int(mem)}

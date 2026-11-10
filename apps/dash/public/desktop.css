@@ -1,4 +1,4 @@
-/* HeardOS desktop — Hearth palette (ink #1f2023, charcoal #26272b, light #ececec, orange #f2a35e).
+/* Elysium desktop — Hearth palette (ink #1f2023, charcoal #26272b, light #ececec, orange #f2a35e).
    Theme tokens live on :root (dark) and body[data-theme="light"]; desktop.js sets data-theme from the person's
    setting (auto = follow the device). Text size, icon size and wallpaper are body classes / data attributes. */
 :root {

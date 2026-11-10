@@ -56,9 +56,9 @@ X
 # never ban the overlay or our own hosts
 cat > /etc/crowdsec/parsers/s02-enrich/heardos-whitelist.yaml <<'X'
 name: heardos/whitelist
-description: "HeardOS: never ban the Nebula overlay"
+description: "Elysium: never ban the Nebula overlay"
 whitelist:
-  reason: "HeardOS overlay"
+  reason: "Elysium overlay"
   cidr:
     - 10.42.0.0/24
 X

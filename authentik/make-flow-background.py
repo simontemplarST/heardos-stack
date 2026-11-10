@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""make-flow-background.py — regenerate the HeardOS sign-in background (2560x1440 JPEG) from the Hearth Crest package.
+"""make-flow-background.py — regenerate the Elysium sign-in background (2560x1440 JPEG) from the Hearth Crest package.
 Charcoal #26272b -> ink #1f2023 vignette, orange #f2a35e hearth glow lower right, faint mono shield watermark, 96 px slate grid."""
 from PIL import Image, ImageDraw, ImageChops
 import pathlib, math, sys

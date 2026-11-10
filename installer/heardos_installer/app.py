@@ -27,7 +27,7 @@ def _sidebar(st: UIState) -> None:
     imgui.begin_child("sidebar", imgui.ImVec2(230, 0))
     imgui.dummy(imgui.ImVec2(0, 6))
     imgui.push_font(None, imgui.get_font_size() * 1.3)
-    imgui.text_colored(C["ORANGE"], st.draft.get("BRAND_TITLE") or "HeardOS")
+    imgui.text_colored(C["ORANGE"], st.draft.get("BRAND_TITLE") or "Elysium")
     imgui.pop_font()
     imgui.text_colored(C["MUTED"], "family cloud setup" if st.mode == "wizard" else "managing your cloud")
     imgui.spacing(); imgui.separator(); imgui.spacing()
@@ -184,7 +184,7 @@ def main() -> None:
                     st.tasks.start("health", lambda: __import__("heardos_installer.ops", fromlist=["x"]).health(st.inst))
                     st.tasks.start("scan", lambda: {"open": [22, 80, 443], "unexpected": [], "seconds": 171})
     params = hello_imgui.RunnerParams()
-    params.app_window_params.window_title = "HeardOS setup"
+    params.app_window_params.window_title = "Elysium setup"
     params.app_window_params.window_geometry.size = (1180, 780)
     params.imgui_window_params.default_imgui_window_type = hello_imgui.DefaultImGuiWindowType.no_default_window
     params.callbacks.show_gui = make_gui(st)

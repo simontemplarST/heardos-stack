@@ -75,7 +75,7 @@ def apply_defaults(plan: dict) -> dict:
     p.setdefault("HOST_OVERLAY", str(hosts[10]))
     p.setdefault("LAPTOP_OVERLAY", str(hosts[19]))
     p.setdefault("ACME_EMAIL", p.get("ADMIN_EMAIL", ""))
-    p.setdefault("BRAND_TITLE", "HeardOS")
+    p.setdefault("BRAND_TITLE", "Elysium")
     p.setdefault("BRAND_PRIMARY", "#f2a35e")
     try:
         from ..brand.theme import derive

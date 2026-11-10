@@ -27,7 +27,7 @@ def one(path, **q):
     return res[0] if res else None
 
 flow = one("/flows/instances/", slug="default-recovery-flow") or call("POST", "/flows/instances/", {
-    "name": "Password recovery", "slug": "default-recovery-flow", "title": "Reset your HeardOS password", "designation": "recovery",
+    "name": "Password recovery", "slug": "default-recovery-flow", "title": "Reset your Elysium password", "designation": "recovery",
     "authentication": "require_unauthenticated", "denied_action": "message_continue", "policy_engine_mode": "any", "compatibility_mode": False, "layout": "stacked"})
 print("flow:", flow["slug"], flow["pk"])
 
@@ -35,7 +35,7 @@ ident = one("/stages/identification/", name="default-recovery-identification") o
     "name": "default-recovery-identification", "user_fields": ["email", "username"], "case_insensitive_matching": True, "show_matched_user": False,
     "pretend_user_exists": True, "password_stage": None, "sources": []})
 email = one("/stages/email/", name="default-recovery-email") or call("POST", "/stages/email/", {
-    "name": "default-recovery-email", "use_global_settings": True, "token_expiry": "minutes=30", "subject": "Reset your HeardOS password",
+    "name": "default-recovery-email", "use_global_settings": True, "token_expiry": "minutes=30", "subject": "Reset your Elysium password",
     "template": "email/password_reset.html", "activate_user_on_success": False})
 if email.get("activate_user_on_success"):   # a deactivated (offboarded) account must not come back through a reset link
     email = call("PATCH", "/stages/email/%s/" % email["pk"], {"activate_user_on_success": False}); print("email stage: no longer re-activates users")

@@ -1,4 +1,4 @@
-# Adopting a HeardOS that the installer did not build
+# Adopting a Elysium that the installer did not build
 
 A home server that was set up by hand, or by an older version of this kit, can be brought under the installer so the
 Stacks screen, `heardos-cli`, the harness and `heardos-mcp` manage it. It happens in two parts that can be weeks apart:

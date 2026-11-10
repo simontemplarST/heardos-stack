@@ -17,7 +17,7 @@ outbound relay product.
    as `RESEND_ADMIN_KEY` lets `mail/resend-dns.sh` manage and verify the domain from the API.
 3. Authentik's override (`host/runtipi-overrides/authentik-1.docker-compose.yml`) sets
    `AUTHENTIK_EMAIL__HOST=smtp.resend.com`, port 587, TLS on, username `resend`, password = the key, From
-   `HeardOS <authentik@<domain>>`, on both the server and the worker. Restart Authentik.
+   `Elysium <authentik@<domain>>`, on both the server and the worker. Restart Authentik.
 4. Test: `mail/resend-dns.sh` sends a message; or start the recovery flow for an account and watch the worker log for
    `email_sent`.
 

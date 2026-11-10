@@ -8,7 +8,7 @@
   heardos-cli destroy ID                   delete the VPS this install created (billing stops)
   heardos-cli ovh-confirm SERVICE TOKEN    finish an OVH termination with the token from OVH's email
   heardos-cli list                         installs on this machine
-  heardos-cli adopt SPEC.json [--vault F] [--secrets F] [--apply]   take over a HeardOS set up without this installer (adopt.py)
+  heardos-cli adopt SPEC.json [--vault F] [--secrets F] [--apply]   take over a Elysium set up without this installer (adopt.py)
   heardos-cli migrate ID STACK [--apply]   move an adopted stack into the kit layout (migrate.py)
   heardos-cli tools [ID|sim] [--json]      the stack-management tools (same as the GUI, the harness and heardos-mcp)
   heardos-cli tool ID|sim NAME [--args JSON] [--yes]   run one of them; changes ask first unless --yes ("sim": a
@@ -309,7 +309,7 @@ def cmd_tool(a) -> None:
 
 
 def cli(argv=None) -> None:
-    ap = argparse.ArgumentParser(prog="heardos-cli", description="HeardOS installer (headless)")
+    ap = argparse.ArgumentParser(prog="heardos-cli", description="Elysium installer (headless)")
     sub = ap.add_subparsers(dest="cmd", required=True)
     sub.add_parser("init").set_defaults(fn=cmd_init)
     s = sub.add_parser("secret"); s.add_argument("name"); s.add_argument("value", nargs="?", help=argparse.SUPPRESS)
@@ -330,7 +330,7 @@ def cli(argv=None) -> None:
     s = sub.add_parser("tool", help="run one stack-management tool"); s.add_argument("id"); s.add_argument("name"); s.add_argument("--args", help="JSON object")
     s.add_argument("--yes", action="store_true", help="skip the question for changes (removals still ask)")
     s.set_defaults(fn=cmd_tool)
-    s = sub.add_parser("adopt", help="take over a HeardOS that was set up without this installer"); s.add_argument("spec")
+    s = sub.add_parser("adopt", help="take over a Elysium that was set up without this installer"); s.add_argument("spec")
     s.add_argument("--vault", help="KEY=VALUE file of values for the vault (tokens)"); s.add_argument("--secrets", help="KEY=VALUE file seeded into the host's secrets.env")
     s.add_argument("--apply", action="store_true"); s.set_defaults(fn=lambda a: __import__("heardos_installer.adopt", fromlist=["main"]).main(a))
     s = sub.add_parser("migrate", help="move an adopted stack into the kit layout"); s.add_argument("id"); s.add_argument("stack", nargs="?")

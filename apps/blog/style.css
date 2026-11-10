@@ -1,4 +1,4 @@
-/* example.com blog — HeardOS Hearth palette (dark default, light when the reader's system asks for it) */
+/* example.com blog — Elysium Hearth palette (dark default, light when the reader's system asks for it) */
 :root {
   --bg: #1f2023; --card: #26272b; --text: #ececec; --muted: #a9aab0; --line: #3a3b40;
   --accent: #f2a35e; --accent-hover: #f5b984;

@@ -1,4 +1,4 @@
-"""Adopt a HeardOS that was set up before (or without) this installer, so the day-two console, the harness and the CLI
+"""Adopt a Elysium that was set up before (or without) this installer, so the day-two console, the harness and the CLI
 can manage it:  heardos-cli adopt SPEC.json [--vault FILE] [--secrets FILE] [--apply]
 
 The spec is a JSON file: {"install_id": ..., "plan": {...plan keys...}, "ssh": {"host": "root@192.168.10.20", "vps": "lh"}}.

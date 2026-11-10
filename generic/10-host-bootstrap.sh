@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # 10-host-bootstrap.sh — run ON THE COMPUTE HOST as root, once. Idempotent.
-# Installs Docker Engine + compose plugin, Portainer CE, creates the HeardOS layout and the shared
+# Installs Docker Engine + compose plugin, Portainer CE, creates the Elysium layout and the shared
 # "proxy" network, hardens SSH (stops if no authorized key exists, unless FORCE=1), configures ufw and unattended upgrades.
 . "$(dirname "$0")/lib/common.sh"; require_root; load_env
 

@@ -17,7 +17,7 @@ print("authentik", ak.get("/admin/version/").get("version_current"))
 
 # 1. brand
 brand = ak.results("/core/brands/")[0]
-ak.patch(f"/core/brands/{brand['brand_uuid']}/", {"branding_title": env.get("BRAND_TITLE") or "HeardOS", "flow_recovery": None})
+ak.patch(f"/core/brands/{brand['brand_uuid']}/", {"branding_title": env.get("BRAND_TITLE") or "Elysium", "flow_recovery": None})
 print("brand: title set, recovery flow off")
 
 # 2. verified-email scope mapping. Accounts are created by an admin (or by invitation, which proves the address with an
@@ -102,7 +102,7 @@ ak.patch(f"/stages/authenticator/webauthn/{wa['pk']}/", {"resident_key_requireme
 ak.patch("/flows/instances/default-authenticator-webauthn-setup/", {"title": "Set up a passkey"})   # flow endpoints are keyed by slug
 pkv = ak.one("/stages/authenticator/validate/", name="heardos-passkey-validation") or ak.post("/stages/authenticator/validate/", {"name": "heardos-passkey-validation",
     "device_classes": ["webauthn"], "not_configured_action": "deny", "webauthn_user_verification": "required", "last_auth_threshold": "seconds=0", "configuration_stages": []})
-pwl = ak.one("/flows/instances/", slug="heardos-passwordless") or ak.post("/flows/instances/", {"name": "HeardOS passwordless", "slug": "heardos-passwordless",
+pwl = ak.one("/flows/instances/", slug="heardos-passwordless") or ak.post("/flows/instances/", {"name": "Elysium passwordless", "slug": "heardos-passwordless",
     "title": "Sign in with a passkey", "designation": "authentication", "authentication": "require_unauthenticated", "layout": "stacked", "denied_action": "message_continue"})
 login = ak.one("/stages/user_login/", name="default-authentication-login")
 have = {b["order"]: b for b in ak.results(f"/flows/bindings/?target={pwl['pk']}")}

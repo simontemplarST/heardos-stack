@@ -1,4 +1,4 @@
-# HeardOS desktop — one small Node container: the web desktop (public/), the app catalogue (apps.json, filtered per person
+# Elysium desktop — one small Node container: the web desktop (public/), the app catalogue (apps.json, filtered per person
 # from the Authentik gate's headers) and /api/summary (Mealie, Actual Budget, Homebox) for the This week app and widgets.
 # node:22-slim, pinned to the multi-arch index digest (looked up 2026-10-19). To update: skopeo inspect --raw
 # docker://docker.io/library/node:22-slim | sha256sum, then rebuild and test.

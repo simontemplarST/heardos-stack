@@ -1,4 +1,4 @@
-# HeardOS logo — concept 2a (Hearth Crest)
+# Elysium logo — concept 2a (Hearth Crest)
 
 Colours: orange #f2a35e · ink #1f2023 · light #ececec · charcoal #26272b
 Wordmark: Young Serif (converted to outlines; no font needed).

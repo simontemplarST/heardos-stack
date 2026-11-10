@@ -29,6 +29,12 @@ dump_maria() {
   if docker exec "$2" sh -c 'MYSQL_PWD="$MARIADB_ROOT_PASSWORD" exec mariadb-dump -uroot --all-databases --single-transaction' > "$dir/$1.sql" 2> "$dir/$1.err"; then rm -f "$dir/$1.err"
   else warn "database dump FAILED for $1 ($2): $(tail -c 300 "$dir/$1.err")"; failed=1; fi
 }
+# dump_mongo NAME CONTAINER — mongodump --archive (gzip) of an auth-less Mongo on an internal-only network
+dump_mongo() {
+  docker ps --format '{{.Names}}' | grep -qx "$2" || return 0
+  if docker exec "$2" mongodump --quiet --archive --gzip > "$dir/$1.archive.gz" 2> "$dir/$1.err"; then rm -f "$dir/$1.err"
+  else warn "database dump FAILED for $1 ($2): $(tail -c 300 "$dir/$1.err")"; failed=1; fi
+}
 
 case "${1:-}" in
   install)
@@ -38,13 +44,13 @@ case "${1:-}" in
     install -d -m 700 "$DUMPS"
     cat > /etc/systemd/system/heardos-backup.service <<EOF
 [Unit]
-Description=HeardOS restic backup
+Description=Elysium restic backup
 [Service]
 Type=oneshot
 UMask=0077
 ExecStart=/bin/bash $HERE/70-backup.sh run
 EOF
-    printf '[Unit]\nDescription=Nightly HeardOS backup\n[Timer]\nOnCalendar=*-*-* 02:30:00\nRandomizedDelaySec=15min\nPersistent=true\n[Install]\nWantedBy=timers.target\n' > /etc/systemd/system/heardos-backup.timer
+    printf '[Unit]\nDescription=Nightly Elysium backup\n[Timer]\nOnCalendar=*-*-* 02:30:00\nRandomizedDelaySec=15min\nPersistent=true\n[Install]\nWantedBy=timers.target\n' > /etc/systemd/system/heardos-backup.timer
     systemctl daemon-reload; systemctl enable --now heardos-backup.timer >/dev/null
     out RESTIC_PASSWORD "$RESTIC_PASSWORD"   # once, for the installer's vault (masked in its log)
     msg "IMPORTANT: copy the backup password OFF this host now (password manager / the installer's vault):"
@@ -61,6 +67,7 @@ EOF
     dump_pg invidious '^invidious-db$'
     dump_pg listmonk '^listmonk-db$'
     dump_maria hortusfox hortusfox-db
+    dump_mongo opensign opensign-mongo
     restic backup --tag heardos --exclude '*/model-cache' --exclude '*/tmp' --exclude '*/cache' "${paths[@]}"
     rm -rf "$dir"; find "$DUMPS" -mindepth 1 -maxdepth 1 -name 'run.*' -mmin +1440 -exec rm -rf {} +   # dumps live only in the repo
     restic forget --tag heardos --keep-daily 7 --keep-weekly 4 --keep-monthly 6 --prune

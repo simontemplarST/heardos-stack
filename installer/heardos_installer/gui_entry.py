@@ -1,4 +1,4 @@
-"""Entry point for the PyInstaller build: `HeardOS` opens the GUI, `HeardOS cli ...` runs the headless commands."""
+"""Entry point for the PyInstaller build: `Elysium` opens the GUI, `Elysium cli ...` runs the headless commands."""
 import sys
 
 if __name__ == "__main__":

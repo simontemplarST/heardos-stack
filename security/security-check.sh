@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# security-check.sh — read-only posture check for HeardOS (VPS edge, prox, CT 108, Authentik, DNS, laptop).
-# Prints one line per check: PASS / WARN / INFO. Needs: ssh to nebula-lh, root@192.168.10.2, root@192.168.10.20
+# security-check.sh — read-only posture check for Elysium (VPS edge, prox, CT 108, Authentik, DNS, laptop).
+# Prints one line per check: PASS / WARN / INFO. Needs: ssh to aum-dfw-gw, root@192.168.10.2, root@192.168.10.20
 # (LAN or the Nebula LAN route) and AUTHENTIK_TOKEN in ~/.config/credentials.env. Changes nothing.
 # Each remote block prints exactly one line per check (in order); lines are read back positionally.
 set -uo pipefail
@@ -8,14 +8,14 @@ set -uo pipefail
 cred() { local k v; for k; do v="$(grep -E "^(export )?$k=" ~/.config/credentials.env 2>/dev/null | tail -1 | cut -d= -f2-)" || true
   v="${v%\"}"; v="${v#\"}"; v="${v%\'}"; v="${v#\'}"; printf -v "$k" '%s' "$v"; done; }
 cred AUTHENTIK_TOKEN; export AUTHENTIK_TOKEN
-LH=nebula-lh; PROX=root@192.168.10.2; CT=root@192.168.10.20
+LH=aum-dfw-gw; PROX=root@192.168.10.2; CT=root@192.168.10.20
 S="ssh -o BatchMode=yes -o ConnectTimeout=8"
 pass(){ printf "PASS  %s\n" "$*"; } ; warn(){ printf "WARN  %s\n" "$*"; } ; info(){ printf "INFO  %s\n" "$*"; }
 chk(){ if [[ "${3:-}" =~ $2 ]]; then pass "$1: $3"; else warn "$1: '${3:-}' (want: $2)"; fi; }
 SSHD='sshd -T 2>/dev/null | grep -E "^(passwordauthentication|permitrootlogin) " | sort | tr "\n" " "'
 SSHD_OK="^passwordauthentication no permitrootlogin without-password $"
 
-echo "== VPS (nebula-lh) =="
+echo "== VPS (aum-dfw-gw) =="
 if mapfile -t L < <($S $LH "$SSHD; echo
 ss -ltn | awk 'NR>1{print \$4}' | grep ':22\$' | tr '\n' ' '; echo
 ufw status | grep -c '22/tcp on nebula1'

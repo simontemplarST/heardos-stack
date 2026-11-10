@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""business-flows.py — the standard set of business flows for HeardOS Authentik, each controlled by ONE group.
+"""business-flows.py — the standard set of business flows for Elysium Authentik, each controlled by ONE group.
 
 Put a user in the group and the behaviour applies to them; remove them and it stops. Idempotent: re-running only
 creates what is missing and re-asserts settings. Needs AUTHENTIK_TOKEN (admin) in ~/.config/credentials.env.
@@ -112,7 +112,7 @@ deny_selfsvc = S("/stages/deny/", "heardos-deny-no-self-service", {"deny_message
 totp = find("/stages/authenticator/totp/", name="default-authenticator-totp-setup")
 webauthn = find("/stages/authenticator/webauthn/", name="default-authenticator-webauthn-setup")
 email_setup = S("/stages/authenticator/email/", "heardos-authenticator-email-setup",
-                {"use_global_settings": True, "subject": "Your HeardOS verification code", "token_expiry": "minutes=10", "friendly_name": "Email code"})
+                {"use_global_settings": True, "subject": "Your Elysium verification code", "token_expiry": "minutes=10", "friendly_name": "Email code"})
 mfa_optional = S("/stages/authenticator/validate/", "default-authentication-mfa-validation",
                  {"not_configured_action": "skip", "device_classes": ["totp", "webauthn", "static", "email"],
                   "configuration_stages": [totp["pk"], webauthn["pk"], email_setup["pk"]], "last_auth_threshold": "seconds=0"})
@@ -140,7 +140,7 @@ enroll_prompt = S("/stages/prompt/stages/", "heardos-enrollment-details", {"fiel
 enroll_write = S("/stages/user_write/", "heardos-enrollment-write",
                  {"create_users_as_inactive": True, "create_users_group": G["flow-invited"]["pk"], "user_creation_mode": "always_create", "user_type": "internal"})
 enroll_email = S("/stages/email/", "heardos-enrollment-activation-email",
-                 {"use_global_settings": True, "activate_user_on_success": True, "subject": "Activate your HeardOS account",
+                 {"use_global_settings": True, "activate_user_on_success": True, "subject": "Activate your Elysium account",
                   "template": "email/account_confirmation.html", "token_expiry": "minutes=30"})
 
 # ---------- flows ----------
@@ -151,11 +151,11 @@ recovery = find("/flows/instances/", slug="default-recovery-flow")
 settings_flow = find("/flows/instances/", slug="default-user-settings-flow")
 pw_stage = find("/stages/password/", name="default-authentication-password")
 pwchange = call("GET", f"/flows/instances/{find('/flows/instances/', pk=pw_stage['configure_flow'])['slug']}/") if pw_stage.get("configure_flow") else None
-enroll_flow = F("heardos-enrollment-invitation", {"name": "HeardOS invitation sign-up", "title": "Create your HeardOS account", "designation": "enrollment",
+enroll_flow = F("heardos-enrollment-invitation", {"name": "Elysium invitation sign-up", "title": "Create your Elysium account", "designation": "enrollment",
                                                   "authentication": "require_unauthenticated", "denied_action": "message_continue", "layout": "stacked"})
-authz_flow = F("heardos-provider-authorization", {"name": "HeardOS application authorization", "title": "Authorize application", "designation": "authorization",
+authz_flow = F("heardos-provider-authorization", {"name": "Elysium application authorization", "title": "Authorize application", "designation": "authorization",
                                                   "authentication": "require_authenticated", "denied_action": "message_continue", "layout": "stacked"})
-email_mfa_flow = F("heardos-authenticator-email-setup", {"name": "HeardOS email code setup", "title": "Set up email verification codes", "designation": "stage_configuration",
+email_mfa_flow = F("heardos-authenticator-email-setup", {"name": "Elysium email code setup", "title": "Set up email verification codes", "designation": "stage_configuration",
                                                          "authentication": "require_authenticated", "denied_action": "message_continue", "layout": "stacked"})
 if not DRY:
     call("PATCH", f"/stages/authenticator/email/{email_setup['pk']}/", {"configure_flow": email_mfa_flow["pk"]})

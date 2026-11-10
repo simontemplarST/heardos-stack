@@ -94,7 +94,7 @@ GROUNDING = {"access": ["list_people"]}
 # "which app is this about?": a pick from a labelled list (small models are good at that, bad at choosing the right tool).
 # The harness then fetches what that kind of request needs for the picked app itself.
 FOCUS_READS = {"fix_app": ["app_status", "app_logs"], "setting": ["app_settings"], "start_stop": ["app_status"]}
-SYSTEM = """You are the HeardOS assistant. HeardOS is a family's self-hosted cloud: apps such as photos, documents and \
+SYSTEM = """You are the Elysium assistant. Elysium is a family's self-hosted cloud: apps such as photos, documents and \
 recipes run on a home server, each at its own web address with one family sign-in.
 You work only through the tools below, ONE tool per turn. Each turn shows the task and everything done so far.
 
@@ -250,7 +250,7 @@ class Agent:
         text = (f"Task: {task}\n\nThe cloud right now:\n{overview}\n\nWhat kind of request is the task? Kinds:\n"
                 + "\n".join(f"- {k}: {d}" for k, (d, _) in kinds.items()) + "\n\n" + INTENT_EXAMPLES
                 + "\nThink in one short sentence, then choose.")
-        r = self._ask([{"role": "system", "content": "You sort requests for the HeardOS assistant."}, {"role": "user", "content": text}], schema)
+        r = self._ask([{"role": "system", "content": "You sort requests for the Elysium assistant."}, {"role": "user", "content": text}], schema)
         intent = coerce(schema, r).get("intent")
         return intent if intent in kinds else "other"
 

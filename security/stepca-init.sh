@@ -8,7 +8,7 @@ if [ ! -f $STEPPATH/config/ca.json ]; then
   umask 077
   head -c 32 /dev/urandom | base64 > $STEPPATH/password.txt
   head -c 32 /dev/urandom | base64 > /root/provisioner-password.txt
-  step ca init --deployment-type=standalone --name="HeardOS LAN CA" \
+  step ca init --deployment-type=standalone --name="Elysium LAN CA" \
     --dns="ca.192-168-10-53.sslip.io,192.168.10.53" --address=":443" \
     --provisioner="admin" --password-file=$STEPPATH/password.txt \
     --provisioner-password-file=/root/provisioner-password.txt --acme >/dev/null
@@ -25,7 +25,7 @@ P
 fi
 cat > /etc/systemd/system/step-ca.service <<'X'
 [Unit]
-Description=step-ca (HeardOS LAN CA)
+Description=step-ca (Elysium LAN CA)
 After=network-online.target
 Wants=network-online.target
 [Service]

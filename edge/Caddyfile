@@ -67,7 +67,7 @@ dash.example.com {
 	request_body {
 		max_size 0
 	}
-	# 2026-10-19 HeardOS desktop (framing): apps open as windows inside https://dash.example.com. Only the desktop may
+	# 2026-10-19 Elysium desktop (framing): apps open as windows inside https://dash.example.com. Only the desktop may
 	# frame them (plus Nextcloud for OnlyOffice); header_down takes no matcher, hence one handle per policy.
 	# Sign-in, vault and the top-level pages (dash, hub) are never framed: they keep the app's own XFO/frame-ancestors.
 	@noframe host auth.example.com vault.example.com dash.example.com hub.example.com

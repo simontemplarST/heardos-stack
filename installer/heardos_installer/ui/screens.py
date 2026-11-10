@@ -169,11 +169,11 @@ def family(st: UIState) -> None:
     _brand_sample(d)
     if d.get("BRAND_PRIMARY", "#f2a35e") != "#f2a35e":
         imgui.same_line()
-        if w.secondary("Use the HeardOS orange"):
+        if w.secondary("Use the Elysium orange"):
             d["BRAND_PRIMARY"] = "#f2a35e"
     d["BRAND_LOGO"] = w.field("Logo (optional)", d.get("BRAND_LOGO", ""), "path to a PNG or JPG; leave empty for a monogram", width=520, key="logo").strip()
     w.help_text("Used on the sign-in page, in emails and as the app icon. A square logo works best. Without one, "
-                + ("the HeardOS artwork is used." if (d.get("BRAND_TITLE") or "HeardOS") == "HeardOS"
+                + ("the Elysium artwork is used." if (d.get("BRAND_TITLE") or "Elysium") == "Elysium"
                    else f"a '{_initial(d)}' monogram in your accent colour is drawn."))
     imgui.spacing()
     w.heading("Administrator")
@@ -419,7 +419,7 @@ def home(st: UIState) -> None:
         need_mb = BASE_RAM_MB + sum(RAM_MB.get(a, 200) for a in catalog.closure(_selected_apps(d)))
         w.status_line(True, f"{f['os']}, {f['cpus']} CPU, {f['mem'] // 1024} GB memory, {f['disk']} GB free disk")
         if "24.04" not in f["os"]:
-            problems.append(f"It runs {f['os']}; HeardOS needs Ubuntu 24.04.")
+            problems.append(f"It runs {f['os']}; Elysium needs Ubuntu 24.04.")
         if not f["tun"]:
             problems.append("The tunnel device /dev/net/tun is missing (for a Proxmox container, enable TUN in its options).")
         if f["priv"] == "nosudo":
@@ -571,7 +571,7 @@ def mail(st: UIState) -> None:
             st.vault.set("SMTP_PASSWORD", st.inputs.pop("SMTP_PASSWORD"))
         ok = all(d.get(k) for k in ("SMTP_HOST", "SMTP_PORT", "SMTP_USER")) and bool(st.vault.get("SMTP_PASSWORD"))
     if d.get("mail_mode") != "none":
-        d["MAIL_FROM"] = w.field("Send as", d.get("MAIL_FROM") or (f"{d.get('BRAND_TITLE', 'HeardOS')} <noreply@{d.get('DOMAIN', 'example.com')}>"),
+        d["MAIL_FROM"] = w.field("Send as", d.get("MAIL_FROM") or (f"{d.get('BRAND_TITLE', 'Elysium')} <noreply@{d.get('DOMAIN', 'example.com')}>"),
                                  key="mf")
     else:
         w.help_text("Without email, forgotten passwords must be reset by you in the admin screens.")

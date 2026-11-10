@@ -61,16 +61,16 @@ jobs:
       - name: smoke test (headless commands work from the bundle)
         shell: bash
         run: |
-          if [ -d dist/HeardOS.app ]; then B=dist/HeardOS.app/Contents/MacOS/HeardOS; elif [ -f dist/HeardOS.exe ]; then B=dist/HeardOS.exe; else B=dist/HeardOS; fi
+          if [ -d dist/Elysium.app ]; then B=dist/Elysium.app/Contents/MacOS/Elysium; elif [ -f dist/Elysium.exe ]; then B=dist/Elysium.exe; else B=dist/Elysium; fi
           "$B" cli --help
       - name: package (keeps macOS symlinks and Linux exec bits)
         shell: bash
         run: |
           mkdir -p release
           case "${{ runner.os }}" in
-            macOS)   ditto -c -k --keepParent dist/HeardOS.app release/HeardOS-macOS-arm64.zip ;;
-            Windows) cp dist/HeardOS.exe release/HeardOS-Windows-x64.exe ;;
-            Linux)   chmod +x dist/HeardOS && tar -C dist -czf release/HeardOS-Linux-x86_64.tar.gz HeardOS ;;
+            macOS)   ditto -c -k --keepParent dist/Elysium.app release/Elysium-macOS-arm64.zip ;;
+            Windows) cp dist/Elysium.exe release/Elysium-Windows-x64.exe ;;
+            Linux)   chmod +x dist/Elysium && tar -C dist -czf release/Elysium-Linux-x86_64.tar.gz Elysium ;;
           esac
       - name: build provenance (signed by GitHub; verify with `gh attestation verify FILE -R OWNER/REPO`)
         if: startsWith(github.ref, 'refs/tags/v')
@@ -79,7 +79,7 @@ jobs:
           subject-path: installer/release/*
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: HeardOS-${{ runner.os }}
+          name: Elysium-${{ runner.os }}
           path: installer/release/*
 
   release:
@@ -94,14 +94,14 @@ jobs:
         env: {GH_TOKEN: "${{ github.token }}"}
         run: |
           (cd release && sha256sum * > SHA256SUMS)
-          gh release create "${GITHUB_REF_NAME}" release/* -R "${GITHUB_REPOSITORY}" --title "HeardOS installer ${GITHUB_REF_NAME}" --notes-file - <<'EOF'
-          Desktop installer and day-two console for HeardOS. See installer/README.md for what it does and what you need.
+          gh release create "${GITHUB_REF_NAME}" release/* -R "${GITHUB_REPOSITORY}" --title "Elysium installer ${GITHUB_REF_NAME}" --notes-file - <<'EOF'
+          Desktop installer and day-two console for Elysium. See installer/README.md for what it does and what you need.
 
           | File | For |
           |---|---|
-          | HeardOS-Windows-x64.exe | Windows 10/11 |
-          | HeardOS-macOS-arm64.zip | macOS 12+ on Apple silicon. Not notarised: right-click the app and choose Open the first time. |
-          | HeardOS-Linux-x86_64.tar.gz | Linux x86-64 (or `pipx install ./installer` from a checkout) |
+          | Elysium-Windows-x64.exe | Windows 10/11 |
+          | Elysium-macOS-arm64.zip | macOS 12+ on Apple silicon. Not notarised: right-click the app and choose Open the first time. |
+          | Elysium-Linux-x86_64.tar.gz | Linux x86-64 (or `pipx install ./installer` from a checkout) |
 
           Check a download: `sha256sum -c SHA256SUMS --ignore-missing`, and that it was built by this repository's workflow: `gh attestation verify FILE -R ${{ github.repository }}`.
 

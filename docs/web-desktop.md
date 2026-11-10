@@ -1,4 +1,4 @@
-# The HeardOS desktop
+# The Elysium desktop
 
 `dash.<domain>` is a desktop in the browser. Every app opens **already signed in**, in a window you can move, resize,
 snap, minimise and maximise. There's a taskbar, a Start menu with search, desktop icons and widgets for today

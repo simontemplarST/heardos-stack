@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generates the HeardOS network map: two SVG figures (request path, data flows), a combined poster SVG for print/PDF,
+"""Generates the Elysium network map: two SVG figures (request path, data flows), a combined poster SVG for print/PDF,
 and the interactive HTML page. Every fact was checked against the live systems on 2026-10-14."""
 import html, os
 
@@ -87,7 +87,7 @@ f1.node(1260, 42, 400, 56, "Alice's laptop", "Nebula 10.42.0.20 · LAN route via
 f1.add('<text x="40" y="150" class="zl">Internet edge</text>')
 f1.node(40, 162, 330, 72, "Cloudflare DNS · example.com", "20 × A  <host> → 203.0.113.10  (DNS only, unproxied)", links="e1 e2", sub2="apex + www → GitHub Pages · stale: mm, dco, forge",
         desc="DNS only, nothing proxied: auth books budget cloud cron dash dav docs home homebox hub mealie music office paperless photos speed tube vault wallos. The apex and www point at a GitHub Pages site. mm (old Mattermost), dco and forge are leftovers pointing elsewhere. Records are managed with cfdns-add / cfdns-del on CT 108.")
-f1.zone(400, 150, 1260, 96, label="VPS \"nebula-lh\" · 203.0.113.10 · Region-1 · the only public address · hourly billed")
+f1.zone(400, 150, 1260, 96, label="VPS \"aum-dfw-gw\" · 203.0.113.10 · Region-1 · the only public address · hourly billed")
 f1.node(420, 178, 500, 56, "Caddy 2.11 · public HTTPS ingress", "20 hosts, Let's Encrypt · → 10.42.0.11:80 · cloud = 302 redirector", links="e2 e2b e3 e-redir",
         desc="Terminates TLS for every host, sets X-Forwarded-Proto https / Port 443, and reverse-proxies to 10.42.0.11:80 through the Nebula tunnel. No upload size cap (150 MB verified). cloud.example.com maps /&lt;slug&gt;/path → https://&lt;host&gt;.example.com/path for 22 slugs, including proxmox → https://prox.lan:8006 and runtipi → http://192.168.10.20 (LAN-only targets); unknown slugs go to the Authentik app library. Logs in journald.")
 f1.node(1100, 178, 540, 56, "Nebula lighthouse + relay · 10.42.0.1", "UDP 4242 · relays when NAT blocks a direct path · ssh only from group admins", cls="ovn", links="e-lap e3 e-lh",
@@ -103,7 +103,7 @@ f1.node(68, 500, 1564, 40, "Traefik · :80", links="e3 e-home e4 e5 e6 e7",
         desc="Runtipi's reverse proxy. Public routers (file provider, containers by name — never the Docker provider, which hides a router while its container is 'starting') receive Caddy's traffic; the CT's Nebula firewall allows tcp/80 only from the lighthouse group. LAN routers serve &lt;app&gt;.192-168-10-20.sslip.io; on Books and Music they strip every X-authentik-* header so nobody on the LAN can forge a login. Home Assistant is reached at 192.168.10.20:8123 because it runs on the host network.")
 f1.note(190, 525, "public routers pub-<host> from Caddy (tcp/80 allowed only from the lighthouse) · LAN routers <app>.192-168-10-20.sslip.io · auth headers stripped on books & music")
 f1.node(68, 568, 1340, 40, "Authentik SSO · auth.example.com", cls="authn", links="e4 e6",
-        desc="Forward auth for the gated apps (embedded outpost; Traefik asks before every request and passes X-authentik-username) and OIDC provider for the self-login apps and Proxmox. Users: alice, bob (akadmin is the break-glass superuser). Access to each app = membership of its app-&lt;slug&gt; group; app-proxmox is alice only. Launch URLs point at cloud.example.com/&lt;slug&gt;. Brand 'HeardOS'.")
+        desc="Forward auth for the gated apps (embedded outpost; Traefik asks before every request and passes X-authentik-username) and OIDC provider for the self-login apps and Proxmox. Users: alice, bob (akadmin is the break-glass superuser). Access to each app = membership of its app-&lt;slug&gt; group; app-proxmox is alice only. Launch URLs point at cloud.example.com/&lt;slug&gt;. Brand 'Elysium'.")
 f1.note(330, 593, "forward auth for gated apps · OIDC for the rest and for Proxmox · users alice, bob · one app-<slug> group per app · launch URLs → cloud/<slug>")
 f1.add(f'<text x="68" y="654" class="zl" style="fill:{C["auth"]}">Gated · Traefik asks Authentik first, then forwards with the username header</text>')
 gated = [("Hub", "hub", "Hub — Homepage dashboard", "Plain-word tiles (Photos, Recipes & meal plan, Documents, Music, Videos, Passwords, Home controls, Paperwork, Where is it?, Subscriptions, My account, Books) linking to cloud.example.com/&lt;slug&gt;. Budget, cron, office, Runtipi and Proxmox are deliberately not on it."),
@@ -215,7 +215,7 @@ gap = 70
 poster_h = 90 + f1.h + gap + f2.h + gap + f3.h + 40
 poster = [f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1700 {poster_h}" width="1700" height="{poster_h}">', f'<style>{STYLE}</style>', DEFS,
           f'<rect width="1700" height="{poster_h}" fill="{C["paper"]}"/>',
-          '<text x="40" y="44" class="h">HeardOS Network Map</text>',
+          '<text x="40" y="44" class="h">Elysium Network Map</text>',
           '<text x="40" y="66" class="p">1 · Request path   2 · What feeds what   3 · Shared folders.   All public hosts are &lt;name&gt;.example.com; the drawings show only the name. Verified against the live systems on 14 Oct 2026.</text>',
           f'<g transform="translate(0,90)"><text x="40" y="-6" class="h" style="font-size:16px">1 · Request path</text>{"".join(f1.parts)}</g>',
           f'<g transform="translate(0,{90 + f1.h + gap})"><text x="40" y="-6" class="h" style="font-size:16px">2 · What feeds what</text>{"".join(f2.parts)}</g>',

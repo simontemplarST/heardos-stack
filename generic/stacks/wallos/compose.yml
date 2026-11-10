@@ -7,7 +7,7 @@ services:
     environment:
       TZ: "${TZ}"
       OIDC_ENABLED: "true"
-      OIDC_PROVIDER_NAME: "${BRAND_TITLE:-HeardOS}"
+      OIDC_PROVIDER_NAME: "${BRAND_TITLE:-Elysium}"
       OIDC_ISSUER: "https://auth.${DOMAIN}/application/o/wallos/"
       OIDC_CLIENT_ID: "${OIDC_CLIENT_ID}"
       OIDC_CLIENT_SECRET: "${OIDC_CLIENT_SECRET}"

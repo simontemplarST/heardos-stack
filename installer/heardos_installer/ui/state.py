@@ -39,7 +39,7 @@ class UIState:
         self.logbuf = LogBuffer()
         self.screen = "welcome"
         self.mode = "wizard"            # wizard | day2
-        self.draft: dict = {"BRAND_TITLE": "HeardOS", "BRAND_PRIMARY": "#f2a35e", "provider": "cloudzy", "dns_mode": "cloudflare",
+        self.draft: dict = {"BRAND_TITLE": "Elysium", "BRAND_PRIMARY": "#f2a35e", "provider": "cloudzy", "dns_mode": "cloudflare",
                             "profile": "family", "HOST_SSH_USER": "root", "CADDY_FRONT_DOOR": True, "CROWDSEC": True, "mail_mode": "resend"}
         self.inputs: dict[str, str] = {}   # secrets typed but not yet saved, and transient form text
         self.inst = None                   # session.Installation once Install is pressed (or an install is resumed)

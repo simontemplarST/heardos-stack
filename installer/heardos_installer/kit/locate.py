@@ -50,7 +50,7 @@ def _default_root() -> Path:
     if _looks_like_kit(data):
         return data
     raise FileNotFoundError(
-        "HeardOS kit not found: set HEARDOS_KIT to a checkout of heardos-stack (the directory holding generic/)"
+        "Elysium kit not found: set HEARDOS_KIT to a checkout of heardos-stack (the directory holding generic/)"
     )
 
 

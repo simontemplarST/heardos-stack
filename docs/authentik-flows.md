@@ -1,4 +1,4 @@
-# HeardOS Authentik business flows
+# Elysium Authentik business flows
 
 One group per behaviour. Put a user in the group and it applies; remove them and it stops. Built and re-asserted by
 `authentik/business-flows.py` (idempotent; `--dry-run` prints the plan). Needs `set -a; . ~/.config/credentials.env; set +a`.
@@ -75,7 +75,7 @@ create a short-lived token under Directory → Tokens, put it in the plan file a
 
 ## Policy mode on stage bindings
 
-Every HeardOS stage binding uses policy engine mode **all** (every bound group/policy must pass), except the required-MFA
+Every Elysium stage binding uses policy engine mode **all** (every bound group/policy must pass), except the required-MFA
 binding at order 31, which is **any** (group OR admin policy) and therefore carries no passkey-skip policy. The default is "any",
 which let the passkey-skip expression policy alone run the MFA stages regardless of the group, so a device-less user was
 pushed into MFA enrolment (found by `authentik/test-flows.py` on 2026-10-16). `business-flows.py` now sets it explicitly.

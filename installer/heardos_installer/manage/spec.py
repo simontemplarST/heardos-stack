@@ -169,7 +169,7 @@ def validate(s: CustomStack, *, taken_names: set[str], taken_hosts: set[str], up
         if not ENV_KEY.match(k):
             e.append(f"env: '{k}' must be UPPER_CASE letters, digits and underscores.")
         elif SECRETISH.search(k) and v not in (GENERATE, ""):
-            e.append(f"env: {k} looks like a secret; set its value to 'generate' and HeardOS makes and keeps a random one.")
+            e.append(f"env: {k} looks like a secret; set its value to 'generate' and Elysium makes and keeps a random one.")
         if "\n" in v or len(v) > 500:
             e.append(f"env: the value of {k} must be one line (max 500 characters).")
     if s.user and not USER.match(s.user):
@@ -208,7 +208,7 @@ def render_compose(s: CustomStack) -> str:
         "heardos.custom": "true",
     }
     doc = {"services": {s.name: svc}, "networks": {"proxy": {"external": True}}}
-    head = (f"# {s.title}: added with the HeardOS installer (\"your own app\"). Sign-in: {ACCESS_LABEL[s.access]}.\n"
+    head = (f"# {s.title}: added with the Elysium installer (\"your own app\"). Sign-in: {ACCESS_LABEL[s.access]}.\n"
             f"# Rendered from the installer's spec; edit the app in the installer, not here (changes here are overwritten).\n")
     return head + yaml.safe_dump(doc, sort_keys=False, width=200)
 
@@ -218,7 +218,7 @@ def render_override(settings: dict[str, dict[str, str]]) -> Optional[str]:
     services = {svc: {"environment": {k: _dollar(str(v)) for k, v in kv.items()}} for svc, kv in sorted(settings.items()) if kv}
     if not services:
         return None
-    return ("# Settings changed in the HeardOS installer (Stacks > Settings). Managed by the installer; edit them there.\n"
+    return ("# Settings changed in the Elysium installer (Stacks > Settings). Managed by the installer; edit them there.\n"
             + yaml.safe_dump({"services": services}, sort_keys=False, width=200))
 
 

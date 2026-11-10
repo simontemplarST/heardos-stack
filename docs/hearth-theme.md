@@ -14,7 +14,7 @@ it as it allows. Files: [`apps/brand-theme/`](../apps/brand-theme/).
 | Homepage hub | `custom.css` |
 | HortusFox | `AppModel.custom_head_code` (a `<style>` block; `LOAD_FILE` is not allowed, use an escaped SQL literal) |
 | Vaultwarden | `data/templates/scss/user.vaultwarden.scss.hbs` — the 2026 web vault uses a `--color-brand-050…950` hex scale |
-| Home Assistant | a `themes/` YAML ("HeardOS Hearth", dark + light) set as the backend default with `frontend.set_theme` |
+| Home Assistant | a `themes/` YAML ("Elysium Hearth", dark + light) set as the backend default with `frontend.set_theme` |
 | Portainer / Paperless | logo (and app title) only |
 | Navidrome / Calibre-Web / Invidious | closest built-in dark theme as the default |
 

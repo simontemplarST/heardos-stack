@@ -17,7 +17,7 @@ def brand_apply(ctx: Ctx) -> StepResult:
     logo = Path(p["BRAND_LOGO"]).expanduser() if p.get("BRAND_LOGO") else None
     if logo and not logo.is_file():
         return StepResult(False, message=f"logo file not found: {logo}")
-    pal = build(out, title=p.get("BRAND_TITLE") or "HeardOS", primary=p.get("BRAND_PRIMARY") or "#f2a35e", domain=p["DOMAIN"], logo=logo)
+    pal = build(out, title=p.get("BRAND_TITLE") or "Elysium", primary=p.get("BRAND_PRIMARY") or "#f2a35e", domain=p["DOMAIN"], logo=logo)
     ctx.log(f"brand bundle built: accent {pal.primary}, hub colour {pal.homepage_color}, {len(list((out / 'files').iterdir()))} files")
     if ctx.dry_run:
         return StepResult(True, message="[dry-run] brand built locally; upload skipped")
@@ -31,7 +31,7 @@ def brand_apply(ctx: Ctx) -> StepResult:
     put_dir(host, out / "email", f"{root}/data/authentik/templates/email", sudo=sudo, owner="1000:1000", clean=True)
     res = run_kit(ctx, "44-authentik-brand.py", timeout=300)
     if res.ok:
-        res.message = f"{p.get('BRAND_TITLE') or 'HeardOS'} look applied to sign-in, emails and the hub"
+        res.message = f"{p.get('BRAND_TITLE') or 'Elysium'} look applied to sign-in, emails and the hub"
         res.outputs["BRAND_COLOR"] = pal.homepage_color
     return res
 

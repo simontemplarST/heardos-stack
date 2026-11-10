@@ -1,4 +1,4 @@
-{% load authentik_stages_email %}{% load i18n %}{% comment %}HeardOS email kit v2.1 (2026-10-16, Hearth Crest palette: orange #f2a35e / ink #1f2023 / charcoal #26272b / light #ececec). Shadows authentik's email/base.html. Brand: ~/Pictures/logos/heardos-logo/README.md.
+{% load authentik_stages_email %}{% load i18n %}{% comment %}Elysium email kit v2.1 (2026-10-16, Hearth Crest palette: orange #f2a35e / ink #1f2023 / charcoal #26272b / light #ececec). Shadows authentik's email/base.html. Brand: ~/Pictures/logos/heardos-logo/README.md.
    Blocks: preheader (hidden inbox preview line), eyebrow (small amber label), content, sub_content, logo_url. Assets: https://cloud.example.com/brand/{% endcomment %}
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
 <html xmlns="http://www.w3.org/1999/xhtml" lang="en">
@@ -7,7 +7,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="color-scheme" content="light">
     <meta name="supported-color-schemes" content="light">
-    <title>HeardOS</title>
+    <title>Elysium</title>
     <!--[if mso]><style>table{border-collapse:collapse;} .btn a{padding:12px 28px !important;}</style><![endif]-->
     <style type="text/css">
       :root { color-scheme: light; supported-color-schemes: light; }
@@ -36,7 +36,7 @@
     </style>
   </head>
   <body class="ff" style="margin:0; padding:0; background-color:#ececec;">
-    <div style="display:none; max-height:0; overflow:hidden; mso-hide:all; font-size:1px; line-height:1px; color:#ececec;">{% block preheader %}HeardOS{% endblock %}&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;</div>
+    <div style="display:none; max-height:0; overflow:hidden; mso-hide:all; font-size:1px; line-height:1px; color:#ececec;">{% block preheader %}Elysium{% endblock %}&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;</div>
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#ececec;">
       <tr>
         <td align="center" style="padding:36px 16px 40px 16px;">
@@ -46,7 +46,7 @@
             <!-- header band: slate hexagon mark + white wordmark on charcoal -->
             <tr>
               <td class="pad" style="background-color:#26272b; border-radius:10px 10px 0 0; padding:22px 32px;">
-                <img src="{% block logo_url %}https://cloud.example.com/brand/logo-dark.png{% endblock %}" alt="HeardOS" width="210" style="display:block; width:210px; height:auto;">
+                <img src="{% block logo_url %}https://cloud.example.com/brand/logo-dark.png{% endblock %}" alt="Elysium" width="210" style="display:block; width:210px; height:auto;">
               </td>
             </tr>
             <tr><td style="background-color:#f2a35e; height:4px; font-size:0; line-height:0;">&nbsp;</td></tr>
@@ -55,7 +55,7 @@
             <tr>
               <td class="pad" style="background-color:#FFFFFF; padding:30px 32px 26px 32px;">
                 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
-                  <tr><td class="ff eyebrow" style="font-size:11px; letter-spacing:1.6px; text-transform:uppercase; font-weight:600; color:#ed8325; padding-bottom:4px;">{% block eyebrow %}HeardOS{% endblock %}</td></tr>
+                  <tr><td class="ff eyebrow" style="font-size:11px; letter-spacing:1.6px; text-transform:uppercase; font-weight:600; color:#ed8325; padding-bottom:4px;">{% block eyebrow %}Elysium{% endblock %}</td></tr>
                   {% block content %}{% endblock %}
                 </table>
               </td>
@@ -73,10 +73,10 @@
             <!-- footer -->
             <tr>
               <td align="center" class="ff muted" style="padding:22px 16px 0 16px; color:#8A8A90; font-size:12px; line-height:1.7;">
-                <span style="color:#3a3b40; font-weight:600;">HeardOS</span> &nbsp;&middot;&nbsp; family sign-in<br>
+                <span style="color:#3a3b40; font-weight:600;">Elysium</span> &nbsp;&middot;&nbsp; family sign-in<br>
                 <a href="https://auth.example.com/if/user/" style="color:#8A8A90; text-decoration:underline;">Manage your account</a>
                 &nbsp;&middot;&nbsp; <a href="https://cloud.example.com/" style="color:#8A8A90; text-decoration:underline;">All apps</a><br>
-                {% block footer_note %}You received this because you have a HeardOS account.{% endblock %}
+                {% block footer_note %}You received this because you have a Elysium account.{% endblock %}
               </td>
             </tr>
           </table>

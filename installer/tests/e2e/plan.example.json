@@ -3,7 +3,7 @@
   "ADMIN_USER": "alice",
   "ADMIN_EMAIL": "admin@example.net",
   "ADMIN_NAME": "Alice Example",
-  "BRAND_TITLE": "HeardOS",
+  "BRAND_TITLE": "Elysium",
   "HOST_LAN_IP": "192.168.10.50",
   "HOST_SSH_USER": "root",
   "provider": "cloudzy",

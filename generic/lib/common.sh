@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Shared helpers for the HeardOS generic build scripts. Source it; do not run it.
+# Shared helpers for the Elysium generic build scripts. Source it; do not run it.
 #   . "$(dirname "$0")/lib/common.sh"
 set -euo pipefail
 
@@ -7,7 +7,7 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 ENV_FILE="${HEARDOS_ENV:-$HERE/heardos.env}"
 
 msg()  { printf '\033[1;36m::\033[0m %s\n' "$*"; }
-# out KEY VALUE — a machine-readable result for the HeardOS installer (it parses "HEARDOS_OUTPUT KEY=VALUE" lines)
+# out KEY VALUE — a machine-readable result for the Elysium installer (it parses "HEARDOS_OUTPUT KEY=VALUE" lines)
 out()  { printf 'HEARDOS_OUTPUT %s=%s\n' "$1" "$2"; }
 dry()  { [ -n "${HEARDOS_DRY_RUN:-}" ]; }   # true when the installer asked for a dry run
 warn() { printf '\033[1;33m!!\033[0m %s\n' "$*" >&2; }

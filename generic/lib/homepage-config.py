@@ -3,7 +3,7 @@
 
 Only apps that are installed on this host get a tile (a stack is installed when $HEARDOS_ROOT/stacks/<stack>/compose.yml
 exists), so re-running after each 50-app.sh keeps the hub in step. Tiles link to the front door cloud.<domain>/<slug>.
-Env: DOMAIN, HEARDOS_ROOT, BRAND_TITLE (default HeardOS), BRAND_COLOR (a Homepage colour name, default orange). stdlib only.
+Env: DOMAIN, HEARDOS_ROOT, BRAND_TITLE (default Elysium), BRAND_COLOR (a Homepage colour name, default orange). stdlib only.
 """
 import json, os, sys
 from pathlib import Path
@@ -11,7 +11,7 @@ from pathlib import Path
 here = Path(__file__).resolve().parent.parent
 out = Path(sys.argv[1]); out.mkdir(parents=True, exist_ok=True)
 dom, root = os.environ["DOMAIN"], Path(os.environ.get("HEARDOS_ROOT", "/opt/heardos"))
-title, color = os.environ.get("BRAND_TITLE") or "HeardOS", os.environ.get("BRAND_COLOR") or "orange"
+title, color = os.environ.get("BRAND_TITLE") or "Elysium", os.environ.get("BRAND_COLOR") or "orange"
 cat = json.loads((here / "catalog.json").read_text())
 ORDER = ["Everyday", "House & paperwork", "Account"]
 

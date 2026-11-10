@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Run ON the lighthouse (nebula-lh) as root:  bash 10-lighthouse.sh /root/<private dir>/lighthouse.crt.new
+# Run ON the lighthouse (aum-dfw-gw) as root:  bash 10-lighthouse.sh /root/<private dir>/lighthouse.crt.new
 # (stage the re-signed cert in a root-only dir, e.g. d=$(mktemp -d /root/egress.XXXXXX); never a fixed /tmp name).
 # Lets ONLY the Nebula host "kasm" (10.42.0.12) use the lighthouse as its internet exit: cert unsafe-networks 0.0.0.0/0,
 # nebula inbound rules host kasm for every destination EXCEPT the overlay 10.42.0.0/24 (the lighthouse's own overlay

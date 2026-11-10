@@ -30,7 +30,7 @@ st, cfg = api("GET", "/api/system-config", token=tok)
 if st != 200: raise SystemExit(f"get config failed {st} {cfg}")
 cfg["oauth"].update({
     "enabled": True, "issuerUrl": ISSUER, "clientId": CID, "clientSecret": CSEC,
-    "scope": "openid email profile", "buttonText": "Sign in with HeardOS",
+    "scope": "openid email profile", "buttonText": "Sign in with Elysium",
     "autoRegister": True, "autoLaunch": False,
     "mobileOverrideEnabled": True, "mobileRedirectUri": "https://photos.example.com/api/oauth/mobile-redirect",
     "signingAlgorithm": "RS256", "profileSigningAlgorithm": "none",

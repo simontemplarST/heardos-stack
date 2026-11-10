@@ -1,4 +1,4 @@
-# HeardOS Maintenance console — OliveTin (https://olivetin.app) running natively on the apps host, /etc/OliveTin/config.yaml.
+# Elysium Maintenance console — OliveTin (https://olivetin.app) running natively on the apps host, /etc/OliveTin/config.yaml.
 # Every button here runs one of the scripts in CronMaster's library (/root/runtipi/app-data/_user/cronmaster/scripts) or a
 # short read-only command. The desktop (dash) shows it as the "Maintenance" app; Traefik puts the Authentik gate in front
 # and passes the X-authentik-* headers, which is how OliveTin knows who is clicking. Only members of "authentik Admins"
@@ -12,7 +12,7 @@
 # `exec:` (argv list) instead of `shell:`. Docs: https://docs.olivetin.app
 listenAddressSingleHTTPFrontend: 172.30.0.1:1337
 logLevel: INFO
-pageTitle: HeardOS maintenance
+pageTitle: Elysium maintenance
 showFooter: false
 showNewVersions: false
 sectionNavigationStyle: sidebar

@@ -5,7 +5,7 @@ services:
       PAPERLESS_URL: "https://paperless.example.com"
       PAPERLESS_CSRF_TRUSTED_ORIGINS: "https://paperless.example.com,http://paperless.192-168-10-20.sslip.io,http://192.168.10.20:8012"
       PAPERLESS_APPS: "allauth.socialaccount.providers.openid_connect"
-      PAPERLESS_SOCIALACCOUNT_PROVIDERS: '{"openid_connect": {"OAUTH_PKCE_ENABLED": true, "APPS": [{"provider_id": "authentik", "name": "HeardOS Login", "client_id": "<OIDC_CLIENT_ID>", "secret": "<REDACTED>", "settings": {"server_url": "https://auth.example.com/application/o/paperless"}}]}}'
+      PAPERLESS_SOCIALACCOUNT_PROVIDERS: '{"openid_connect": {"OAUTH_PKCE_ENABLED": true, "APPS": [{"provider_id": "authentik", "name": "Elysium Login", "client_id": "<OIDC_CLIENT_ID>", "secret": "<REDACTED>", "settings": {"server_url": "https://auth.example.com/application/o/paperless"}}]}}'
       PAPERLESS_SOCIAL_AUTO_SIGNUP: "true"
       PAPERLESS_PROXY_SSL_HEADER: '["HTTP_X_FORWARDED_PROTO", "https"]'
       PAPERLESS_ACCOUNT_DEFAULT_HTTP_PROTOCOL: "https"

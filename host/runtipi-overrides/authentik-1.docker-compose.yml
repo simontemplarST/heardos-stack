@@ -8,7 +8,7 @@ x-email: &email
   AUTHENTIK_EMAIL__USE_TLS: "false"
   AUTHENTIK_EMAIL__USE_SSL: "false"
   AUTHENTIK_EMAIL__TIMEOUT: "15"
-  AUTHENTIK_EMAIL__FROM: "HeardOS <authentik@example.com>"
+  AUTHENTIK_EMAIL__FROM: "Elysium <authentik@example.com>"
 services:
   authentik-1:
     hostname: authentik.example.com   # Django greets SMTP servers with the container's FQDN; Stalwart rejects non-FQDN EHLO

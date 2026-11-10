@@ -1,4 +1,4 @@
-"""The edge lets only the HeardOS desktop (and Nextcloud, for OnlyOffice) frame the apps; sign-in and vault are never framed."""
+"""The edge lets only the Elysium desktop (and Nextcloud, for OnlyOffice) frame the apps; sign-in and vault are never framed."""
 import importlib.util
 from pathlib import Path
 

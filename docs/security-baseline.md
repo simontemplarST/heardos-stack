@@ -1,4 +1,4 @@
-# HeardOS security baseline
+# Elysium security baseline
 
 First audit 2026-10-15. Scope: the lighthouse VPS (public edge), the Proxmox host `prox`, LXC 108 (Runtipi + every app),
 Authentik, DNS, and the laptop that holds the CA and credentials. `security/security-check.sh` re-runs

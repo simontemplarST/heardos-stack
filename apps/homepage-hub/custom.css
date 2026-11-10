@@ -1,4 +1,4 @@
-/* HeardOS Hearth Crest for the hub (2026-10-17): ink background, charcoal tiles, orange accent, Hearth logo in the header */
+/* Elysium Hearth Crest for the hub (2026-10-17): ink background, charcoal tiles, orange accent, Hearth logo in the header */
 html, body, #page_wrapper, #inner_wrapper { background: #1f2023 !important; }
 body { color: #ececec; font-family: Inter, "Segoe UI", Roboto, system-ui, sans-serif; }
 .service-card { background: #26272b !important; border: 1px solid #3a3b40; box-shadow: none !important; }

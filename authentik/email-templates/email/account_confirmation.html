@@ -1,8 +1,8 @@
 {% extends "email/base.html" %}{% load authentik_stages_email %}{% load i18n %}
-{% block preheader %}One tap to activate your HeardOS account.{% endblock %}
+{% block preheader %}One tap to activate your Elysium account.{% endblock %}
 {% block eyebrow %}Welcome{% endblock %}
 {% block content %}
-<tr><td><h1 class="ff">{% if user and user.name %}Welcome, {{ user.name }}.{% else %}Welcome to HeardOS.{% endif %}</h1></td></tr>
+<tr><td><h1 class="ff">{% if user and user.name %}Welcome, {{ user.name }}.{% else %}Welcome to Elysium.{% endif %}</h1></td></tr>
 <tr><td class="ff" style="padding:14px 0 20px 0;">
   <p class="lead" style="font-size:16px;">Your account is ready. Confirm your email address and you can sign in to photos, recipes, documents and everything else the family shares.</p>
 </td></tr>

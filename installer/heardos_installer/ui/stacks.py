@@ -290,7 +290,7 @@ def _logs(st, b, s) -> None:
 def _settings(st, b, s) -> None:
     info = b.settings(s)
     over = info["overrides"]
-    w.help_text("The app's environment as HeardOS sets it. Values you change are kept in compose.override.yml next to the app, "
+    w.help_text("The app's environment as Elysium sets it. Values you change are kept in compose.override.yml next to the app, "
                 "so updates and reinstalls keep them. Passwords and tokens are managed by the app's own setup and are hidden.")
     flags = imgui.TableFlags_.row_bg | imgui.TableFlags_.borders_inner_h | imgui.TableFlags_.scroll_y
     busy = st.tasks.running("setting")
@@ -351,7 +351,7 @@ def _form_spec(st) -> CustomStack:
 def _custom_form(st, b) -> None:
     i = st.inputs
     w.title("Add your own app")
-    w.help_text("Any app that ships as a Docker image. HeardOS gives it a web address with HTTPS, puts it behind the family "
+    w.help_text("Any app that ships as a Docker image. Elysium gives it a web address with HTTPS, puts it behind the family "
                 "sign-in, keeps its data with the other apps' data (and in the backups), and generates any secrets it needs.")
     imgui.spacing()
     w.heading("Find the image")

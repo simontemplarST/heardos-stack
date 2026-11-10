@@ -1,4 +1,4 @@
-// HeardOS desktop. Each app opens in a window as an <iframe> of its own address. All apps share the family domain, so
+// Elysium desktop. Each app opens in a window as an <iframe> of its own address. All apps share the family domain, so
 // the browser sends the Authentik session inside the frame: people are already signed in. The lighthouse Caddy lets
 // only this page (and each app itself) frame the apps; see docs/web-desktop.md.
 //
@@ -517,11 +517,11 @@ function openSettings() {
   nativeWindow("settings", "Settings", "/icons/settings.svg", div, { w: 600, h: 720 });
 }
 function supportLine() {
-  const n = S.support.name || "the person who runs HeardOS", e = S.support.email;
+  const n = S.support.name || "the person who runs Elysium", e = S.support.email;
   return e ? `ask <a href="mailto:${esc(e)}">${esc(n)}</a>` : `ask ${esc(n)}`;
 }
 function detailsText() {
-  return [`HeardOS desktop ${S.version}`, `When: ${new Date().toString()}`, `Who: ${S.me?.username || "?"}`, `Page: ${location.href}`,
+  return [`Elysium desktop ${S.version}`, `When: ${new Date().toString()}`, `Who: ${S.me?.username || "?"}`, `Page: ${location.href}`,
     `Browser: ${navigator.userAgent}`, `Screen: ${innerWidth}×${innerHeight}${isPhone() ? " (phone layout)" : ""}, online: ${navigator.onLine}`,
     `Open windows: ${[...S.wins.values()].map((w) => w.app.id + (w.min ? " (minimised)" : "")).join(", ") || "none"}`,
     `Apps available: ${S.apps.map((a) => a.id).join(", ")}`].join("\n");
@@ -529,7 +529,7 @@ function detailsText() {
 function openHelp() {
   closeMenus();
   const div = document.createElement("div"); div.className = "native help";
-  div.innerHTML = `<h2>Help</h2><p class="muted">HeardOS is the family's own apps, all in one place and already signed in.</p>
+  div.innerHTML = `<h2>Help</h2><p class="muted">Elysium is the family's own apps, all in one place and already signed in.</p>
     <section><h3>Getting around</h3><ul>
       <li><b>Open an app:</b> double-click its icon (one tap on a phone), or press <kbd>Start</kbd> and start typing its name.</li>
       <li><b>Windows:</b> drag the title bar to move; drag an edge to resize; drag to the left or right edge of the screen to fill half, or to the top to fill the screen. Double-click the title bar to maximise.</li>
@@ -537,7 +537,7 @@ function openHelp() {
       <li><b>Pin favourites:</b> right-click (or press and hold) an icon and choose <i>Pin to taskbar</i>.</li>
       <li><b>↗ in a title bar</b> opens that app in a normal browser tab, which helps if it misbehaves inside a window.</li>
       <li><b>On a phone</b> every app fills the screen; the back button closes it.</li>
-      <li><b>Install it:</b> the <i>Install</i> button (when your browser offers it) puts HeardOS in your app list like any other app.</li></ul></section>
+      <li><b>Install it:</b> the <i>Install</i> button (when your browser offers it) puts Elysium in your app list like any other app.</li></ul></section>
     <section><h3>Keyboard</h3><table>
       <tr><td><kbd>Ctrl</kbd>+<kbd>Space</kbd> or <kbd>/</kbd></td><td>Start menu and search</td></tr>
       <tr><td><kbd>F1</kbd></td><td>This help</td></tr>
@@ -553,11 +553,11 @@ function openHelp() {
       <li><b>Still stuck?</b> Copy the details below and ${supportLine()}.</li></ul>
       <div class="row"><button data-do="copy">Copy details for support</button>${S.support.email ? `<button data-do="email">Email ${esc(S.support.name || "support")}</button>` : ""}${S.admin ? `<button data-do="system">Open System</button>` : ""}</div>
       <pre class="details" hidden></pre></section>
-    <p class="muted small">HeardOS desktop ${esc(S.version)}</p>`;
+    <p class="muted small">Elysium desktop ${esc(S.version)}</p>`;
   div.addEventListener("click", async (e) => {
     const d = e.target.closest("[data-do]")?.dataset.do;
     if (d === "copy") { const t = detailsText(); try { await navigator.clipboard.writeText(t); toast("Details copied. Paste them into a message."); } catch { const p = $("pre.details", div); p.textContent = t; p.hidden = false; } }
-    if (d === "email") location.href = `mailto:${S.support.email}?subject=${encodeURIComponent("HeardOS desktop problem")}&body=${encodeURIComponent(detailsText())}`;
+    if (d === "email") location.href = `mailto:${S.support.email}?subject=${encodeURIComponent("Elysium desktop problem")}&body=${encodeURIComponent(detailsText())}`;
     if (d === "system") openSystem();
   });
   nativeWindow("help", "Help", "/icons/help.svg", div, { w: 720, h: 760 });
@@ -633,7 +633,7 @@ let deferredInstall = null;
 addEventListener("beforeinstallprompt", (e) => { e.preventDefault(); deferredInstall = e; $("#install").hidden = false; });
 async function promptInstall() { if (!deferredInstall) return; deferredInstall.prompt(); await deferredInstall.userChoice; deferredInstall = null; $("#install").hidden = true; }
 $("#install").addEventListener("click", promptInstall);
-addEventListener("appinstalled", () => toast("HeardOS is installed. Find it in your app launcher."));
+addEventListener("appinstalled", () => toast("Elysium is installed. Find it in your app launcher."));
 if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(() => {});
 
 boot();

@@ -109,7 +109,7 @@ auth_oidc:
   client_id: "${OIDC_CLIENT_ID}"
   client_secret: "${OIDC_CLIENT_SECRET}"
   discovery_url: "https://auth.${DOMAIN}/application/o/home-assistant/.well-known/openid-configuration"
-  display_name: "HeardOS"
+  display_name: "Elysium"
   roles:
     admin: "authentik Admins"
 EOF
@@ -207,7 +207,7 @@ PY
   wallos)
     oidc wallos "Wallos (subscriptions)" "$pub/" "$pub/" "http://wallos.$LAN_DOMAIN/"
     install -d "$HEARDOS_ROOT/data/wallos"/{db,logos}
-    { base_env; printf 'BRAND_TITLE=%s\nOIDC_CLIENT_ID=%s\nOIDC_CLIENT_SECRET=%s\n' "${BRAND_TITLE:-HeardOS}" "$OIDC_CLIENT_ID" "$OIDC_CLIENT_SECRET"; } > "$d/.env" ;;
+    { base_env; printf 'BRAND_TITLE=%s\nOIDC_CLIENT_ID=%s\nOIDC_CLIENT_SECRET=%s\n' "${BRAND_TITLE:-Elysium}" "$OIDC_CLIENT_ID" "$OIDC_CLIENT_SECRET"; } > "$d/.env" ;;
   actual)
     pub="https://budget.$DOMAIN"; oidc actual-budget "Actual (budget)" "$pub/" "$pub/openid/callback" "http://budget.$LAN_DOMAIN/openid/callback"
     install -d "$HEARDOS_ROOT/data/actual"
@@ -229,7 +229,7 @@ PY
     [ -f "$HERE/../apps/librespeed/index.html" ] && install -m 644 "$HERE/../apps/librespeed/index.html" "$HEARDOS_ROOT/data/librespeed/www/index.html"
     { base_env; printf 'LIBRESPEED_STATS_PASSWORD=%s\n' "$(secret LIBRESPEED_STATS_PASSWORD 24)"; } > "$d/.env" ;;
   dash)
-    proxy dash --name "HeardOS desktop" --host "https://dash.$DOMAIN" --users all
+    proxy dash --name "Elysium desktop" --host "https://dash.$DOMAIN" --users all
     install -d "$HEARDOS_ROOT/data/dash"; chown 1000:1000 "$HEARDOS_ROOT/data/dash"
     if dry; then msg "[dry-run] would build heardos-dash:local from apps/dash"
     else msg "building the dashboard image"; docker build -q -t heardos-dash:local "$HERE/../apps/dash" >/dev/null; fi
@@ -265,7 +265,7 @@ PY
   searxng)
     # PUBLIC on purpose (browser search engine for everyone); limiter on, overlay + home LAN pass it
     install -d "$HEARDOS_ROOT/data/searxng/config"
-    export BRAND_TITLE="${BRAND_TITLE:-HeardOS}" OVERLAY_CIDR="${OVERLAY_CIDR:-10.42.0.0/24}" NEBULA_LH_OVERLAY="${NEBULA_LH_OVERLAY:-10.42.0.1}" LAN_SUBNET="${LAN_SUBNET:?set LAN_SUBNET}"
+    export BRAND_TITLE="${BRAND_TITLE:-Elysium}" OVERLAY_CIDR="${OVERLAY_CIDR:-10.42.0.0/24}" NEBULA_LH_OVERLAY="${NEBULA_LH_OVERLAY:-10.42.0.1}" LAN_SUBNET="${LAN_SUBNET:?set LAN_SUBNET}"
     render "$HERE/../apps/searxng/settings.yml" "$HEARDOS_ROOT/data/searxng/config/settings.yml"
     render "$HERE/../apps/searxng/limiter.toml" "$HEARDOS_ROOT/data/searxng/config/limiter.toml"
     chmod 644 "$HEARDOS_ROOT/data/searxng/config"/*   # cap_drop ALL: root in the container can't read 0600 files
@@ -323,7 +323,7 @@ PY
     pub="https://chat.$DOMAIN"; oidc chat "Chat (Open WebUI)" "$pub/" "$pub/oauth/oidc/callback" "--users=$ADMIN_USER"
     install -d "$HEARDOS_ROOT/data/open-webui"
     { base_env; printf 'OIDC_CLIENT_ID=%s\nOIDC_CLIENT_SECRET=%s\nWEBUI_SECRET_KEY=%s\nCHAT_HARNESS_URL=%s\nCHAT_HARNESS_KEY=%s\nPAPERLESS_GPT_MODEL=%s\nBRAND_TITLE=%s\n' \
-        "$OIDC_CLIENT_ID" "$OIDC_CLIENT_SECRET" "$(secret WEBUI_SECRET_KEY 64)" "${CHAT_HARNESS_URL:-http://127.0.0.1:11440/v1}" "$(secret CHAT_HARNESS_KEY 48)" "${PAPERLESS_GPT_MODEL:-llama3.2:3b}" "${BRAND_TITLE:-HeardOS}"; } > "$d/.env" ;;
+        "$OIDC_CLIENT_ID" "$OIDC_CLIENT_SECRET" "$(secret WEBUI_SECRET_KEY 64)" "${CHAT_HARNESS_URL:-http://127.0.0.1:11440/v1}" "$(secret CHAT_HARNESS_KEY 48)" "${PAPERLESS_GPT_MODEL:-llama3.2:3b}" "${BRAND_TITLE:-Elysium}"; } > "$d/.env" ;;
   paperless-gpt)
     # needs Paperless running: creates the paperless-gpt service user + API token (PAPERLESS_GPT_TOKEN) first
     install -d "$HEARDOS_ROOT/data/ollama" "$HEARDOS_ROOT/data/paperless-gpt/prompts"

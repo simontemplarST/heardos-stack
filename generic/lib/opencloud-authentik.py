@@ -25,7 +25,7 @@ rm = ak.one("/propertymappings/provider/scope/", name="heardos-opencloud-roles")
 body = {"name": "heardos-opencloud-roles", "scope_name": "profile", "description": "OpenCloud role", "expression": expr}
 rm = ak.patch(f"/propertymappings/provider/scope/{rm['pk']}/", body) if rm else ak.post("/propertymappings/provider/scope/", body)
 def m(n): return ak.mapping(n)["pk"]
-email = ak.mapping("HeardOS email (verified)") or ak.mapping("authentik default OAuth Mapping: OpenID 'email'")
+email = ak.mapping("Elysium email (verified)") or ak.mapping("authentik default OAuth Mapping: OpenID 'email'")
 base = [m("authentik default OAuth Mapping: OpenID 'openid'"), m("authentik default OAuth Mapping: OpenID 'profile'"), email["pk"], rm["pk"]]
 off = m("authentik default OAuth Mapping: OpenID 'offline_access'")
 web = [("strict", h + s) for h in hosts for s in ("/oidc-callback.html", "/oidc-silent-redirect.html", "/")]

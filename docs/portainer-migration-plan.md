@@ -1,4 +1,4 @@
-# HeardOS: Runtipi → Portainer migration plan
+# Elysium: Runtipi → Portainer migration plan
 
 Status: **plan, not started**. Written 2026-10-14 from a live inventory of LXC 108.
 Source: `/root/runtipi` on CT 108 (Runtipi v4.10.2). Target: new LXC 109 running Docker + Portainer CE,

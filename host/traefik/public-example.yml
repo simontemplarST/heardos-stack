@@ -172,7 +172,7 @@ http:
       middlewares: [xfp-https]
       priority: 100
     pub-dash:
-      # HeardOS dashboard (custom app dash:_user): Authentik forward auth, no login of its own
+      # Elysium dashboard (custom app dash:_user): Authentik forward auth, no login of its own
       rule: Host(`dash.example.com`)
       entryPoints: [web]
       service: dash

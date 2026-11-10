@@ -1,6 +1,6 @@
-# HeardOS installer
+# Elysium installer
 
-A desktop app that builds a HeardOS family cloud from start to finish, then stays useful afterwards for the
+A desktop app that builds a Elysium family cloud from start to finish, then stays useful afterwards for the
 day-to-day jobs: adding family members, installing apps, health checks and backups. It drives the scripts in this
 repository (`generic/`, `authentik/`, …) so nobody has to use ssh, edit plan files or copy tokens between machines.
 

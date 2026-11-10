@@ -7,8 +7,8 @@
 Details:
 {% for key, value in key_value.items %}    {{ key }}: {{ value|indent }}
 {% endfor %}{% endif %}
-{% if source %}Sent by the HeardOS notification transport {{ source.from }}.{% else %}Automatic notification from HeardOS.{% endif %}
+{% if source %}Sent by the Elysium notification transport {{ source.from }}.{% else %}Automatic notification from Elysium.{% endif %}
 
 -- 
-HeardOS · family sign-in · https://auth.example.com/if/user/
+Elysium · family sign-in · https://auth.example.com/if/user/
 {% endautoescape %}

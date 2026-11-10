@@ -1,4 +1,4 @@
-# HeardOS desktop (dash.$DOMAIN): a web desktop where every app opens signed in, in a window (see docs/web-desktop.md).
+# Elysium desktop (dash.$DOMAIN): a web desktop where every app opens signed in, in a window (see docs/web-desktop.md).
 # One small Node container built on the host from apps/dash; it also reads Mealie, Homebox and Actual for the "This week"
 # app and widgets (each source optional). It trusts the X-authentik-* headers, so it has NO route that skips the gate.
 # Gate secret: the dash router adds X-Dash-Gate (middleware dash-gate, after authentik-fwd) and server.js answers 403 to

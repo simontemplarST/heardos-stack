@@ -27,9 +27,9 @@ install -d /etc/crowdsec/acquis.d /var/log/caddy
 printf 'filenames:\n  - /var/log/caddy/access.log\nlabels:\n  type: caddy\n' > /etc/crowdsec/acquis.d/caddy.yaml
 cat > /etc/crowdsec/parsers/s02-enrich/heardos-whitelist.yaml <<X
 name: heardos/whitelist
-description: "HeardOS: never ban the Nebula overlay"
+description: "Elysium: never ban the Nebula overlay"
 whitelist:
-  reason: "HeardOS overlay"
+  reason: "Elysium overlay"
   cidr:
     - ${OVERLAY_CIDR}
 X
@@ -37,9 +37,9 @@ X
 # http-sensitive-files scenario bans whoever opens Budget for that (it banned the live home IP, 2026-10-18).
 cat > /etc/crowdsec/parsers/s02-enrich/heardos-app-paths-whitelist.yaml <<X
 name: heardos/app-paths-whitelist
-description: "HeardOS: app traffic that looks like probing but isn't"
+description: "Elysium: app traffic that looks like probing but isn't"
 whitelist:
-  reason: "HeardOS app traffic"
+  reason: "Elysium app traffic"
   expression:
     - "evt.Meta.target_fqdn == 'budget.${DOMAIN}' && evt.Meta.http_path startsWith '/data/'"
 X
@@ -53,9 +53,9 @@ if [ -n "${HOME_PUBLIC_IP:-}" ]; then
 install -d /etc/crowdsec/postoverflows/s01-whitelist
 cat > /etc/crowdsec/postoverflows/s01-whitelist/heardos-home-whitelist.yaml <<X
 name: heardos/home-whitelist
-description: "HeardOS: the home connection is not banned for the family's own browsing (http behaviour scenarios only)"
+description: "Elysium: the home connection is not banned for the family's own browsing (http behaviour scenarios only)"
 whitelist:
-  reason: "HeardOS home connection"
+  reason: "Elysium home connection"
   expression:
     - "evt.Overflow.Alert.Source.IP == '${HOME_PUBLIC_IP}' && evt.Overflow.Alert.GetScenario() in ['crowdsecurity/http-crawl-non_statics', 'crowdsecurity/http-probing', 'crowdsecurity/http-sensitive-files', 'crowdsecurity/http-bad-user-agent', 'crowdsecurity/http-admin-interface-probing']"
 X

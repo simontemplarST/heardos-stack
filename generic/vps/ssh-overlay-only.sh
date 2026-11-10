@@ -35,11 +35,11 @@ ip -4 -o addr show dev nebula1 2>/dev/null | grep -q " inet $IP/" || { echo "neb
 
 if [ "$mode" = socket ]; then
   install -d /etc/systemd/system/ssh.socket.d
-  printf '# HeardOS: ssh only on the Nebula overlay (vps/ssh-overlay-only.sh)\n[Socket]\nListenStream=\nListenStream=%s:22\nFreeBind=true\n' "$IP" > "$SOCK_DROPIN"
+  printf '# Elysium: ssh only on the Nebula overlay (vps/ssh-overlay-only.sh)\n[Socket]\nListenStream=\nListenStream=%s:22\nFreeBind=true\n' "$IP" > "$SOCK_DROPIN"
 else
-  printf '# HeardOS: let sshd bind the overlay address before nebula1 is up at boot\nnet.ipv4.ip_nonlocal_bind = 1\n' > "$SYSCTL"
+  printf '# Elysium: let sshd bind the overlay address before nebula1 is up at boot\nnet.ipv4.ip_nonlocal_bind = 1\n' > "$SYSCTL"
   sysctl -q -p "$SYSCTL"
-  printf '# HeardOS: ssh only on the Nebula overlay (vps/ssh-overlay-only.sh)\nListenAddress %s:22\n' "$IP" > "$SSHD_DROPIN"
+  printf '# Elysium: ssh only on the Nebula overlay (vps/ssh-overlay-only.sh)\nListenAddress %s:22\n' "$IP" > "$SSHD_DROPIN"
   install -d /etc/systemd/system/ssh.service.d
   printf '[Unit]\nAfter=nebula.service\nWants=nebula.service\n' > "$SVC_DROPIN"
   sshd -t

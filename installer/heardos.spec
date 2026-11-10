@@ -1,5 +1,5 @@
-# PyInstaller spec: one-file HeardOS app for Windows, macOS and Linux.  Build from installer/:
-#   pip install -e .[dev] && pyinstaller heardos.spec      ->  dist/HeardOS(.exe) / dist/HeardOS.app
+# PyInstaller spec: one-file Elysium app for Windows, macOS and Linux.  Build from installer/:
+#   pip install -e .[dev] && pyinstaller heardos.spec      ->  dist/Elysium(.exe) / dist/Elysium.app
 # The kit (generic/, authentik/, ...) is bundled under kit/ and found via sys._MEIPASS (kit/locate.py).
 import re
 import sys
@@ -26,10 +26,10 @@ a = Analysis([str(HERE / "heardos_installer" / "gui_entry.py")], pathex=[str(HER
 pyz = PYZ(a.pure)
 icon = str(REPO / "brand/heardos/app-icon-512.png")
 if sys.platform == "darwin":          # macOS: a .app folder (one-file inside a .app clashes with Gatekeeper)
-    exe = EXE(pyz, a.scripts, [], exclude_binaries=True, name="HeardOS", console=False, upx=False, icon=icon)
-    coll = COLLECT(exe, a.binaries, a.datas, name="HeardOS", upx=False)
-    app = BUNDLE(coll, name="HeardOS.app", icon=icon, bundle_identifier="org.heardos.installer",
+    exe = EXE(pyz, a.scripts, [], exclude_binaries=True, name="Elysium", console=False, upx=False, icon=icon)
+    coll = COLLECT(exe, a.binaries, a.datas, name="Elysium", upx=False)
+    app = BUNDLE(coll, name="Elysium.app", icon=icon, bundle_identifier="org.heardos.installer",
                  info_plist={"NSHighResolutionCapable": True, "LSMinimumSystemVersion": "12.0"})
 else:                                 # Windows / Linux: one self-contained file
-    exe = EXE(pyz, a.scripts, a.binaries, a.datas, name="HeardOS", console=False, upx=False,
+    exe = EXE(pyz, a.scripts, a.binaries, a.datas, name="Elysium", console=False, upx=False,
               icon=icon if sys.platform == "win32" else None)
