@@ -8,7 +8,9 @@ key and certificate, address, port and interface name (`nebula1`, because the ho
   the same inbound rules (ICMP; SSH from one named host and from the `admins` group; one named host allowed to forward
   anything through the node, `local_cidr: 0.0.0.0/0`), `default_local_cidr_any: false`, `use_relays: false` and the
   socket tuning. The rendered Nebula file was diffed against the hand-written one section by section.
-- `nebula-lighthouse.yml` and `nebula.service` stay on the host, disabled, as the rollback.
+- The old `nebula` binary and unit were archived (root-only directory on the host) and removed from the system;
+  `/etc/nebula` (the old config and certificates) stays. To roll back: copy the binary and unit back, `systemctl daemon-reload`,
+  `systemctl stop ngfw-lighthouse; systemctl disable ngfw-lighthouse; systemctl enable --now nebula`.
 - Swap (a few seconds of rendezvous; established tunnels persist), run detached so the SSH session that rides the
   overlay can drop, with a dead-man's rollback timer armed first:
 

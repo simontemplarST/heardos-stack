@@ -1,5 +1,5 @@
 # DORMANT since 2026-11-12: the edge host now runs Beacon (ngfw-lighthouse) with the same certificate; see BEACON.md and
-# beacon-lighthouse.json. This file is the rollback: `systemctl stop ngfw-lighthouse; systemctl enable --now nebula`.
+# beacon-lighthouse.json. The old binary and unit are archived; this file is the config to restore them with.
 # Nebula lighthouse + relay for the example overlay (10.42.0.0/24). Installed 2026-10-11.
 pki:
   ca: /etc/nebula/ca.crt
