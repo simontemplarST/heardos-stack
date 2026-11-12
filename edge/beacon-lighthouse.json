@@ -1,0 +1,17 @@
+{
+  "network": "example",
+  "overlay_cidr": "10.42.0.0/24",
+  "listen_port": 4242,
+  "interface": "nebula1",
+  "lighthouse": true,
+  "relay": true,
+  "use_relays": false,
+  "default_local_cidr_any": false,
+  "tuning": {"read_buffer": 10485760, "write_buffer": 10485760, "batch": 64, "routines": 1, "tx_queue": 1000},
+  "firewall_groups": [
+    {"proto": "icmp"},
+    {"host": "runtipi", "proto": "tcp", "port": "22"},
+    {"group": "admins", "proto": "tcp", "port": "22"},
+    {"host": "kasm", "local_cidr": "0.0.0.0/0"}
+  ]
+}
