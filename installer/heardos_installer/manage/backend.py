@@ -303,6 +303,23 @@ class RealBackend(_Common):
                 out = out.replace(v, "***")
         return out
 
+    def _app_hosts(self, stack: str, row: dict) -> list[str]:
+        app = catalog.apps().get(stack)
+        return [h for h in ((app.hosts if app and row.get("kind") == "app" else None) or [row.get("host", "")]) if h]
+
+    def _ngfw(self, verb: str, hosts: list[str]) -> str:
+        """Publish or unpublish hostnames on the ngfw firewall (ngfw ADR 0104) when this install's edge is published by
+        one (plan NGFW_URL); '' when it is not. Runs lib/ngfw-publish.py on the host, which holds the API key."""
+        from ..steps.common import KIT_DEST
+        if not self.plan.get("NGFW_URL") or not hosts:
+            return ""
+        cmd = f"cd {KIT_DEST}/generic && python3 lib/ngfw-publish.py {verb} " + " ".join(shlex.quote(h) for h in hosts)
+        r = self._host().run(cmd, sudo=True, timeout=600)
+        if not r.ok:
+            raise ManageError(f"the firewall did not take the change ({verb} {' '.join(hosts)}): "
+                              f"{self._redact((r.stderr or r.stdout or '').strip()[-300:])}")
+        return self._redact((r.stdout or "").strip())
+
     def _steps(self, ids: set[str], label: str) -> str:
         """Run install steps (and what they depend on) to the end; raise with the first failure."""
         if self.inst.running:
@@ -402,6 +419,8 @@ class RealBackend(_Common):
         with self._lock:
             ids = ops.add_apps(self.inst, [stack])
             msg = self._steps(ids, f"Installing {r['name']}")
+            pub = self._ngfw("publish", self._app_hosts(stack, r))
+        msg = f"{msg}. {pub}" if pub else msg
         return f"{msg}. Open it at https://{r['host']}.{self.domain}" if r["host"] else msg
 
     def add_custom(self, spec: dict) -> str:
@@ -418,6 +437,8 @@ class RealBackend(_Common):
             for sid in ids:
                 self.inst.state.reset_step(sid)
             msg = self._steps(ids, f"Adding {s.title}")
+            pub = self._ngfw("publish", [s.host])
+        msg = f"{msg}. {pub}" if pub else msg
         return f"{msg}. Open it at https://{s.host}.{self.domain} (sign-in: {s.access})"
 
     def remove(self, stack: str) -> str:
@@ -448,6 +469,7 @@ class RealBackend(_Common):
             for sid in ("vps.caddy", "verify"):
                 self.inst.state.reset_step(sid)
             self._steps({"vps.caddy"}, f"Removing {r['name']}'s web address")
+            self._ngfw("unpublish", self._app_hosts(stack, r))
         return (f"{r['name']} stopped and removed; its data is kept in {self.plan.get('HEARDOS_ROOT', '/opt/heardos')}/data. "
                 f"The DNS record {r['host']}.{self.domain} still exists (harmless; delete it at your DNS host if you like)")
 

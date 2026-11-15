@@ -48,4 +48,5 @@ umask 077
 chmod 600 "$d/.env"
 deploy_stack "$name"
 msg "$name deployed: https://$host.$DOMAIN (sign-in: $access)"
+[ -z "${NGFW_URL:-}" ] || msg "publish it on the firewall: python3 $HERE/lib/ngfw-publish.py publish $host (the installer does this itself)"
 out "CUSTOM_STACK" "$name"

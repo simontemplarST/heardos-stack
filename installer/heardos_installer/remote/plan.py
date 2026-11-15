@@ -23,6 +23,8 @@ PLAN_KEYS = [
     "AUTHENTIK_API_BIND", "HA_HOST_NETWORK", "HA_DEVICE", "CHAT_HARNESS_URL", "PAPERLESS_GPT_MODEL", "BLOG_TITLE",
     # slskd: WireGuard exit on the VPS (vps/wg-egress.sh) + Soulseek account name
     "SLSKD_WG_PUBKEY", "SLSKD_WG_ADDRESS", "SLSKD_WG_ENDPOINT_IP", "SLSKD_WG_ENDPOINT_PORT", "SLSKD_SLSK_USERNAME",
+    # the edge published by an ngfw firewall instead of a Caddyfile on the VPS (ngfw ADR 0104; lib/ngfw-publish.py)
+    "NGFW_URL", "NGFW_ADDR", "NGFW_CA", "NGFW_EDGES", "NGFW_ROUTER",
 ]
 SECRET_KEYS_BY_SIDE = {
     "local": ["CF_API_TOKEN", "AUTHENTIK_TOKEN", "PORTAINER_TOKEN"],

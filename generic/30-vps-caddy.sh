@@ -2,6 +2,9 @@
 # 30-vps-caddy.sh — run ON THE LAPTOP. Installs Caddy on the VPS and (re)writes its Caddyfile from PUBLIC_HOSTS.
 # Re-run whenever PUBLIC_HOSTS changes. Certificates issue by HTTP-01 once DNS points at the VPS (32-dns.py).
 . "$(dirname "$0")/lib/common.sh"; load_env
+# An edge published by an ngfw firewall (ngfw ADR 0104) pulls its Caddyfile from the firewall every minute; a file
+# written here would be replaced at once. Publish hostnames with lib/ngfw-publish.py (on the host) instead.
+[ -z "${NGFW_URL:-}" ] || die "the edge is published by the ngfw firewall (NGFW_URL is set); use lib/ngfw-publish.py publish HOST on the host instead"
 : "${NEBULA_LH_IP:?}" "${HOST_OVERLAY:?}" "${PUBLIC_HOSTS:?}" "${ACME_EMAIL:?}"
 
 hosts=""; for h in $PUBLIC_HOSTS; do hosts="${hosts}${hosts:+, }$h.$DOMAIN"; done

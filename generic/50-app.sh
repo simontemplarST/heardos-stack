@@ -397,4 +397,8 @@ case "$app" in
   paperless-gpt) msg "next: 63-post-install.py paperless-gpt (pulls the model, adds the Paperless workflow, queues existing documents)" ;;
 esac
 if [ -f "$HEARDOS_ROOT/stacks/homepage/compose.yml" ]; then DOMAIN="$DOMAIN" HEARDOS_ROOT="$HEARDOS_ROOT" BRAND_TITLE="${BRAND_TITLE:-}" BRAND_COLOR="${BRAND_COLOR:-}" python3 "$HERE/lib/homepage-config.py" "$HEARDOS_ROOT/data/homepage"; fi
-msg "$app deployed. Public URL works once 30-vps-caddy.sh + 32-dns.py include it. Secrets: $HEARDOS_ROOT/secrets/secrets.env"
+if [ -n "${NGFW_URL:-}" ]; then
+  msg "$app deployed. Publish it on the firewall: python3 $HERE/lib/ngfw-publish.py publish <host> (the installer does this itself). Secrets: $HEARDOS_ROOT/secrets/secrets.env"
+else
+  msg "$app deployed. Public URL works once 30-vps-caddy.sh + 32-dns.py include it. Secrets: $HEARDOS_ROOT/secrets/secrets.env"
+fi

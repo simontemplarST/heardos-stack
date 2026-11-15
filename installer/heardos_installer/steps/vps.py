@@ -47,6 +47,10 @@ def _caddyfile(ctx: Ctx) -> str:
 
 
 def vps_caddy(ctx: Ctx) -> StepResult:
+    if ctx.plan.get("NGFW_URL"):
+        # the firewall renders the edge's Caddyfile and the VPS pulls it (ngfw ADR 0104); apps are published one at a
+        # time by lib/ngfw-publish.py when they are installed or removed (manage/backend.py)
+        return StepResult(True, message="the edge is published by the ngfw firewall; nothing to write on the VPS")
     if str(ctx.plan.get("CADDY_MANAGED", "1")) in ("0", "false", "False"):
         # an adopted install whose Caddyfile carries things the generator does not know (an apex site, extra redirects,
         # a custom log filter): the operator keeps it by hand; the installer must not overwrite it
