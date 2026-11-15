@@ -107,3 +107,56 @@ def test_ngfw_settings_reach_the_host_plan_file():
     text = render_plan({"DOMAIN": "example.com", "NGFW_URL": "https://fw.example", "NGFW_EDGES": ["edge1", "edge2"],
                         "NGFW_ROUTER": "apps"}, {}, "host")
     assert "NGFW_URL=https://fw.example" in text and "NGFW_EDGES='edge1 edge2'" in text and "NGFW_ROUTER=apps" in text
+
+
+# ---- stack: compose files, public hosts, stripping, and routes that live on the firewall --------------------------
+
+COMPOSE = {"services": {"mealie": {"container_name": "mealie", "networks": ["proxy"], "labels": {
+    "traefik.enable": "true",
+    "traefik.http.routers.mealie.rule": "Host(`mealie.${DOMAIN}`)",
+    "traefik.http.routers.mealie.middlewares": "xfp-https@file,authentik-fwd@file",
+    "traefik.http.routers.mealie-outpost.rule": "Host(`mealie.${DOMAIN}`) && PathPrefix(`/outpost.goauthentik.io/`)",
+    "traefik.http.routers.mealie-lan.rule": "Host(`mealie.${LAN_DOMAIN}`)",
+    "traefik.http.services.mealie.loadbalancer.server.port": "9000"}}}}
+CENV = {**ENV, "LAN_DOMAIN": "lan.example"}
+
+
+def test_compose_routers_read_like_docker():
+    routers = np.routers_from_labels(np.compose_containers([COMPOSE], CENV))
+    main = next(r for r in routers if r["name"] == "mealie@docker")
+    assert main["rule"] == "Host(`mealie.example.com`)" and main["backend"] == "http://mealie:9000"
+    assert np.public_hosts(routers, "example.com") == ["mealie.example.com"]
+
+
+def test_compose_override_and_list_labels():
+    over = {"services": {"mealie": {"labels": ["traefik.http.services.mealie.loadbalancer.server.port=9100"]}}}
+    routers = np.routers_from_labels(np.compose_containers([COMPOSE, over], CENV))
+    assert next(r for r in routers if r["name"] == "mealie@docker")["backend"] == "http://mealie:9100"
+
+
+def test_strip_keeps_lan_router_and_layout():
+    text = """services:
+  mealie:
+    labels:
+      traefik.enable: "true"
+      traefik.http.routers.mealie.rule: Host(`mealie.${DOMAIN}`)
+      traefik.http.routers.mealie.middlewares: xfp-https@file
+      traefik.http.routers.mealie-lan.rule: Host(`mealie.${LAN_DOMAIN}`)  # LAN keeps working
+      - "traefik.http.routers.mealie-outpost.rule=Host(`x`)"
+      traefik.http.services.mealie.loadbalancer.server.port: "9000"
+"""
+    new, n = np.strip_public_routers(text, {"mealie", "mealie-outpost"})
+    assert n == 3
+    assert "mealie-lan.rule" in new and "# LAN keeps working" in new and "server.port" in new and "traefik.enable" in new
+    assert "routers.mealie.rule" not in new and "mealie-outpost" not in new
+    assert np.strip_public_routers(text, set()) == (text, 0)
+
+
+def test_route_on_firewall_is_kept_without_a_local_router():
+    current = {"hostname": "mealie.example.com", "auth": "forward_auth", "route": {"router": "apps", "backend": "http://mealie:9000", "priority": 50}}
+    want, note = np.desired("mealie", ENV, [], set(), current, NO_FRAME, EXTRA)
+    assert want["route"]["backend"] == "http://mealie:9000" and want["auth"] == "forward_auth"
+    assert "lives there" in note
+    # an edge-only host stays edge-only
+    want, note = np.desired("mealie", ENV, [], set(), {"hostname": "mealie.example.com", "auth": "oidc"}, NO_FRAME, EXTRA)
+    assert "route" not in want and note.startswith("edge only")

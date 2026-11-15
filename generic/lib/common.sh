@@ -65,6 +65,12 @@ deploy_stack() {
   local name="$1" dir="$HEARDOS_ROOT/stacks/$1" file
   [ -f "$dir/compose.yml" ] || die "no compose.yml in $dir"
   if dry; then msg "[dry-run] would deploy stack $name from $dir"; return 0; fi
+  # Behind an ngfw firewall (ngfw ADR 0104) the firewall routes the public hosts: publish them from the compose files,
+  # then strip the public routers it now serves from compose.yml (LAN routers stay). On failure the stack deploys with
+  # its own routers, which keep serving it.
+  if [ -n "${NGFW_URL:-}" ]; then
+    python3 "$HERE/lib/ngfw-publish.py" stack "$dir" || warn "publishing $name on the firewall failed; deploying it with its own public routers"
+  fi
   if [ -n "${PORTAINER_TOKEN:-}" ]; then
     file="$dir/compose.yml"
     if [ -f "$dir/compose.override.yml" ]; then

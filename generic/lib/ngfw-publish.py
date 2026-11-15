@@ -4,6 +4,9 @@
   ngfw-publish.py publish HOST...    add or update each HOST (a name under DOMAIN, or @ for the apex) on the firewall
   ngfw-publish.py unpublish HOST...  remove each HOST from the firewall
   ngfw-publish.py status             what the firewall publishes and what its outside checks say
+  ngfw-publish.py stack DIR...       update the hosts of a stack (DIR/compose.yml, compose.override.yml) the firewall
+                                     already publishes and strip from DIR/compose.yml the public routers it routes;
+                                     never publishes a new host
   --dry-run (or HEARDOS_DRY_RUN=1)   print what would change, change nothing
 
 The firewall is the registry of record for public hostnames: it renders the edge's (Beacon) Caddyfile and the routes
@@ -16,6 +19,8 @@ this host's Traefik pulls. This script only describes a hostname to it:
     firewall is kept (set oidc there for an app that signs users in itself).
   * framing: the same rules as lib/caddyfile.py (NO_FRAME, EXTRA_ANCESTORS).
 Fields the firewall holds that this script does not derive (auth, app, max_body_mb, enabled) are kept as they are.
+A host with no public router here keeps the route the firewall already holds: once `stack` has stripped a stack's
+public routers, the firewall is where its route lives (the LAN routers, Host(`<host>.<LAN_DOMAIN>`), stay here).
 
 Settings (heardos.env): DOMAIN, HOST_OVERLAY, HEARDOS_ROOT, NGFW_URL (https://<a name in the firewall's management
 certificate>), NGFW_ADDR (the firewall's overlay address that name is reached at), NGFW_CA (the pinned certificate),
@@ -34,12 +39,14 @@ import socket
 import ssl
 import subprocess
 import sys
+import time
 import urllib.parse
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 OUTPOST = "/outpost.goauthentik.io/"
 FWD = "authentik-fwd"
+NO_ROUTER = "no Traefik router for it here"
 MANAGED = "managed by Elysium (ngfw-publish)"
 
 
@@ -114,6 +121,63 @@ def routers_from_labels(containers: list[dict]) -> list[dict]:
     return out
 
 
+# ---- compose files: routers before the stack runs, and stripping the ones the firewall serves --------------------
+
+_VAR = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*)(?::?-([^}]*))?\}")
+
+
+def _subst(v: str, env: dict) -> str:
+    return _VAR.sub(lambda m: env.get(m.group(1)) or (m.group(2) or ""), v)
+
+
+def _labels(spec: dict) -> dict:
+    raw = spec.get("labels") or {}
+    if isinstance(raw, list):
+        raw = dict(x.split("=", 1) if "=" in x else (x, "") for x in raw)
+    return {str(k): str(v) for k, v in raw.items()}
+
+
+def compose_containers(docs: list[dict], env: dict) -> list[dict]:
+    """The services of compose documents (later ones override earlier, like compose.override.yml) in docker-inspect
+    shape, labels substituted from env, so routers_from_labels reads them as if the stack ran."""
+    merged: dict[str, dict] = {}
+    for d in docs:
+        for name, spec in ((d or {}).get("services") or {}).items():
+            m = merged.setdefault(name, {"labels": {}, "networks": set(), "container_name": ""})
+            m["labels"].update(_labels(spec or {}))
+            nets = (spec or {}).get("networks") or []
+            m["networks"] |= set(nets if isinstance(nets, list) else nets.keys())
+            m["container_name"] = (spec or {}).get("container_name") or m["container_name"]
+    out = []
+    for name, m in merged.items():
+        out.append({"Name": "/" + (m["container_name"] or name),
+                    "Config": {"Labels": {k: _subst(v, env) for k, v in m["labels"].items()}},
+                    "NetworkSettings": {"Networks": {n: {} for n in (m["networks"] or {"default"})}}})
+    return out
+
+
+def public_hosts(routers: list[dict], domain: str) -> list[str]:
+    """The hosts under DOMAIN that routers serve as main routers (not the LAN names)."""
+    out = []
+    for r in routers:
+        h = _host_of(r["rule"])
+        if h and (h == domain or h.endswith("." + domain)) and h not in out:
+            out.append(h)
+    return out
+
+
+def strip_public_routers(text: str, names: set[str]) -> tuple[str, int]:
+    """Remove every label line of the named routers (mapping or list form), keeping the file's layout."""
+    pat = re.compile(r"traefik\.http\.routers\.(" + "|".join(re.escape(n) for n in sorted(names)) + r")\.") if names else None
+    keep, dropped = [], 0
+    for line in text.splitlines(keepends=True):
+        if pat and pat.search(line) and re.match(r"\s*(-\s*)?[\"']?traefik\.http\.routers\.", line):
+            dropped += 1
+            continue
+        keep.append(line)
+    return "".join(keep), dropped
+
+
 def routers_from_files(docs: list[dict]) -> list[dict]:
     out = []
     for d in docs:
@@ -137,7 +201,7 @@ def route_for(fq: str, routers: list[dict], traefik_nets: set[str]) -> tuple[dic
     mains = [r for r in mine if _host_of(r["rule"]) == fq]
     others = [r for r in mine if r not in mains and OUTPOST not in r["rule"]]
     if not mains:
-        return None, "", "no Traefik router for it here"
+        return None, "", NO_ROUTER
     main = mains[0]
     auth = "forward_auth" if any(m.split("@")[0] == FWD for m in main["middlewares"]) else ""
     if len(mains) > 1 or others:
@@ -172,6 +236,8 @@ def desired(host: str, env: dict, routers: list[dict], traefik_nets: set[str], c
         route["router"] = env["NGFW_ROUTER"]
         svc["route"] = route
         note = f"routed by the firewall to {route['backend']}"
+    elif why == NO_ROUTER and (current or {}).get("route"):
+        note = f"routed by the firewall to {current['route'].get('backend')} (its route lives there)"
     else:
         svc.pop("route", None)
         note = f"edge only: {why}"
@@ -236,7 +302,7 @@ def traefik_view() -> tuple[list[dict], set[str]]:
 def main(argv: list[str]) -> int:
     dry = "--dry-run" in argv or os.environ.get("HEARDOS_DRY_RUN") == "1"
     args = [a for a in argv if a != "--dry-run"]
-    if not args or args[0] not in ("publish", "unpublish", "status"):
+    if not args or args[0] not in ("publish", "unpublish", "status", "stack"):
         print(__doc__.split("\n\n")[0], file=sys.stderr)
         return 2
     env = load_env()
@@ -253,6 +319,10 @@ def main(argv: list[str]) -> int:
         for e in d.get("edges", []) + d.get("routers", []):
             print(f"{e['name']:12} {'current' if e.get('current') else 'NOT current'}  last pull {e.get('last_pull', '-')}")
         return 0
+    if cmd == "stack":
+        if not hosts:
+            sys.exit("usage: ngfw-publish.py stack DIR...")
+        return stack_cmd(fw, env, [Path(h) for h in hosts], dry)
     if not hosts:
         sys.exit(f"usage: ngfw-publish.py {cmd} HOST...")
     current = fw.services()
@@ -273,6 +343,11 @@ def main(argv: list[str]) -> int:
         return rc
     no_frame, extra = caddy_rules()
     routers, traefik_nets = traefik_view()
+    return publish_hosts(fw, env, by_host, current, routers, traefik_nets, no_frame, extra, dry)
+
+
+def publish_hosts(fw, env, by_host, current, routers, traefik_nets, no_frame, extra, dry) -> int:
+    rc = 0
     for fq, host in by_host.items():
         cur = current.get(fq)
         name = cur["name"] if cur else ("apex" if host in ("@", env["DOMAIN"]) else host)
@@ -294,6 +369,60 @@ def main(argv: list[str]) -> int:
             rc = 1
             probs = "; ".join(f"{p.get('path')}: {p.get('message')}" for p in d.get("problems", []) if p.get("severity") == "error")
             print(f"{fq}: {st} {d.get('error')} {probs}")
+    return rc
+
+
+def stack_cmd(fw, env: dict, dirs: list[Path], dry: bool) -> int:
+    """For each stack: update the hosts the firewall already publishes from the stack's compose files, then strip from
+    compose.yml the public routers of the hosts the firewall routes. It never publishes a new host: making an app
+    public stays an explicit `publish` (the installer does it on install), and a host the firewall serves edge-only
+    keeps its router here."""
+    import yaml
+    env = {**env, **{k: v for k, v in os.environ.items() if k.startswith("LAN_")}}
+    no_frame, extra = caddy_rules()
+    _, traefik_nets = traefik_view()
+    rc = 0
+    for d in dirs:
+        files = [d / "compose.yml"] + ([d / "compose.override.yml"] if (d / "compose.override.yml").exists() else [])
+        routers = routers_from_labels(compose_containers([yaml.safe_load(f.read_text()) for f in files], env))
+        hosts = public_hosts(routers, env["DOMAIN"])
+        if not hosts:
+            print(f"{d.name}: no public routers")
+            continue
+        current = fw.services()
+        for h in hosts:
+            if h not in current:
+                print(f"{d.name}: {h} is not published on the firewall; its router stays (`publish` makes it public)")
+        known = {h: (h[: -len(env["DOMAIN"]) - 1] if h != env["DOMAIN"] else "@") for h in hosts if h in current}
+        if known:
+            prc = publish_hosts(fw, env, known, current, routers, traefik_nets, no_frame, extra, dry)
+            rc |= prc
+            if prc:
+                print(f"{d.name}: not every host updated; nothing stripped (its own routers keep serving it)")
+                continue
+            if not dry:
+                current = fw.services()
+        strip = set()
+        for h in known:
+            route, _, why = route_for(h, routers, traefik_nets)
+            if not (current.get(h) or {}).get("route") or (route is None and why != NO_ROUTER):
+                print(f"{d.name}: {h} is edge-only on the firewall; its router stays")
+                continue
+            for r in routers:
+                if h in _hosts_in(r["rule"]):        # the main router and its outpost router
+                    strip.add(r["name"].split("@")[0])
+        text = files[0].read_text()
+        new, dropped = strip_public_routers(text, strip)
+        if not dropped:
+            print(f"{d.name}: nothing to strip")
+            continue
+        if dry:
+            print(f"{d.name}: would strip {dropped} label lines of {', '.join(sorted(strip))}")
+            continue
+        backup = files[0].with_name(f"compose.yml.bak-ngfw-{time.strftime('%Y%m%d%H%M%S')}")
+        backup.write_text(text)
+        files[0].write_text(new)
+        print(f"{d.name}: stripped {dropped} label lines of {', '.join(sorted(strip))} (the firewall routes them)")
     return rc
 
 
