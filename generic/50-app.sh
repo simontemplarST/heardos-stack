@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
-# 50-app.sh — run ON THE HOST as root:  50-app.sh <app>   (see --list: paperless mealie homeassistant homebox baikal navidrome onlyoffice nextcloud immich vaultwarden wallos actual invidious homepage calibre-web librespeed dash hortusfox archivebox listmonk paperless-gpt kiwix searxng cronmaster bitmagnet nicotine opencloud blog open-webui)
+# 50-app.sh — run ON THE HOST as root:  50-app.sh <app>   (see --list: paperless mealie homeassistant homebox baikal navidrome onlyoffice nextcloud immich vaultwarden wallos actual invidious homepage calibre-web librespeed dash hortusfox archivebox listmonk paperless-gpt kiwix searxng cronmaster bitmagnet nicotine opencloud blog open-webui tv-remote)
 # One command per app: registers it in Authentik (via 42-ak-app.py, using AUTHENTIK_TOKEN from the plan file),
 # generates its secrets, renders its stack .env, creates data dirs, deploys, and runs the app's post-install.
-# Public DNS and the Caddy host list are laptop-side: run 30-vps-caddy.sh and 32-dns.py once PUBLIC_HOSTS is final.
+# Public hosts: behind an ngfw firewall (NGFW_URL) the app's catalogue hosts are published on it here (publish_stack);
+# otherwise DNS and the Caddy host list are laptop-side: run 30-vps-caddy.sh and 32-dns.py once PUBLIC_HOSTS is final.
 . "$(dirname "$0")/lib/common.sh"
 if [ "${1:-}" = "--list" ]; then   # apps this kit can install (from catalog.json), one per line: stack<TAB>name<TAB>depends_on
   python3 -c 'import json,sys,os; c=json.load(open(sys.argv[1])); [print(a["stack"]+"\t"+a["name"]+"\t"+",".join(a.get("depends_on",[]))) for a in c["apps"] if not a.get("core") and os.path.isdir(os.path.join(sys.argv[2],a["stack"]))]' "$HERE/catalog.json" "$HERE/stacks"; exit 0
@@ -329,10 +330,20 @@ PY
     install -d "$HEARDOS_ROOT/data/ollama" "$HEARDOS_ROOT/data/paperless-gpt/prompts"
     dry || python3 "$HERE/63-post-install.py" paperless-gpt-token >/dev/null || die "paperless-gpt needs Paperless running (50-app.sh paperless)"
     { base_env; printf 'PAPERLESS_GPT_TOKEN=%s\nPAPERLESS_GPT_MODEL=%s\nOLLAMA_CPUS=%s\n' "$(have PAPERLESS_GPT_TOKEN)" "${PAPERLESS_GPT_MODEL:-llama3.2:3b}" "${OLLAMA_CPUS:-6}"; } > "$d/.env" ;;
+  tv-remote)
+    proxy tv-remote --name "TV Remote" --host "https://tv.$DOMAIN" --users all
+    if dry; then msg "[dry-run] would build heardos-tv-remote:local from apps/tv-remote"
+    else msg "building the tv-remote image"; docker build -q -t heardos-tv-remote:local "$HERE/../apps/tv-remote" >/dev/null; fi
+    # HA_TV_REMOTE_TOKEN (secrets.env): long-lived token of a NON-admin HA user; TV_DEVICES (plan file): the remotes it drives
+    { base_env
+      printf 'HA_URL=%s\nHA_TOKEN=%s\nTV_DEVICES=%s\n' "${HA_URL:-http://$HOST_LAN_IP:8123}" "$(have HA_TV_REMOTE_TOKEN)" "${TV_DEVICES:-}"; } > "$d/.env"
+    ;;
   *) die "unknown app $app" ;;
 esac
 chmod 600 "$d/.env"
 deploy_stack "$app"
+# its catalogue hosts become public on the firewall (no-op without NGFW_URL; then 30-vps-caddy.sh + 32-dns.py do it)
+publish_stack "$app" $(python3 -c 'import json,sys; print(" ".join(next((a.get("hosts") or []) for a in json.load(open(sys.argv[1]))["apps"] if a["stack"] == sys.argv[2])))' "$HERE/catalog.json" "$app")
 case "$app" in
   immich)
     msg "waiting for Immich"; wait_http "http://127.0.0.1:2283/api/server/ping" 600
@@ -395,10 +406,14 @@ case "$app" in
     msg "OpenCloud: https://docs.$DOMAIN (Authentik login). Apps: OpenCloud desktop/iOS/Android, server https://docs.$DOMAIN. The first scan of the shared spaces checksums every file (large music libraries take a while)." ;;
   searxng) msg "set https://search.$DOMAIN as the browser's search engine (URL: https://search.$DOMAIN/search?q=%s)" ;;
   paperless-gpt) msg "next: 63-post-install.py paperless-gpt (pulls the model, adds the Paperless workflow, queues existing documents)" ;;
+  tv-remote)
+    [ -n "$(have HA_TV_REMOTE_TOKEN)" ] || warn "HA_TV_REMOTE_TOKEN is not in secrets.env: add a long-lived token of a non-admin Home Assistant user, then 50-app.sh tv-remote again"
+    [ -n "${TV_DEVICES:-}" ] || warn "TV_DEVICES is empty in the plan file (entity=kind=Name;..., e.g. remote.living_room=apple_tv=Apple TV): the page will list no TVs"
+    msg "TV Remote: https://tv.$DOMAIN (Authentik login) for the remotes in TV_DEVICES." ;;
 esac
 if [ -f "$HEARDOS_ROOT/stacks/homepage/compose.yml" ]; then DOMAIN="$DOMAIN" HEARDOS_ROOT="$HEARDOS_ROOT" BRAND_TITLE="${BRAND_TITLE:-}" BRAND_COLOR="${BRAND_COLOR:-}" python3 "$HERE/lib/homepage-config.py" "$HEARDOS_ROOT/data/homepage"; fi
 if [ -n "${NGFW_URL:-}" ]; then
-  msg "$app deployed; deploy_stack published its public hosts on the firewall, which routes them (python3 $HERE/lib/ngfw-publish.py status). Secrets: $HEARDOS_ROOT/secrets/secrets.env"
+  msg "$app deployed; its public hosts are published on the firewall, which routes them (python3 $HERE/lib/ngfw-publish.py status). Secrets: $HEARDOS_ROOT/secrets/secrets.env"
 else
   msg "$app deployed. Public URL works once 30-vps-caddy.sh + 32-dns.py include it. Secrets: $HEARDOS_ROOT/secrets/secrets.env"
 fi

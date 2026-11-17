@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="robots" content="noindex,nofollow">
+<title>TV Remote</title>
+<meta name="theme-color" content="#1f2023">
+<link rel="icon" href="https://cloud.example.com/brand/favicon-64.png">
+<link rel="apple-touch-icon" href="https://cloud.example.com/brand/favicon-64.png">
+<style>
+/* Hearth Crest palette (same tokens as Authentik and the hub) */
+:root {
+  --bg: #1f2023;
+  --card: #26272b;
+  --text: #ececec;
+  --muted: #a3a3aa;
+  --accent: #f2a35e;
+  --accent-ink: #1f2023;
+  --red: #e05555;
+  --green: #5bcd7b;
+  --border: #3a3b40;
+  --pad: #2e2f34;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; }
+body {
+  font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-height: 100dvh;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-user-select: none;
+  user-select: none;
+}
+header {
+  width: 100%; max-width: 420px;
+  padding: 16px 20px 8px;
+  display: flex; align-items: center; gap: 10px;
+}
+h1 { font-size: 1.3em; font-weight: 600; flex: 1; color: var(--accent); letter-spacing: .02em; }
+header { border-bottom: 4px solid var(--accent); margin-bottom: 8px; padding-bottom: 12px !important; }
+#device-picker:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+#device-picker {
+  background: var(--card); color: var(--text); border: 1px solid var(--border);
+  font-size: 0.9em; padding: 6px 10px; border-radius: 8px;
+  outline: none; min-width: 0;
+}
+main {
+  flex: 1; width: 100%; max-width: 420px;
+  padding: 8px 20px 20px;
+  display: flex; flex-direction: column; gap: 16px;
+}
+.hidden { display: none !important; }
+
+/* device info bar */
+#info-bar {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 0.85em; color: var(--muted);
+}
+#info-bar .dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+#info-bar .dot.off { background: var(--muted); }
+#info-bar .dot.on { background: var(--green); }
+#info-bar .dot.playing { background: var(--accent); animation: pulse 1.2s ease-in-out infinite; }
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+
+/* d-pad */
+#dpad {
+  display: grid;
+  grid-template: " . up .  " 1fr
+                 "lt .  rt " 1fr
+                 " . dn .  " 1fr
+                 / 1fr 1fr 1fr;
+  aspect-ratio: 1;
+  max-width: 280px;
+  margin: 0 auto;
+  gap: 8px;
+}
+#dpad button {
+  border: none; background: var(--pad); color: var(--text);
+  font-size: 1.6em; border-radius: 12px;
+  cursor: pointer; display: flex; align-items: center; justify-content: center;
+  transition: background 0.1s;
+  -webkit-tap-highlight-color: transparent;
+}
+#dpad button:active, #dpad button.pressed { background: var(--accent); color: var(--accent-ink); }
+#dpad button:disabled { opacity: 0.3; pointer-events: none; }
+#btn-up { grid-area: up; }
+#btn-left { grid-area: lt; }
+#btn-right { grid-area: rt; }
+#btn-down { grid-area: dn; }
+
+/* center button */
+#btn-center {
+  grid-area: 2 / 2 / 3 / 3;
+  place-self: center;
+  width: 56px; height: 56px;
+  border-radius: 50% !important;
+  font-size: 0.9em !important;
+  background: var(--border) !important;
+}
+#btn-center:active { background: var(--accent) !important; color: var(--accent-ink); }
+
+/* media row */
+#media-row {
+  display: flex; justify-content: center; gap: 12px;
+}
+#media-row button {
+  border: 1px solid var(--border); background: var(--card); color: var(--text);
+  width: 48px; height: 48px; border-radius: 50%;
+  font-size: 1.2em; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: background 0.1s;
+}
+#media-row button:active { background: var(--accent); color: var(--accent-ink); }
+#media-row button:disabled { opacity: 0.3; pointer-events: none; }
+
+/* extra row */
+#extra-row {
+  display: flex; flex-wrap: wrap; justify-content: center; gap: 10px;
+}
+#extra-row button {
+  border: 1px solid var(--border); background: var(--card); color: var(--text);
+  padding: 8px 14px; border-radius: 20px;
+  font-size: 0.85em; cursor: pointer;
+  transition: background 0.1s;
+}
+#extra-row button:active { background: var(--accent); color: var(--accent-ink); }
+#extra-row button:disabled { opacity: 0.3; pointer-events: none; }
+
+/* empty state */
+#empty { text-align: center; color: var(--muted); padding: 40px 0; font-size: 0.95em; }
+</style>
+</head>
+<body>
+<header>
+  <h1>TV Remote</h1>
+  <select id="device-picker"><option value="">Pick a TV…</option></select>
+</header>
+<main>
+  <div id="empty">Loading devices…</div>
+  <div id="info-bar" class="hidden"><span class="dot off" id="status-dot"></span><span id="status-text"></span></div>
+  <div id="dpad" class="hidden">
+    <button id="btn-up"    aria-label="Up">▲</button>
+    <button id="btn-left"  aria-label="Left">◀</button>
+    <button id="btn-center" aria-label="Select">OK</button>
+    <button id="btn-right" aria-label="Right">▶</button>
+    <button id="btn-down"  aria-label="Down">▼</button>
+  </div>
+  <div id="media-row" class="hidden">
+    <button id="btn-prev" aria-label="Previous">⏮</button>
+    <button id="btn-play" aria-label="Play/Pause">⏯</button>
+    <button id="btn-next" aria-label="Next">⏭</button>
+  </div>
+  <div id="extra-row" class="hidden">
+    <button id="btn-back"  aria-label="Back">← Back</button>
+    <button id="btn-home"  aria-label="Home">Home</button>
+    <button id="btn-menu"  aria-label="Menu">☰ Menu</button>
+    <button id="btn-vold"  aria-label="Volume down">Vol −</button>
+    <button id="btn-volu"  aria-label="Volume up">Vol +</button>
+    <button id="btn-power" aria-label="Power">⏻ Power</button>
+  </div>
+</main>
+
+<script>
+const $ = id => document.getElementById(id);
+const picker = $('device-picker'), empty = $('empty'), status = $('status-text');
+const panels = ['dpad', 'media-row', 'extra-row', 'info-bar'].map($);
+let current = null;
+const byId = {};
+
+async function api(path, opts) {
+  const r = await fetch(path, opts);
+  if (!r.ok) throw new Error((await r.json().catch(() => ({}))).detail || r.statusText);
+  return r.json();
+}
+
+function setPanels(show) { panels.forEach(p => p.classList.toggle('hidden', !show)); }
+
+async function load() {
+  try {
+    const devs = await api('/api/devices');
+    for (const d of devs) {
+      byId[d.entity_id] = d;
+      const o = document.createElement('option');
+      o.value = d.entity_id;
+      o.textContent = (d.kind === 'apple_tv' ? 'Apple TV: ' : 'Android TV: ') + d.name;
+      picker.appendChild(o);
+    }
+    empty.textContent = devs.length ? 'Pick a TV above.' : 'No TVs found. Add them in Home Assistant (Apple TV and Android TV Remote integrations).';
+    if (devs.length === 1) { picker.value = devs[0].entity_id; picker.dispatchEvent(new Event('change')); }
+  } catch (e) {
+    empty.textContent = 'Could not load TVs: ' + e.message;
+  }
+}
+
+picker.addEventListener('change', () => {
+  current = picker.value || null;
+  setPanels(!!current);
+  empty.classList.toggle('hidden', !!current);
+  const st = current ? byId[current].state : '';
+  $('status-dot').className = 'dot ' + (st === 'on' ? 'on' : 'off');
+  status.textContent = st === 'on' ? 'Ready' : 'TV is ' + (st || 'unknown') + ' (Power turns it on)';
+});
+
+async function cmd(command, repeats = 1) {
+  if (!current) return;
+  try {
+    await api(`/api/devices/${encodeURIComponent(current)}/${command}`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ repeats }),
+    });
+    status.textContent = 'Sent ' + command;
+  } catch (e) {
+    status.textContent = 'Error: ' + e.message;
+  }
+}
+
+function bind(id, command) {
+  $(id).addEventListener('pointerdown', e => { e.preventDefault(); cmd(command); });
+}
+const buttons = {
+  'btn-up': 'up', 'btn-down': 'down', 'btn-left': 'left', 'btn-right': 'right', 'btn-center': 'select',
+  'btn-prev': 'previous', 'btn-next': 'next', 'btn-play': 'play_pause',
+  'btn-back': 'back', 'btn-home': 'home', 'btn-menu': 'menu',
+  'btn-vold': 'volume_down', 'btn-volu': 'volume_up', 'btn-power': 'power',
+};
+for (const [id, command] of Object.entries(buttons)) bind(id, command);
+
+document.addEventListener('keydown', e => {
+  const keys = { ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowRight: 'right', Enter: 'select', Escape: 'back' };
+  if (keys[e.key] && current && document.activeElement !== picker) { e.preventDefault(); cmd(keys[e.key]); }
+});
+
+load();
+</script>
+</body>
+</html>

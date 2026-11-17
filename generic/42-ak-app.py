@@ -5,9 +5,13 @@
   user  add USERNAME --email E --name N [--password-stdin] [--admin]   create a family member (--admin: authentik Admins
                                                             + flow-mfa-required). Password: $HEARDOS_PASSWORD_FILE or
                                                             stdin; else generated and handed back (file / HEARDOS_OUTPUT)
-  user  access USERNAME SLUG[,SLUG...]                      add them to those apps' groups
+  user  access USER[,USER...] APP[,APP...]                 let them open those apps; APP = slug or display name. The
+  user  revoke USER[,USER...] APP[,APP...]                 group that gates the app is read from its bindings (several
+                                                            apps may share one, e.g. opencloud-ios -> app-opencloud);
+                                                            apps gated per user get a user binding. Checked afterwards
+                                                            with Authentik's access check; exit 1 if the result differs.
+                                                            --dry-run: show the app, its gate and current access only.
   user  list | join/leave USERNAME GROUP[,..] | welcome USERNAME | suspend/resume USERNAME
-  user  revoke USERNAME SLUG[,SLUG...]
   token rotate [--days 90] [--write-env] [--keep-old]       new API token for the `heardos-automation` service account
   token revoke-bootstrap | status                           delete akadmin's authentik-bootstrap-token / show expiry
 oidc appends CLIENT_ID/CLIENT_SECRET to --out as AUTHENTIK_<SLUG>_CLIENT_ID/SECRET (without --out: HEARDOS_OUTPUT lines);
@@ -36,6 +40,54 @@ def ensure_app(slug, name, provider_pk, launch, users):
     g = ak.ensure_group(f"app-{slug}", users, f"Access to application '{name}'. Membership = access.")
     ak.ensure_binding(app["pk"], group=g["pk"])
     return app, g
+
+def find_app(ref):
+    """Application by slug, else by display name (case-insensitive), else by the group app-<ref>."""
+    apps = ak.results("/core/applications/?superuser_full_list=true")
+    hit = [x for x in apps if x["slug"] == ref] or [x for x in apps if x["name"].casefold() == ref.casefold()]
+    if not hit:
+        g = ak.group(ref) or ak.group(f"app-{ref}")
+        if g: hit = [x for x in apps if any(b.get("group") == g["pk"] for b in ak.results(f"/policies/bindings/?target={x['pk']}"))]
+    if len(hit) != 1:
+        sys.exit(f"no application {ref!r}" if not hit else f"{ref!r} matches several applications: {', '.join(x['slug'] for x in hit)}")
+    return hit[0]
+
+def app_gate(ref):
+    """(application, gate): gate = the group bound to the app, "user" when it is gated by user/policy bindings only,
+    or None when nothing is bound (everyone who can sign in may open it)."""
+    app = find_app(ref)
+    binds = [b for b in ak.results(f"/policies/bindings/?target={app['pk']}") if b.get("enabled", True)]
+    groups = [b["group"] for b in binds if b.get("group")]
+    if not binds: return app, None
+    if not groups: return app, "user"
+    if len(set(groups)) > 1:
+        named = [g for g in (ak.get(f"/core/groups/{pk}/") for pk in set(groups)) if g["name"] == f"app-{app['slug']}"]
+        if len(named) != 1: sys.exit(f"{app['slug']} is gated by several groups; use `user join` with the group you mean")
+        return app, named[0]
+    return app, ak.get(f"/core/groups/{groups[0]}/")
+
+def set_access(app, gate, u, grant, dry_run=False):
+    """Grant or revoke one user's access to one app, then confirm with Authentik's own check. Returns 0 ok / 1 mismatch."""
+    who, what = u["username"], f"{app['name']} ({app['slug']})"
+    if dry_run:
+        now = ak.get(f"/core/applications/{app['slug']}/check_access/?for_user={u['pk']}").get("passing")
+        how = "no access rule (everyone)" if gate is None else "user bindings" if gate == "user" else f"group {gate['name']}"
+        print(f"[dry run] {what}: gated by {how}; {who} {'can' if now else 'cannot'} open it now; would {'grant' if grant else 'revoke'}"); return 0
+    if gate is None:
+        print(f"{what} has no access rule: every signed-in user can open it; nothing to change"); return 0
+    if gate == "user":
+        if grant: ak.ensure_binding(app["pk"], user=u["pk"])
+        else:
+            for b in ak.results(f"/policies/bindings/?target={app['pk']}"):
+                if b.get("user") == u["pk"]: ak.delete(f"/policies/bindings/{b['pk']}/")
+        how = "user binding"
+    else:
+        ak.post(f"/core/groups/{gate['pk']}/{'add_user' if grant else 'remove_user'}/", {"pk": u["pk"]}); how = f"group {gate['name']}"
+    ok = ak.get(f"/core/applications/{app['slug']}/check_access/?for_user={u['pk']}").get("passing")
+    if ok == grant:
+        print(f"{who} {'can now open' if grant else 'can no longer open'} {what} via {how}"); return 0
+    print(f"WARNING: {who} {'still cannot' if grant else 'can still'} open {what} after changing {how}"
+          + ("" if grant else " (another binding or group grants it)")); return 1
 
 def cmd_oidc(a):
     mappings = [m["pk"] for m in ak.results("/propertymappings/all/") if m["name"] in ("authentik default OAuth Mapping: OpenID 'openid'", "authentik default OAuth Mapping: OpenID 'profile'", "heardos-email-verified", "Elysium email (verified)")]
@@ -134,11 +186,13 @@ def cmd_user(a):
         u = ak.user(a.username) or sys.exit(f"no such user {a.username}")
         ak.patch(f"/core/users/{u['pk']}/", {"is_active": a.action == "resume"}); print(f"{a.username} {a.action}d")
     else:
-        u = ak.user(a.username) or sys.exit(f"no such user {a.username}")
-        for slug in a.slugs.split(","):
-            g = ak.group(f"app-{slug.strip()}") or sys.exit(f"no group app-{slug}")
-            if a.action == "access": ak.post(f"/core/groups/{g['pk']}/add_user/", {"pk": u["pk"]}); print(f"{a.username} -> {g['name']}")
-            else: ak.post(f"/core/groups/{g['pk']}/remove_user/", {"pk": u["pk"]}); print(f"{a.username} removed from {g['name']}")
+        if not a.slugs: sys.exit(f"usage: user {a.action} USER[,USER...] APP[,APP...]")
+        users = [ak.user(n.strip()) or sys.exit(f"no such user {n.strip()}") for n in a.username.split(",")]
+        bad = 0
+        for ref in a.slugs.split(","):
+            app, gate = app_gate(ref.strip())
+            for u in users: bad += set_access(app, gate, u, a.action == "access", a.dry_run)
+        if bad: sys.exit(1)
 
 AUTO = "heardos-automation"   # service account + group used by every kit script instead of akadmin's bootstrap token
 
@@ -188,6 +242,6 @@ def cmd_token(a):
 p = argparse.ArgumentParser(); sub = p.add_subparsers(dest="cmd", required=True)
 o = sub.add_parser("oidc"); o.add_argument("slug"); o.add_argument("--name"); o.add_argument("--launch"); o.add_argument("--redirect", action="append", required=True); o.add_argument("--users"); o.add_argument("--out"); o.add_argument("--public", action="store_true", help="public PKCE client (needed when a native app does the code exchange itself, e.g. Swift Paperless); the web app may still send its secret"); o.set_defaults(f=cmd_oidc)
 x = sub.add_parser("proxy"); x.add_argument("slug"); x.add_argument("--name"); x.add_argument("--host", required=True); x.add_argument("--skip", action="append"); x.add_argument("--launch"); x.add_argument("--users"); x.add_argument("--header-auth", action="store_true", help="let the outpost authenticate Authorization: Basic headers (app passwords) for native clients"); x.set_defaults(f=cmd_proxy)
-u = sub.add_parser("user"); u.add_argument("action", choices=["add", "access", "revoke", "list", "join", "leave", "welcome", "suspend", "resume"]); u.add_argument("username", nargs="?", default=""); u.add_argument("slugs", nargs="?"); u.add_argument("--email"); u.add_argument("--name"); u.add_argument("--password", help=argparse.SUPPRESS); u.add_argument("--password-stdin", action="store_true"); u.add_argument("--admin", action="store_true"); u.set_defaults(f=cmd_user)
+u = sub.add_parser("user"); u.add_argument("action", choices=["add", "access", "revoke", "list", "join", "leave", "welcome", "suspend", "resume"]); u.add_argument("username", nargs="?", default=""); u.add_argument("slugs", nargs="?"); u.add_argument("--email"); u.add_argument("--name"); u.add_argument("--password", help=argparse.SUPPRESS); u.add_argument("--password-stdin", action="store_true"); u.add_argument("--admin", action="store_true"); u.add_argument("--dry-run", action="store_true", help="access/revoke: report only"); u.set_defaults(f=cmd_user)
 t = sub.add_parser("token"); t.add_argument("action", choices=["rotate", "revoke-bootstrap", "status"]); t.add_argument("--days", type=int, default=90); t.add_argument("--write-env", action="store_true", help="also replace AUTHENTIK_TOKEN in the plan file ($HEARDOS_ENV)"); t.add_argument("--keep-old", action="store_true"); t.set_defaults(f=cmd_token)
 a = p.parse_args(); a.f(a)

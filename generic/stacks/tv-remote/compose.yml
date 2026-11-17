@@ -1,0 +1,35 @@
+# TV Remote — one phone page for the household's Apple TVs and Android TVs, driven through Home Assistant (apps/tv-remote).
+# It only sends a fixed set of remote commands to the remote.* entities in TV_DEVICES, with a NON-admin HA token.
+# No login of its own, so there is deliberately no LAN router: every request comes through the Authentik gate.
+# Public host tv.DOMAIN: 50-app.sh publishes it on the ngfw firewall (publish_stack), which then routes it; the routers
+# below only serve until then and are stripped from this file by deploy_stack (lib/ngfw-publish.py stack).
+services:
+  tv-remote:
+    image: heardos-tv-remote:local
+    container_name: tv-remote
+    restart: unless-stopped
+    read_only: true
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+    tmpfs: [/tmp]
+    environment:
+      TZ: "${TZ}"
+      HA_URL: "${HA_URL}"            # Home Assistant runs with host networking: http://HOST_LAN_IP:8123
+      HA_TOKEN: "${HA_TOKEN}"
+      TV_DEVICES: "${TV_DEVICES}"    # entity=kind=Name;... (kind apple_tv or android_tv), see apps/tv-remote/server.py
+    networks: [proxy]
+    labels:
+      traefik.enable: "true"
+      traefik.docker.network: proxy
+      traefik.http.routers.tv-remote-outpost.rule: Host(`tv.${DOMAIN}`) && PathPrefix(`/outpost.goauthentik.io/`)
+      traefik.http.routers.tv-remote-outpost.entrypoints: web
+      traefik.http.routers.tv-remote-outpost.priority: "100"
+      traefik.http.routers.tv-remote-outpost.service: authentik-outpost@file
+      traefik.http.routers.tv-remote-outpost.middlewares: xfp-https@file
+      traefik.http.routers.tv-remote.rule: Host(`tv.${DOMAIN}`)
+      traefik.http.routers.tv-remote.entrypoints: web
+      traefik.http.routers.tv-remote.middlewares: xfp-https@file,authentik-fwd@file
+      traefik.http.routers.tv-remote.service: tv-remote
+      traefik.http.services.tv-remote.loadbalancer.server.port: "8000"
+networks:
+  proxy: {external: true}

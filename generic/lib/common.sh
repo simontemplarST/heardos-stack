@@ -85,6 +85,21 @@ deploy_stack() {
   fi
 }
 
+# publish_stack NAME HOST... — make HOSTs public on the ngfw firewall (ngfw ADR 0104) and hand their routes to it.
+# deploy_stack only updates hosts the firewall already publishes, so a new app's hosts are published here, after the
+# first deploy_stack: ngfw-publish.py reads the routes from the running containers' labels. The second deploy_stack then
+# strips the public routers the firewall now routes (LAN routers stay). No-op without NGFW_URL (edge = VPS Caddyfile).
+publish_stack() {
+  local name="$1"; shift
+  [ -n "${NGFW_URL:-}" ] && [ "$#" -gt 0 ] || return 0
+  if dry; then python3 "$HERE/lib/ngfw-publish.py" publish --dry-run "$@" || true; return 0; fi
+  if ! python3 "$HERE/lib/ngfw-publish.py" publish "$@"; then
+    warn "publishing $* on the firewall failed; $name keeps its own public routers (retry: python3 $HERE/lib/ngfw-publish.py publish $*, then deploy again)"
+    return 0
+  fi
+  deploy_stack "$name"
+}
+
 wait_http() { # wait_http URL [seconds] — until URL answers any HTTP status; 1 when it never did within the time
   local url="$1" t="${2:-120}" i=0
   # an explicit return: a function's status is that of its last command, and the loop body's "[ ] && return 1" leaves

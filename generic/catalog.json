@@ -545,6 +545,18 @@
    "depends_on": [
     "paperless-gpt"
    ]
+  },
+  {
+   "stack": "tv-remote",
+   "slug": "tv-remote",
+   "name": "TV Remote",
+   "blurb": "Apple TV and Android TV remote controls via Home Assistant. Behind Authentik.",
+   "hosts": [
+    "tv"
+   ],
+   "profiles": [
+    "everything"
+   ]
   }
  ]
 }

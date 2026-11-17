@@ -47,6 +47,7 @@ umask 077
   done; } > "$d/.env"
 chmod 600 "$d/.env"
 deploy_stack "$name"
+publish_stack "$name" "$host"   # no-op without NGFW_URL
 msg "$name deployed: https://$host.$DOMAIN (sign-in: $access)"
-[ -z "${NGFW_URL:-}" ] || msg "deploy_stack published $host on the firewall, which routes it (python3 $HERE/lib/ngfw-publish.py status)"
+[ -z "${NGFW_URL:-}" ] || msg "$host is published on the firewall, which routes it (python3 $HERE/lib/ngfw-publish.py status)"
 out "CUSTOM_STACK" "$name"
