@@ -95,6 +95,28 @@ def test_lan_router_does_not_count_as_a_public_one():
     assert {r["name"] for r in mine} == {"music@docker", "music-outpost@docker"}
 
 
+def test_explicit_backend_and_auth_win_over_labels():
+    # a hand-built stack with no public router: --backend routes it, --auth sets the gate
+    svc, note = np.desired("tv", ENV, routers(), {"proxy"}, None, NO_FRAME, EXTRA,
+                           {"backend": "http://tv-remote:8000", "auth": "forward_auth"})
+    assert svc["route"]["backend"] == "http://tv-remote:8000" and svc["route"]["priority"] == 50
+    assert svc["auth"] == "forward_auth" and "routed by the firewall" in note
+    svc, _ = np.desired("music", ENV, routers(), {"proxy"}, {"auth": "forward_auth"}, NO_FRAME, EXTRA, {"auth": "oidc"})
+    assert svc["auth"] == "oidc"
+
+
+def test_override_needs_publish_and_one_host(capsys):
+    import pytest
+    # refused before any setting is read, so no plan file or firewall is needed
+    for argv in (["unpublish", "a", "--auth", "none"], ["publish", "a", "b", "--backend", "http://x:1"]):
+        with pytest.raises(SystemExit, match="exactly one HOST"):
+            np.main(argv)
+    with pytest.raises(SystemExit, match="--backend must"):
+        np.main(["publish", "a", "--backend", "http://x:1; rm -rf /"])
+    with pytest.raises(SystemExit, match="--auth must"):
+        np.main(["publish", "a", "--auth", "basic"])
+
+
 def test_vps_caddy_writes_nothing_when_a_firewall_publishes_the_edge():
     from types import SimpleNamespace
     from heardos_installer.steps.vps import vps_caddy

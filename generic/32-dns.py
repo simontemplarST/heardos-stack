@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """32-dns.py — upsert unproxied A records for every PUBLIC_HOST at the VPS IP (Cloudflare API).
-usage: 32-dns.py [--apply]                         (reads heardos.env next to this script, or $HEARDOS_ENV)
+usage: 32-dns.py [--apply] [HOST...]              (reads heardos.env next to this script, or $HEARDOS_ENV)
+                                                   HOSTs: only these names (default: every PUBLIC_HOST)
        32-dns.py --delete NAME [TYPE [CONTENT]] [--apply]   remove <NAME>.<DOMAIN> records of TYPE (default A),
                                                    only those whose content is CONTENT when given
 Without --apply it only prints the plan. Every record is printed as JSON before it is deleted (keep the output: it is
@@ -61,7 +62,10 @@ if args and args[0] == "--delete":
     sys.exit(0)
 
 pending = False
-for h in env["PUBLIC_HOSTS"].split():
+hosts = args or env.get("PUBLIC_HOSTS", "").split()
+bad = [h for h in hosts if not re.fullmatch(r"[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?", h)]
+if bad: raise SystemExit(f"not a plain name under {DOMAIN}: {' '.join(bad)}")
+for h in hosts:
     name = f"{h}.{DOMAIN}"; cur = [r for r in recs if r["name"] == name]
     if [r for r in cur if r["type"] == "A" and r["content"] == IP and not r["proxied"]]:
         print(f"ok      {name} -> {IP}"); continue

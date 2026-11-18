@@ -2,6 +2,9 @@
 """ngfw-publish.py: publish Elysium hostnames through the ngfw firewall (ngfw ADR 0104). Runs ON the app host.
 
   ngfw-publish.py publish HOST...    add or update each HOST (a name under DOMAIN, or @ for the apex) on the firewall
+      [--backend URL] [--auth MODE]  explicit route (http://<container>:<port>, reached by this host's Traefik) and/or
+                                     sign-in (forward_auth, oidc, none) instead of what the labels say: for a stack
+                                     without public routers in its labels
   ngfw-publish.py unpublish HOST...  remove each HOST from the firewall
   ngfw-publish.py status             what the firewall publishes and what its outside checks say
   ngfw-publish.py stack DIR...       update the hosts of a stack (DIR/compose.yml, compose.override.yml) the firewall
@@ -215,11 +218,16 @@ def route_for(fq: str, routers: list[dict], traefik_nets: set[str]) -> tuple[dic
     return {"router": "", "backend": main["backend"], "priority": 50}, auth, ""
 
 
-def desired(host: str, env: dict, routers: list[dict], traefik_nets: set[str], current: dict | None, no_frame, extra) -> tuple[dict, str]:
-    """The service the firewall should hold for host, and a note on how it is routed."""
+def desired(host: str, env: dict, routers: list[dict], traefik_nets: set[str], current: dict | None, no_frame, extra,
+            override: dict | None = None) -> tuple[dict, str]:
+    """The service the firewall should hold for host, and a note on how it is routed. override: {backend, auth} given
+    on the command line win over what the labels say."""
     domain = env["DOMAIN"]
     fq = fqdn(host, domain)
     route, auth, why = route_for(fq, routers, traefik_nets)
+    override = override or {}
+    if override.get("backend"):
+        route, why = {"router": "", "backend": override["backend"], "priority": 50}, ""
     svc = dict(current or {})
     svc.pop("name", None)
     svc.update({"hostname": fq, "upstream": f"{env['HOST_OVERLAY']}:80", "edges": env["NGFW_EDGES"].split()})
@@ -228,7 +236,9 @@ def desired(host: str, env: dict, routers: list[dict], traefik_nets: set[str], c
         svc["frame_ancestors"] = fa
     else:
         svc.pop("frame_ancestors", None)
-    if not svc.get("auth"):
+    if override.get("auth"):
+        svc["auth"] = override["auth"]
+    elif not svc.get("auth"):
         svc["auth"] = auth or "none"
     elif auth == "forward_auth" and svc["auth"] != "forward_auth":
         svc["auth"] = "forward_auth"      # the router gates it: say so, or the firewall would route around the gate
@@ -301,10 +311,21 @@ def traefik_view() -> tuple[list[dict], set[str]]:
 
 def main(argv: list[str]) -> int:
     dry = "--dry-run" in argv or os.environ.get("HEARDOS_DRY_RUN") == "1"
-    args = [a for a in argv if a != "--dry-run"]
+    args, override, it = [], {}, iter(a for a in argv if a != "--dry-run")
+    for a in it:
+        if a in ("--backend", "--auth"):
+            override[a[2:]] = next(it, "")
+        else:
+            args.append(a)
+    if override.get("auth") not in (None, "forward_auth", "oidc", "none"):
+        sys.exit("--auth must be forward_auth, oidc or none")
+    if "backend" in override and not re.fullmatch(r"https?://[A-Za-z0-9._-]+(:\d{1,5})?/?", override["backend"]):
+        sys.exit("--backend must look like http://<container>:<port>")
     if not args or args[0] not in ("publish", "unpublish", "status", "stack"):
         print(__doc__.split("\n\n")[0], file=sys.stderr)
         return 2
+    if override and (args[0] != "publish" or len(args) != 2):
+        sys.exit("--backend/--auth go with `publish` and exactly one HOST")
     env = load_env()
     missing = [k for k in ("DOMAIN", "HOST_OVERLAY", "NGFW_URL", "NGFW_CA", "NGFW_EDGES", "NGFW_ROUTER") if not env.get(k)]
     if missing:
@@ -343,15 +364,15 @@ def main(argv: list[str]) -> int:
         return rc
     no_frame, extra = caddy_rules()
     routers, traefik_nets = traefik_view()
-    return publish_hosts(fw, env, by_host, current, routers, traefik_nets, no_frame, extra, dry)
+    return publish_hosts(fw, env, by_host, current, routers, traefik_nets, no_frame, extra, dry, override)
 
 
-def publish_hosts(fw, env, by_host, current, routers, traefik_nets, no_frame, extra, dry) -> int:
+def publish_hosts(fw, env, by_host, current, routers, traefik_nets, no_frame, extra, dry, override=None) -> int:
     rc = 0
     for fq, host in by_host.items():
         cur = current.get(fq)
         name = cur["name"] if cur else ("apex" if host in ("@", env["DOMAIN"]) else host)
-        want, note = desired(host, env, routers, traefik_nets, cur, no_frame, extra)
+        want, note = desired(host, env, routers, traefik_nets, cur, no_frame, extra, override)
         have = {k: v for k, v in (cur or {}).items() if k != "name"}
         if _clean(want) == _clean(have):
             print(f"{fq}: unchanged ({note})")
