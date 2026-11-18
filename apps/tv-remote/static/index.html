@@ -8,8 +8,15 @@
 <meta name="robots" content="noindex,nofollow">
 <title>TV Remote</title>
 <meta name="theme-color" content="#1f2023">
-<link rel="icon" href="https://cloud.example.com/brand/favicon-64.png">
-<link rel="apple-touch-icon" href="https://cloud.example.com/brand/favicon-64.png">
+<script>
+// Brand icon from the front door of this install (tv.DOMAIN -> cloud.DOMAIN/brand/), so no domain is baked in
+(() => {
+  const href = `https://cloud.${location.hostname.split('.').slice(1).join('.')}/brand/favicon-64.png`;
+  for (const rel of ['icon', 'apple-touch-icon']) {
+    const l = document.createElement('link'); l.rel = rel; l.href = href; document.head.appendChild(l);
+  }
+})();
+</script>
 <style>
 /* Hearth Crest palette (same tokens as Authentik and the hub) */
 :root {
