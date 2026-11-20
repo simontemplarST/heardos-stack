@@ -62,3 +62,49 @@ def test_portscan_finds_listener():
     r = ops.portscan("127.0.0.1", ports=[port, port + 1 if port < 65535 else port - 1], timeout=1)
     srv.close()
     assert r["open"] == [port] and r["unexpected"] == [port]
+
+
+NGFW_STATUS = """\
+music.example.com                dns=ok   sign-in=ok   cert=ok    
+books.example.com                dns=ok   sign-in=warn cert=skip  no answer: timeout
+old.example.com                  dns=fail sign-in=ok   cert=ok    no A record
+edge1        current  last pull 2026-01-01T00:00:30.123456789Z
+apps         NOT current  last pull 2026-01-01T00:00:00Z
+edge2        current  last pull -
+"""
+
+
+def test_ngfw_status_parses_hosts_and_pulls():
+    now = __import__("datetime").datetime(2026, 1, 1, 0, 1, tzinfo=__import__("datetime").timezone.utc).timestamp()
+    st = ops.parse_ngfw_status(NGFW_STATUS, now=now)
+    assert st["hosts"]["books.example.com"] == ("ok", "warn", "skip", "no answer: timeout")
+    assert st["pulls"]["edge1"][0] is True and abs(st["pulls"]["edge1"][1] - 29.876543) < 1e-3
+    assert st["pulls"]["apps"] == (False, 60.0) and st["pulls"]["edge2"] == (True, None)
+
+
+def test_ngfw_checks_fail_on_failing_host_or_stuck_edge_warn_is_information():
+    st = ops.parse_ngfw_status(NGFW_STATUS, now=__import__("datetime").datetime(2026, 1, 1, 0, 1, tzinfo=__import__("datetime").timezone.utc).timestamp())
+    by = {c.name: c.ok for c in ops.ngfw_checks(st)}
+    assert by["edge1 up to date"] is True and by["apps up to date"] is False and by["edge2 up to date"] is False
+    assert by["music.example.com"] is True and by["books.example.com"] is None and by["old.example.com"] is False
+    st["pulls"]["edge1"] = (True, ops.NGFW_PULL_STALE_S + 1)
+    assert {c.name: c.ok for c in ops.ngfw_checks(st)}["edge1 up to date"] is False
+
+
+def test_health_on_ngfw_install_uses_firewall_hosts_and_beacon_unit(tmp_path, monkeypatch):
+    inst = _inst(tmp_path, monkeypatch)
+    inst.plan.update(NGFW_URL="https://fw.example", PUBLIC_HOSTS=["stale"])
+    ran = []
+
+    class S:
+        def run(self, cmd, **kw):
+            ran.append(cmd)
+            out = NGFW_STATUS if "ngfw-publish.py status" in cmd else ""
+            return SimpleNamespace(stdout=out, stderr="", code=0)
+    inst.sessions = SimpleNamespace(vps=lambda: S(), host=lambda: S())
+    monkeypatch.setattr(ops, "host_load", lambda i: {"busy": None})
+    checked = []
+    monkeypatch.setattr(ops, "_https_check", lambda h: checked.append(h) or ops.Check("Web addresses", h, True, "ok"))
+    ops.health(inst)
+    assert "ngfw-lighthouse" in ran[0] and " nebula " not in ran[0]
+    assert sorted(checked) == ["books.example.com", "music.example.com", "old.example.com"]

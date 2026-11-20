@@ -46,13 +46,53 @@ def _json_line(text: str):
 
 
 # ------------------------------------------------------------------ health
+NGFW_PULL_STALE_S = 600     # an edge or router polls the firewall every minute; ten minutes without a pull is stuck
+
+
+def parse_ngfw_status(text: str, now: Optional[float] = None) -> dict:
+    """`lib/ngfw-publish.py status` -> {hosts: {fqdn: (dns, sign-in, cert, detail)}, pulls: {name: (current, age_s|None)}}."""
+    from datetime import datetime
+    now = time.time() if now is None else now
+    hosts, pulls = {}, {}
+    for l in text.splitlines():
+        m = re.match(r"(\S+)\s+dns=(\S+)\s+sign-in=(\S+)\s+cert=(\S+)\s*(.*)", l)
+        if m:
+            hosts[m.group(1)] = (m.group(2), m.group(3), m.group(4), m.group(5).strip())
+            continue
+        m = re.match(r"(\S+)\s+(current|NOT current)\s+last pull (\S+)", l)
+        if m:
+            try:   # RFC 3339 with nanoseconds; fromisoformat takes at most microseconds
+                ts = datetime.fromisoformat(re.sub(r"(\.\d{6})\d+", r"\1", m.group(3)).replace("Z", "+00:00")).timestamp()
+                age = max(0.0, now - ts)
+            except ValueError:
+                age = None
+            pulls[m.group(1)] = (m.group(2) == "current", age)
+    return {"hosts": hosts, "pulls": pulls}
+
+
+def ngfw_checks(st: dict) -> list[Check]:
+    """The firewall's view (ADR 0104): is every edge/router pulling its config, and what its outside checks say per host.
+    A firewall `warn` is information only: its checker timing out is common, and the direct check below still runs."""
+    out = []
+    for name, (current, age) in sorted(st["pulls"].items()):
+        ok = current and age is not None and age < NGFW_PULL_STALE_S
+        out.append(Check("Firewall", f"{name} up to date", ok,
+                         ("current" if current else "NOT current") + (f", last pull {int(age // 60)} min ago" if age is not None else ", never pulled")))
+    for host, (dns, gate, cert, detail) in sorted(st["hosts"].items()):
+        s = (dns, gate, cert)
+        out.append(Check("Firewall", host, False if "fail" in s else (None if "warn" in s else True),
+                         f"dns {dns}, sign-in {gate}, cert {cert}" + (f": {detail}" if detail else "")))
+    return out
+
+
 def health(inst) -> list[Check]:
     out: list[Check] = []
     p = inst.plan
+    ngfw = bool(p.get("NGFW_URL"))   # the edge is published by an ngfw firewall: the VPS runs Beacon, not plain nebula
     try:
         v = inst.sessions.vps()
         r = v.run("sshd -T 2>/dev/null | grep -E '^passwordauthentication ' ; ufw status | head -1; "
-                  "systemctl is-active caddy nebula fail2ban unattended-upgrades | tr '\\n' ' '; echo; "
+                  f"systemctl is-active caddy {'ngfw-lighthouse' if ngfw else 'nebula'} fail2ban unattended-upgrades | tr '\\n' ' '; echo; "
                   "apt list --upgradable 2>/dev/null | grep -c upgradable; test -f /var/run/reboot-required && echo reboot || echo noreboot; "
                   "df -P / | awk 'NR==2{print $5}'", sudo=True, timeout=60)
         L = r.stdout.splitlines() + [""] * 6
@@ -89,8 +129,21 @@ def health(inst) -> list[Check]:
                              ld["summary"] + ("; everything on it will be slow until that drops" if ld["busy"] else "")))
     except Exception:  # noqa: BLE001 — reachability is already reported above
         pass
-    for hname in p.get("PUBLIC_HOSTS", []):
-        out.append(_https_check(f"{hname}.{p['DOMAIN']}"))
+    hosts = [f"{h}.{p['DOMAIN']}" for h in p.get("PUBLIC_HOSTS", [])]
+    if ngfw:
+        # the firewall is the registry of public hostnames: check what it publishes, not the plan's install-time list
+        try:
+            from .steps.common import KIT_DEST
+            r = inst.sessions.host().run(f"cd {KIT_DEST}/generic && python3 lib/ngfw-publish.py status", sudo=True, timeout=60)
+            st = parse_ngfw_status(r.stdout)
+            if not st["hosts"] and not st["pulls"]:
+                raise RuntimeError((r.stderr or r.stdout or "no output").strip()[:160])
+            out += ngfw_checks(st)
+            hosts = list(st["hosts"]) or hosts
+        except Exception as e:  # noqa: BLE001
+            out.append(Check("Firewall", "Reachable", False, str(e)[:160]))
+    for host in hosts:
+        out.append(_https_check(host))
     return out
 
 
